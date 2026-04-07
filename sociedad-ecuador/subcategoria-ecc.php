@@ -1674,25 +1674,17 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
         <div class="form-group">
 
-            <div class="col-sm-1"></div>
+            <div class="hidden-xs col-sm-1"></div>
 
-            <div class="col-sm-2">
+            <div class="col-xs-12 col-sm-3 col-md-2">
 
                 <strong>Pais:</strong>
 
-                <input name="zona" type="text" id="zona" maxlength="250" value="<?=$zona; ?>" class="form-control" readonly required />
+                <input name="zona" type="text" id="zona" maxlength="250" value="ECUADOR" class="form-control" readonly required />
 
             </div>
 
-            <div class="col-sm-2">
-
-                <strong>Distrito:</strong>
-
-                <input name="regional" type="text" id="regional" maxlength="250" value="<?=$regional; ?>" class="form-control" readonly required />
-
-            </div>
-
-            <div class="col-sm-3">
+            <div class="col-xs-12 col-sm-5 col-md-4">
 
                 <strong>Miembro del distrito:</strong>
 
@@ -1714,7 +1706,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
             
 
-            <div class="col-sm-1"></div>
+            <div class="hidden-xs col-sm-1"></div>
 
         </div>
 
@@ -2708,6 +2700,8 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
                             $("#tablaAdd tbody tr:eq(0)").clone().removeClass('fila-fijaAdd').appendTo("#tablaAdd");
 
+                            $(".act_bau_img").prop('required',true);
+
                             var total = 0;
 
                             $('.subtotal').each(function(){
@@ -2818,7 +2812,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
                                     <strong>Cargar foto:</strong>
 
-                                    <input multiple name="act_bau_img[]" type="file" id="act_bau_img[]" class="form-control" value="<?=$PSN1->f("adj_url"); ?>" />
+                                    <input name="act_bau_img[]" type="file" id="act_bau_img[]" class="act_bau_img form-control" accept="image/jpeg,image/png,image/gif" />
 
                                     <input type="hidden" name="act_bau_img_an[]" value="<?=$PSN1->f("adj_url"); ?>" placeholder="">
 
@@ -2864,7 +2858,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
                                 <strong>Foto:</strong>
 
-                                <input multiple name="act_bau_img[]" type="file" id="act_bau_img" class="form-control" />
+                                <input name="act_bau_img[]" type="file" id="act_bau_img" class="act_bau_img form-control" accept="image/jpeg,image/png,image/gif" required />
 
                             </td>
 
@@ -3688,25 +3682,17 @@ else if($idReporteActual == 0){
 
         <div class="form-group">
 
-            <div class="col-sm-1"></div>
+            <div class="hidden-xs col-sm-1"></div>
 
-            <div class="col-sm-3">
+            <div class="col-xs-12 col-sm-3 col-md-2">
 
                 <strong>Pais:</strong>
 
-                <input name="zona" type="text" id="zona" maxlength="250" value="<?=$_SESSION["usua_zona"]; ?>" class="form-control" readonly required />
+                <input name="zona" type="text" id="zona" maxlength="250" value="ECUADOR" class="form-control" readonly required />
 
             </div>
 
-            <div class="col-sm-3">
-
-                <strong>Distrito:</strong>
-
-                <input name="regional" type="text" id="regional" maxlength="250" value="<?=$_SESSION["usua_regional"]; ?>" class="form-control" readonly required />
-
-            </div>
-
-            <div class="col-sm-4">
+            <div class="col-xs-12 col-sm-5 col-md-4">
 
                 <strong>Pastor/Plantador/Entrenador:</strong>
 
@@ -3879,25 +3865,17 @@ else if($idReporteActual == 0){
 
             <div class="form-group">
 
-                <div class="col-sm-1"></div>
+                <div class="hidden-xs col-sm-1"></div>
 
-                <div class="col-sm-2">
+                <div class="col-xs-12 col-sm-3 col-md-2">
 
                     <strong>Pais:</strong>
 
-                    <input name="zona" type="text" id="zona" maxlength="250" value="<?=$_SESSION["usua_zona"]; ?>" class="form-control" readonly required />
+                    <input name="zona" type="text" id="zona" maxlength="250" value="ECUADOR" class="form-control" readonly required />
 
                 </div>
 
-                <div class="col-sm-3">
-
-                    <strong>Distrito:</strong>
-
-                    <input name="regional" type="text" id="regional" maxlength="250" value="<?=$_SESSION["usua_regional"]; ?>" class="form-control" readonly required />
-
-                </div>
-
-                <div class="col-sm-3">
+                <div class="col-xs-12 col-sm-5 col-md-4">
 
                     <strong>Pastor/Plantador/Entrenador:</strong>
 
@@ -4659,6 +4637,8 @@ else if($idReporteActual == 0){
 
                                 $(".act_bau_can").prop('required',true);
 
+                                $(".act_bau_img").prop('required',true);
+
                                 var total = 0;
 
                                 $('.subtotal').each(function(){
@@ -4707,7 +4687,7 @@ else if($idReporteActual == 0){
 
                                 <strong>Foto:</strong>
 
-                                <input multiple name="act_bau_img[]" type="file" id="act_bau_img" class="form-control" />
+                                <input name="act_bau_img[]" type="file" id="act_bau_img" class="act_bau_img form-control" accept="image/jpeg,image/png,image/gif" required />
 
                             </td>
 
@@ -5549,8 +5529,8 @@ if ($generacionActual == "GCEL") {?>
                         return false;
                     }
 
-                    if(parseInt(document.getElementById("final_asistencia_total").value) < 3){
-                       alert("La asistencia total no puede ser menor a 3 personas");
+                    if(parseInt(document.getElementById("final_asistencia_total").value) < 2){
+                       alert("La asistencia total no puede ser menor a 2 personas");
                         return false;
                     }
                     
@@ -5645,6 +5625,7 @@ if ($generacionActual == "GCEL") {?>
                 //current_step = $(this).parent();
                 //$(this).closest(“fieldset”)
                 //next_step = $(this).parent().next();
+                current_step = $(this).closest("fieldset");
 				var field_actual = $(this).closest("fieldset").attr("name");
 				var field_next =  $(this).closest("fieldset").next().attr("name");
 				
@@ -5655,8 +5636,8 @@ if ($generacionActual == "GCEL") {?>
 					   "min" : fecha_tmp          // values (or variables) here
 					});
 				
-				if(field_actual == "met_asistencia" && total<3){
-					alert("La asistencia total no puede ser menor a 3 personas");
+				if(field_actual == "met_asistencia" && total<2){
+					alert("La asistencia total no puede ser menor a 2 personas");
 					/*console.log("Entro a met_asistencia");
 					$("#asistencia_hom").attr('required',true);
 					$("#asistencia_muj").attr('required',true);
@@ -5665,10 +5646,25 @@ if ($generacionActual == "GCEL") {?>
 					$("#desiciones").attr('required',true);*/
 					document.getElementById('button-hidden').click();
 				}
-                else if (!$("#form1")[0].checkValidity()){
-                    document.getElementById('button-hidden').click();
-                }else{
-                    current_step = $(this).closest("fieldset");      //
+                else{
+                    var campoInvalido = null;
+
+                    current_step.find("input, select, textarea").filter(":enabled").each(function(){
+                        if (typeof this.checkValidity === "function" && !this.checkValidity()) {
+                            campoInvalido = this;
+                            return false;
+                        }
+                    });
+
+                    if(campoInvalido){
+                        if (typeof campoInvalido.reportValidity === "function") {
+                            campoInvalido.reportValidity();
+                        }else{
+                            document.getElementById('button-hidden').click();
+                        }
+                        return;
+                    }
+
                     next_step = $(this).closest("fieldset").next();
 						/*console.log("current_step primerp: ");
 						console.log($(this).parent());
