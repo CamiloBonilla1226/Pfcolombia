@@ -176,6 +176,9 @@ if (isset($_POST["funcion"])) {
 
         $asistencia_total = soloNumeros($_REQUEST["asistencia_total"]);
 
+        $bautizadosPeriodo = isset($_REQUEST["bautizadosPeriodo"]) ? soloNumeros($_REQUEST["bautizadosPeriodo"]) : 0;
+        $preparandose = isset($_REQUEST["preparandose"]) ? soloNumeros($_REQUEST["preparandose"]) : 0;
+
         $rep_tip = 347;
 
         if ($_REQUEST["rep_ndis"] != 0 && $_REQUEST["rep_ndis"] != null) {
