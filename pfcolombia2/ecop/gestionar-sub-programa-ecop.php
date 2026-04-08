@@ -33,6 +33,63 @@ function compressImage($source, $destination, $quality)
 
 }
 
+function requestValue($key, $default = '')
+{
+    return isset($_REQUEST[$key]) ? $_REQUEST[$key] : $default;
+}
+
+function requestText($key, $default = '')
+{
+    return addslashes(eliminarInvalidos(requestValue($key, $default)));
+}
+
+function requestNumber($key, $default = 0)
+{
+    $value = requestValue($key, $default);
+
+    if ($value === '' || $value === null) {
+        return $default;
+    }
+
+    return soloNumeros($value);
+}
+
+function requestFileExtension($key)
+{
+    if (!isset($_FILES[$key]['name']) || $_FILES[$key]['name'] == '') {
+        return '';
+    }
+
+    return extension_archivo($_FILES[$key]['name']);
+}
+
+function normalizarAdjuntos($nombres, $documentos)
+{
+    $adjuntos = array();
+
+    if (!is_array($nombres) || !is_array($documentos)) {
+        return $adjuntos;
+    }
+
+    $total = min(sizeof($nombres), sizeof($documentos));
+
+    for ($i = 0; $i < $total; $i++) {
+        $nombre = addslashes(eliminarInvalidos(trim((string) $nombres[$i])));
+        $documento = addslashes(eliminarInvalidos(trim((string) $documentos[$i])));
+
+        if ($nombre === '' || $documento === '') {
+            continue;
+        }
+
+        $adjuntos[] = array(
+            'nombre' => $nombre,
+            'documento' => $documento,
+        );
+    }
+
+    return $adjuntos;
+}
+
 $preguntarGeneracion = 0;
 
 if (isset($_REQUEST["generacion"]) && $_REQUEST["generacion"] != "") {
@@ -77,9 +134,9 @@ if (isset($_POST["funcion"])) {
 
     if ($_POST["funcion"] == "insertar") {
 
-        $fechaReporte = eliminarInvalidos($_REQUEST["fechaReporte"]);
+        $fechaReporte = requestText("fechaReporte");
 
-        $fechaInicio = eliminarInvalidos($_REQUEST["fechaInicio"]);
+        $fechaInicio = requestText("fechaInicio");
 
         if (isset($_REQUEST['sitioReunion'])) {
 
@@ -91,12 +148,12 @@ if (isset($_POST["funcion"])) {
 
         }
 
-        $grupoMadre_txt = eliminarInvalidos($_REQUEST["grupoMadre_txt"]);
+        $grupoMadre_txt = requestText("grupoMadre_txt");
 
-        $nombreGrupo_txt = eliminarInvalidos($_REQUEST["nombreGrupo_txt"]);
-        $pabellon = eliminarInvalidos($_REQUEST["pabellon"]);
+        $nombreGrupo_txt = requestText("nombreGrupo_txt");
+        $pabellon = requestText("pabellon");
 
-        $direccion = eliminarInvalidos($_REQUEST["direccion"]);
+        $direccion = requestText("direccion");
 
         if (isset($_REQUEST["municipio"])) {
 
@@ -108,11 +165,13 @@ if (isset($_POST["funcion"])) {
 
         }
 
-        $capacitacion_txt = eliminarInvalidos($_REQUEST["capacitacion_txt"]);
+        $capacitacion_txt = requestText("capacitacion_txt");
 
-        $idGrupoMadre = soloNumeros($_REQUEST["idGrupoMadre"]);
+        $idGrupoMadre = requestNumber("idGrupoMadre");
 
-        $generacionNumero = soloNumeros($_REQUEST["generacionNumero"]);
+        $generacionNumero = requestNumber("generacionNumero");
+
+        $plantador = requestText("plantador", isset($_SESSION["nombre"]) ? $_SESSION["nombre"] : '');
 
         $asistencia_hom = soloNumeros($_REQUEST["asistencia_hom"]);
 
@@ -138,21 +197,15 @@ if (isset($_POST["funcion"])) {
         $unidad_6 = soloNumeros($_REQUEST["unidad_6"]);
         $unidad_total = soloNumeros($_REQUEST["unidad_total"]);
 
-        $nombre_archivo = $_FILES['archivo1']['name'];
+        $archivo1 = requestFileExtension('archivo1');
 
-        $archivo1 = extension_archivo($nombre_archivo);
+        $archivo2 = requestFileExtension('archivo2');
 
-        $nombre_archivo = $_FILES['archivo2']['name'];
+        $archivo3 = requestFileExtension('archivo3');
 
-        $archivo2 = extension_archivo($nombre_archivo);
+        $mapeo_cuarto = requestNumber("mapeo_cuarto");
 
-        $nombre_archivo = $_FILES['archivo3']['name'];
-
-        $archivo3 = extension_archivo($nombre_archivo);
-
-        $mapeo_cuarto = soloNumeros($_REQUEST["mapeo_cuarto"]);
-
-        $mapeo_fecha = eliminarInvalidos($_REQUEST["mapeo_fecha"]);
+        $mapeo_fecha = requestText("mapeo_fecha");
 
         $mapeo_comprometido = soloNumeros($_REQUEST["mapeo_comprometido"]);
 
@@ -174,10 +227,11 @@ if (isset($_POST["funcion"])) {
 
         $mapeo_trabajadores = soloNumeros($_REQUEST["mapeo_trabajadores"]);
 
-        $asistencia_total = soloNumeros($_REQUEST["asistencia_total"]);
+        $asistencia_total = requestNumber("asistencia_total");
 
-        $bautizadosPeriodo = isset($_REQUEST["bautizadosPeriodo"]) ? soloNumeros($_REQUEST["bautizadosPeriodo"]) : 0;
-        $preparandose = isset($_REQUEST["preparandose"]) ? soloNumeros($_REQUEST["preparandose"]) : 0;
+        $bautizadosPeriodo = requestNumber("bautizadosPeriodo");
+        $preparandose = requestNumber("preparandose");
+        $mapeo_anho = requestNumber("mapeo_anho", (int) date('Y', strtotime($fechaReporte != '' ? $fechaReporte : date('Y-m-d'))));
 
         $rep_tip = 347;
 
@@ -526,6 +580,9 @@ unidad_total ,
 
             $ultimoId = $PSN1->ultimoId();
 
+            if (!$ultimoQuery || !$ultimoId) {
+                $texto_error = "No fue posible guardar el reporte. Revise los datos ingresados e intente nuevamente.";
+            } else {
             //
 
             if ($archivo1 != "") {
@@ -580,13 +637,10 @@ unidad_total ,
 
             if ($asistencia_nin > 0) {
 
-                $act_grad_nom = $_REQUEST["act_grad_nom"];
+                $adjuntosGraduados = normalizarAdjuntos(requestValue("act_grad_nom", array()), requestValue('act_grad_tar', array()));
 
-                $act_grad_tar = $_REQUEST['act_grad_tar'];
-
-
-
-                $sql = 'INSERT INTO tbl_adjuntos (
+                if (sizeof($adjuntosGraduados) > 0) {
+                    $sql = 'INSERT INTO tbl_adjuntos (
 
                     adj_nom,
 
@@ -598,31 +652,27 @@ unidad_total ,
 
                     adj_rep_fk)';
 
-                $sql .= 'VALUES';
+                    $sql .= 'VALUES';
 
-                for ($i = 0; $i < sizeof($act_grad_tar); $i++) {
+                    foreach ($adjuntosGraduados as $adjunto) {
 
-                    $sql .= "('" . $act_grad_nom[$i] . "','" . $act_grad_tar[$i] . "','" . date('Y-m-d') . "',1," . $ultimoId . "),";
+                        $sql .= "('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',1," . $ultimoId . "),";
 
+                    }
+
+                    $sql = substr($sql, 0, -1);
+
+                    $ultimoQuery = $PSN1->query($sql);
                 }
-
-                $sql = substr($sql, 0, -1);
-
-                //echo $sql;
-
-                $ultimoQuery = $PSN1->query($sql);
 
             }
 
             if ($bautizados > 0) {
 
-                $act_vin_nom = $_REQUEST["act_vin_nom"];
+                $adjuntosVoluntariosInternos = normalizarAdjuntos(requestValue("act_vin_nom", array()), requestValue('act_vin_tar', array()));
 
-                $act_vin_tar = $_REQUEST['act_vin_tar'];
-
-
-
-                $sql = 'INSERT INTO tbl_adjuntos (
+                if (sizeof($adjuntosVoluntariosInternos) > 0) {
+                    $sql = 'INSERT INTO tbl_adjuntos (
 
                     adj_nom,
 
@@ -634,29 +684,27 @@ unidad_total ,
 
                     adj_rep_fk)';
 
-                $sql .= 'VALUES';
+                    $sql .= 'VALUES';
 
-                for ($i = 0; $i < sizeof($act_vin_tar); $i++) {
+                    foreach ($adjuntosVoluntariosInternos as $adjunto) {
 
-                    $sql .= "('" . $act_vin_nom[$i] . "','" . $act_vin_tar[$i] . "','" . date('Y-m-d') . "',2," . $ultimoId . "),";
+                        $sql .= "('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',2," . $ultimoId . "),";
 
+                    }
+
+                    $sql = substr($sql, 0, -1);
+
+                    $ultimoQuery = $PSN1->query($sql);
                 }
-
-                $sql = substr($sql, 0, -1);
-
-                $ultimoQuery = $PSN1->query($sql);
 
             }
 
             if ($desiciones > 0) {
 
-                $act_vex_nom = $_REQUEST["act_vex_nom"];
+                $adjuntosVoluntariosExternos = normalizarAdjuntos(requestValue("act_vex_nom", array()), requestValue('act_vex_tar', array()));
 
-                $act_vex_tar = $_REQUEST['act_vex_tar'];
-
-
-
-                $sql = 'INSERT INTO tbl_adjuntos (
+                if (sizeof($adjuntosVoluntariosExternos) > 0) {
+                    $sql = 'INSERT INTO tbl_adjuntos (
 
                     adj_nom,
 
@@ -668,21 +716,23 @@ unidad_total ,
 
                     adj_rep_fk)';
 
-                $sql .= 'VALUES';
+                    $sql .= 'VALUES';
 
-                for ($i = 0; $i < sizeof($act_vex_tar); $i++) {
+                    foreach ($adjuntosVoluntariosExternos as $adjunto) {
 
-                    $sql .= "('" . $act_vex_nom[$i] . "','" . $act_vex_tar[$i] . "','" . date('Y-m-d') . "',3," . $ultimoId . "),";
+                        $sql .= "('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',3," . $ultimoId . "),";
 
+                    }
+
+                    $sql = substr($sql, 0, -1);
+
+                    $ultimoQuery = $PSN1->query($sql);
                 }
-
-                $sql = substr($sql, 0, -1);
-
-                $ultimoQuery = $PSN1->query($sql);
 
             }
 
             $varExitoREP = 1;
+            }
 
         }
 
@@ -704,20 +754,20 @@ unidad_total ,
 
         */
 
-        $plantador = eliminarInvalidos($_REQUEST["plantador"]);
+        $plantador = requestText("plantador", isset($plantador) ? $plantador : (isset($_SESSION["nombre"]) ? $_SESSION["nombre"] : ''));
 
-        $rep_entr = eliminarInvalidos($_REQUEST["rep_entr"]);
-        $rep_nuevo = eliminarInvalidos($_REQUEST["rep_nuevo"]);
-        $unidad_2 = eliminarInvalidos($_REQUEST["unidad_2"]);
-        $unidad_3 = eliminarInvalidos($_REQUEST["unidad_3"]);
-        $unidad_4 = eliminarInvalidos($_REQUEST["unidad_4"]);
-        $unidad_5 = eliminarInvalidos($_REQUEST["unidad_5"]);
-        $unidad_6 = eliminarInvalidos($_REQUEST["unidad_6"]);
-        $unidad_total = eliminarInvalidos($_REQUEST["unidad_total"]);
+        $rep_entr = requestText("rep_entr");
+        $rep_nuevo = requestText("rep_nuevo");
+        $unidad_2 = requestText("unidad_2");
+        $unidad_3 = requestText("unidad_3");
+        $unidad_4 = requestText("unidad_4");
+        $unidad_5 = requestText("unidad_5");
+        $unidad_6 = requestText("unidad_6");
+        $unidad_total = requestText("unidad_total");
 
-        $fechaReporte = eliminarInvalidos($_REQUEST["fechaReporte"]);
+        $fechaReporte = requestText("fechaReporte");
 
-        $fechaInicio = eliminarInvalidos($_REQUEST["fechaInicio"]);
+        $fechaInicio = requestText("fechaInicio");
 
         if (isset($_REQUEST['sitioReunion'])) {
 
@@ -731,9 +781,9 @@ unidad_total ,
 
 
 
-        $grupoMadre_txt = eliminarInvalidos($_REQUEST["grupoMadre_txt"]);
+        $grupoMadre_txt = requestText("grupoMadre_txt");
 
-        $nombreGrupo_txt = eliminarInvalidos($_REQUEST["nombreGrupo_txt"]);
+        $nombreGrupo_txt = requestText("nombreGrupo_txt");
 
 
 
@@ -753,17 +803,17 @@ unidad_total ,
 
 
 
-        $capacitacion_txt = eliminarInvalidos($_REQUEST["capacitacion_txt"]);
+        $capacitacion_txt = requestText("capacitacion_txt");
 
-        $idGrupoMadre = soloNumeros($_REQUEST["idGrupoMadre"]);
+        $idGrupoMadre = requestNumber("idGrupoMadre");
 
-        $generacionNumero = soloNumeros($_REQUEST["generacionNumero"]);
+        $generacionNumero = requestNumber("generacionNumero");
 
 
 
-        $pabellon = eliminarInvalidos($_REQUEST["pabellon"]);
+        $pabellon = requestText("pabellon");
 
-        $direccion = eliminarInvalidos($_REQUEST["direccion"]);
+        $direccion = requestText("direccion");
 
         if (!empty($_REQUEST["municipio"])) {
 
@@ -789,7 +839,7 @@ unidad_total ,
 
         $bautizados = soloNumeros($_REQUEST["total2"]);
 
-        $bautizadosPeriodo = soloNumeros($_REQUEST["bautizadosPeriodo"]);
+        $bautizadosPeriodo = requestNumber("bautizadosPeriodo");
 
 
 
@@ -886,7 +936,7 @@ unidad_total ,
         }
 
 
-        $preparandose = soloNumeros($_REQUEST["preparandose"]);
+        $preparandose = requestNumber("preparandose");
 
         $iglesias_reconocidas = 0;
 
@@ -894,29 +944,19 @@ unidad_total ,
 
 
 
-        $mapeo_anho = soloNumeros($_REQUEST["mapeo_anho"]);
+        $mapeo_anho = requestNumber("mapeo_anho", (int) date('Y', strtotime($fechaReporte != '' ? $fechaReporte : date('Y-m-d'))));
 
-        $mapeo_cuarto = soloNumeros($_REQUEST["mapeo_cuarto"]);
-
-
+        $mapeo_cuarto = requestNumber("mapeo_cuarto");
 
 
 
-        $nombre_archivo = $_FILES['archivo1']['name'];
-
-        $archivo1 = extension_archivo($nombre_archivo);
 
 
+        $archivo1 = requestFileExtension('archivo1');
 
-        $nombre_archivo = $_FILES['archivo2']['name'];
+        $archivo2 = requestFileExtension('archivo2');
 
-        $archivo2 = extension_archivo($nombre_archivo);
-
-
-
-        $nombre_archivo = $_FILES['archivo3']['name'];
-
-        $archivo3 = extension_archivo($nombre_archivo);
+        $archivo3 = requestFileExtension('archivo3');
 
 
 
@@ -924,7 +964,7 @@ unidad_total ,
 
 
 
-        $mapeo_fecha = eliminarInvalidos($_REQUEST["mapeo_fecha"]);
+        $mapeo_fecha = requestText("mapeo_fecha");
 
         $mapeo_comprometido = soloNumeros($_REQUEST["mapeo_comprometido"]);
 
@@ -1091,113 +1131,62 @@ unidad_total ,
 
         //echo $sql;
 
-        $PSN1->query($sql);
+        $actualizacionOk = $PSN1->query($sql);
 
-        $num_grad_ant = 0;
-
-        $act_grad_id = $_REQUEST['act_grad_id'];
-
-        $act_grad_nom = $_REQUEST['act_grad_nom'];
-
-        $act_grad_tar = $_REQUEST['act_grad_tar'];
-
-        $num_grad_ant = $_REQUEST['grad_regist'];
-
-        $num_grad_nue = $_REQUEST['total'];
+        if (!$actualizacionOk) {
+            $texto_error = "No fue posible actualizar el reporte. Revise los datos ingresados e intente nuevamente.";
+        } else {
+        $adjuntosGraduados = normalizarAdjuntos(requestValue('act_grad_nom', array()), requestValue('act_grad_tar', array()));
 
         $sqlDel = "DELETE FROM tbl_adjuntos WHERE adj_rep_fk = " . $idReporteActual . " AND adj_tip = 1 ";
 
         $PSN1->query($sqlDel);
 
-        //echo "Si hay antiguos a modificar: ".sizeof($act_bau_id);
+        foreach ($adjuntosGraduados as $adjunto) {
 
-        //var_dump($act_bau_id);
+            $sqlA = "INSERT INTO tbl_adjuntos (adj_nom,adj_url,adj_fec,adj_can,adj_tip,adj_rep_fk)";
 
-        for ($i = 0; $i < $num_grad_nue; $i++) {
-
-
-
-            $sqlA = "REPLACE INTO tbl_adjuntos (adj_id,adj_nom,adj_url,adj_fec,adj_can, adj_tip,adj_rep_fk)";
-
-            $sqlA .= "VALUES (0" . $act_grad_id[$i] . ",'" . $act_grad_nom[$i] . "','" . $act_grad_tar[$i] . "','" . date('Y-m-d') . "',NULL,1," . $idReporteActual . "); ";
-
-            //echo $sqlA;
+            $sqlA .= " VALUES ('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',NULL,1," . $idReporteActual . ")";
 
             $PSN1->query($sqlA);
 
         }
 
-        $num_vin_ant = 0;
-
-        $act_vin_id = $_REQUEST['act_vin_id'];
-
-        $act_vin_nom = $_REQUEST['act_vin_nom'];
-
-        $act_vin_tar = $_REQUEST['act_vin_tar'];
-
-        $num_vin_ant = $_REQUEST['vin_regist'];
-
-        $num_vin_nue = $_REQUEST['total2'];
+        $adjuntosVoluntariosInternos = normalizarAdjuntos(requestValue('act_vin_nom', array()), requestValue('act_vin_tar', array()));
 
         $sqlDel2 = "DELETE FROM tbl_adjuntos WHERE adj_rep_fk = " . $idReporteActual . " AND adj_tip = 2 ";
 
         $PSN1->query($sqlDel2);
 
-        //echo "Si hay antiguos a modificar: ".sizeof($act_bau_id);
+        foreach ($adjuntosVoluntariosInternos as $adjunto) {
 
-        //var_dump($act_bau_id);
+            $sqlA2 = "INSERT INTO tbl_adjuntos (adj_nom,adj_url,adj_fec,adj_can,adj_tip,adj_rep_fk)";
 
-        for ($i = 0; $i < $num_vin_nue; $i++) {
-
-
-
-            $sqlA2 = "REPLACE INTO tbl_adjuntos (adj_id,adj_nom,adj_url,adj_fec,adj_can, adj_tip,adj_rep_fk)";
-
-            $sqlA2 .= "VALUES (0" . $act_vin_id[$i] . ",'" . $act_vin_nom[$i] . "','" . $act_vin_tar[$i] . "','" . date('Y-m-d') . "',NULL,2," . $idReporteActual . "); ";
-
-            //echo $sqlA2;
+            $sqlA2 .= " VALUES ('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',NULL,2," . $idReporteActual . ")";
 
             $PSN1->query($sqlA2);
 
         }
 
 
-
-        $num_vex_ant = 0;
-
-        $act_vex_id = $_REQUEST['act_vex_id'];
-
-        $act_vex_nom = $_REQUEST['act_vex_nom'];
-
-        $act_vex_tar = $_REQUEST['act_vex_tar'];
-
-        $num_vex_ant = $_REQUEST['vex_regist'];
-
-        $num_vex_nue = $_REQUEST['total3'];
+        $adjuntosVoluntariosExternos = normalizarAdjuntos(requestValue('act_vex_nom', array()), requestValue('act_vex_tar', array()));
 
         $sqlDel3 = "DELETE FROM tbl_adjuntos WHERE adj_rep_fk = " . $idReporteActual . " AND adj_tip = 3 ";
 
         $PSN1->query($sqlDel3);
 
-        //echo "Si hay antiguos a modificar: ".sizeof($act_bau_id);
+        foreach ($adjuntosVoluntariosExternos as $adjunto) {
 
-        //var_dump($act_bau_id);
+            $sqlA3 = "INSERT INTO tbl_adjuntos (adj_nom,adj_url,adj_fec,adj_can,adj_tip,adj_rep_fk)";
 
-        for ($i = 0; $i < $num_vex_nue; $i++) {
-
-
-
-            $sqlA3 = "REPLACE INTO tbl_adjuntos (adj_id,adj_nom,adj_url,adj_fec,adj_can, adj_tip,adj_rep_fk)";
-
-            $sqlA3 .= "VALUES (0" . $act_vex_id[$i] . ",'" . $act_vex_nom[$i] . "','" . $act_vex_tar[$i] . "','" . date('Y-m-d') . "',NULL,3," . $idReporteActual . "); ";
-
-            //echo $sqlA3;
+            $sqlA3 .= " VALUES ('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',NULL,3," . $idReporteActual . ")";
 
             $PSN1->query($sqlA3);
 
         }
 
         $varExitoREP_UPD = 1;
+        }
 
         //
 
