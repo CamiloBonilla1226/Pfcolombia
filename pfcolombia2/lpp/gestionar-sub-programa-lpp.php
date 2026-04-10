@@ -726,8 +726,371 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
             );
         }
     }
-    ?><div class="container">
-    <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="form-horizontal">
+    ?>
+    <style type="text/css">
+        .report-shell{
+            max-width: 1240px;
+            margin: 24px auto 42px;
+            padding: 0 14px 26px;
+        }
+
+        .report-shell .alert{
+            border: 0;
+            border-radius: 24px;
+            padding: 18px 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 18px 38px rgba(15, 45, 72, 0.12);
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+
+        .report-shell .alert-info{
+            background: linear-gradient(135deg, #123e59 0%, #296d92 60%, #8ec6df 100%);
+            color: #ffffff;
+        }
+
+        .report-shell .alert-success{
+            background: linear-gradient(135deg, #28724f 0%, #39a46e 100%);
+            color: #ffffff;
+        }
+
+        .report-shell .alert-warning{
+            background: #fff5d7;
+            color: #7a5a08;
+            border: 1px solid #f2d78d;
+        }
+
+        .report-shell .alert-danger{
+            background: #fff1f0;
+            color: #8f2b24;
+            border: 1px solid #f1b7b3;
+        }
+
+        .report-shell .alert a{
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .report-shell .alert a:hover{
+            text-decoration: underline;
+        }
+
+        .report-form{
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+            border: 1px solid #dbe7f1;
+            border-radius: 30px;
+            padding: 24px 24px 34px;
+            box-shadow: 0 24px 60px rgba(16, 46, 72, 0.12);
+        }
+
+        .report-form:before{
+            content: "";
+            position: absolute;
+            top: -140px;
+            right: -70px;
+            width: 320px;
+            height: 320px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(85, 154, 196, 0.18) 0%, rgba(85, 154, 196, 0) 70%);
+            pointer-events: none;
+        }
+
+        .report-form > .col-sm-12{
+            position: relative;
+            width: 100%;
+            margin-bottom: 22px;
+            padding: 24px 22px 16px;
+            border-radius: 24px;
+            border: 1px solid #e4edf4;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 14px 34px rgba(22, 53, 80, 0.08);
+        }
+
+        .report-form > .col-sm-12:last-of-type{
+            margin-bottom: 0;
+        }
+
+        .report-form .cont-tit{
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+
+        .report-form .cont-tit .hr{
+            flex: 1 1 0;
+        }
+
+        .report-form .cont-tit hr{
+            margin: 10px 0;
+            border-top: 1px solid #cad8e4;
+        }
+
+        .report-form .cont-tit .tit-cen{
+            flex: 0 1 auto;
+            min-width: 280px;
+            padding: 12px 20px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #f1f7fb 0%, #ffffff 100%);
+            border: 1px solid #d9e6f0;
+            text-align: center;
+        }
+
+        .report-form .cont-tit h3{
+            margin: 0 0 4px;
+            color: #19344c;
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .report-form .cont-tit h5,
+        .report-form .cont-tit p{
+            margin: 0;
+            color: #577086;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .report-form .form-group{
+            margin-left: -8px;
+            margin-right: -8px;
+            margin-bottom: 4px;
+        }
+
+        .report-form .form-group > [class*="col-sm-"]{
+            padding-left: 8px;
+            padding-right: 8px;
+            margin-bottom: 16px;
+        }
+
+        .report-form strong{
+            display: block;
+            margin-bottom: 8px;
+            color: #243c55;
+            font-size: 13px;
+            letter-spacing: 0.2px;
+        }
+
+        .report-form .form-control,
+        .report-form select,
+        .report-form textarea{
+            min-height: 46px;
+            height: auto;
+            border-radius: 14px;
+            border: 1px solid #c7d6e2;
+            background: #f8fbfd;
+            box-shadow: none;
+            color: #1f3348;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+        }
+
+        .report-form textarea.form-control{
+            min-height: 120px;
+        }
+
+        .report-form .form-control:focus,
+        .report-form select:focus,
+        .report-form textarea:focus{
+            border-color: #4f8db6;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(79, 141, 182, 0.14);
+        }
+
+        .report-form .form-control[readonly],
+        .report-form .form-control[disabled],
+        .report-form select[disabled],
+        .report-form textarea[disabled]{
+            background: #eef4f8;
+            color: #53687b;
+        }
+
+        .report-form input[type="file"].form-control{
+            padding: 10px 12px;
+        }
+
+        .report-form .btn{
+            border-radius: 14px;
+            padding: 11px 18px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            border: 0;
+            box-shadow: 0 12px 24px rgba(20, 56, 86, 0.14);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+        }
+
+        .report-form .btn:hover,
+        .report-form .btn:focus{
+            transform: translateY(-1px);
+            box-shadow: 0 16px 26px rgba(20, 56, 86, 0.18);
+            filter: brightness(1.02);
+        }
+
+        .report-form .btn-success{
+            background: linear-gradient(135deg, #2d8658 0%, #39a977 100%);
+            color: #ffffff;
+        }
+
+        .report-form .btn-info{
+            background: linear-gradient(135deg, #2c6d8f 0%, #3d90bb 100%);
+            color: #ffffff;
+        }
+
+        .report-form .btn-warning{
+            background: linear-gradient(135deg, #d89d2f 0%, #efb64c 100%);
+            color: #ffffff;
+        }
+
+        .report-form .btn-danger{
+            background: linear-gradient(135deg, #c54c43 0%, #df6a61 100%);
+            color: #ffffff;
+        }
+
+        .report-form .btn-cir-uno,
+        .report-form .btn-eliminar-fila{
+            width: 42px;
+            height: 42px;
+            min-width: 42px;
+            padding: 0;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .report-form #tablaAdd,
+        .report-form #tablaAdd2,
+        .report-form #tablaAdd3{
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            overflow: hidden;
+            border-radius: 18px;
+            border: 1px solid #dce7ef;
+            background: #f9fbfd;
+        }
+
+        .report-form #tablaAdd td,
+        .report-form #tablaAdd2 td,
+        .report-form #tablaAdd3 td{
+            padding: 16px 14px;
+            vertical-align: top;
+            border-top: 1px solid #e2eaf1;
+        }
+
+        .report-form #tablaAdd tr:first-child td,
+        .report-form #tablaAdd2 tr:first-child td,
+        .report-form #tablaAdd3 tr:first-child td{
+            border-top: 0;
+        }
+
+        .report-shell .cont-btn{
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .report-shell .cont-btn.fl-cent{
+            justify-content: center;
+        }
+
+        .report-shell .item-btn{
+            margin: 0;
+        }
+
+        .report-shell .item-btn .btn,
+        .report-shell .item-btn input.btn{
+            min-width: 180px;
+        }
+
+        @media (max-width: 991px){
+            .report-shell{
+                padding: 0 12px 22px;
+            }
+
+            .report-form{
+                padding: 18px 16px 26px;
+                border-radius: 24px;
+            }
+
+            .report-form > .col-sm-12{
+                padding: 20px 16px 12px;
+                border-radius: 20px;
+            }
+
+            .report-form .cont-tit{
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .report-form .cont-tit .hr{
+                width: 100%;
+            }
+
+            .report-form .cont-tit .tit-cen{
+                width: 100%;
+                min-width: 0;
+            }
+        }
+
+        @media (max-width: 767px){
+            .report-shell{
+                margin-top: 14px;
+                padding: 0 10px 18px;
+            }
+
+            .report-shell .alert{
+                border-radius: 18px;
+                padding: 16px 18px;
+                font-size: 18px;
+            }
+
+            .report-form .form-group{
+                margin-left: 0;
+                margin-right: 0;
+            }
+
+            .report-form .form-group > [class*="col-sm-"]{
+                padding-left: 0;
+                padding-right: 0;
+                margin-bottom: 14px;
+            }
+
+            .report-form [class*="col-sm-"]:empty{
+                display: none;
+            }
+
+            .report-form #tablaAdd td,
+            .report-form #tablaAdd2 td,
+            .report-form #tablaAdd3 td{
+                display: block;
+                width: 100% !important;
+            }
+
+            .report-shell .cont-btn{
+                justify-content: center;
+            }
+
+            .report-shell .item-btn,
+            .report-shell .item-btn .btn,
+            .report-shell .item-btn input.btn{
+                width: 100%;
+            }
+
+            .report-form center .btn{
+                width: 100%;
+                max-width: none;
+            }
+        }
+    </style>
+    <?php
+    ?><div class="container report-shell">
+    <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="form-horizontal report-form">
         <h3 class="alert alert-info text-center"><?php
             if($idReporteActual == 0){
                 echo "REPORTE";
@@ -1986,10 +2349,639 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
 /*
 *   SI SE INSERTO REGISTRO SE REDIRIGE
 */
+?>
+<style type="text/css">
+    .report-shell{
+        max-width: 1240px;
+        margin: 24px auto 42px;
+        padding: 0 14px 26px;
+    }
+
+    .report-shell .alert{
+        border: 0;
+        border-radius: 24px;
+        padding: 18px 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 18px 38px rgba(15, 45, 72, 0.12);
+        font-weight: 700;
+        letter-spacing: 0.2px;
+    }
+
+    .report-shell .alert-info{
+        background: linear-gradient(135deg, #123e59 0%, #296d92 60%, #8ec6df 100%);
+        color: #ffffff;
+    }
+
+    .report-shell .alert-success{
+        background: linear-gradient(135deg, #28724f 0%, #39a46e 100%);
+        color: #ffffff;
+    }
+
+    .report-shell .alert-warning{
+        background: #fff5d7;
+        color: #7a5a08;
+        border: 1px solid #f2d78d;
+    }
+
+    .report-shell .alert-danger{
+        background: #fff1f0;
+        color: #8f2b24;
+        border: 1px solid #f1b7b3;
+    }
+
+    .report-shell .alert a{
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .report-shell .alert a:hover{
+        text-decoration: underline;
+    }
+
+    .report-form{
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+        border: 1px solid #dbe7f1;
+        border-radius: 30px;
+        padding: 24px 24px 34px;
+        box-shadow: 0 24px 60px rgba(16, 46, 72, 0.12);
+    }
+
+    .report-form:before{
+        content: "";
+        position: absolute;
+        top: -140px;
+        right: -70px;
+        width: 320px;
+        height: 320px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(85, 154, 196, 0.18) 0%, rgba(85, 154, 196, 0) 70%);
+        pointer-events: none;
+    }
+
+    .report-form > .col-sm-12{
+        position: relative;
+        width: 100%;
+        margin-bottom: 22px;
+        padding: 24px 22px 16px;
+        border-radius: 24px;
+        border: 1px solid #e4edf4;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 14px 34px rgba(22, 53, 80, 0.08);
+    }
+
+    .report-form > .col-sm-12:last-of-type{
+        margin-bottom: 0;
+    }
+
+    .report-form .cont-tit{
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-bottom: 20px;
+    }
+
+    .report-form .cont-tit .hr{
+        flex: 1 1 0;
+    }
+
+    .report-form .cont-tit hr{
+        margin: 10px 0;
+        border-top: 1px solid #cad8e4;
+    }
+
+    .report-form .cont-tit .tit-cen{
+        flex: 0 1 auto;
+        min-width: 280px;
+        padding: 12px 20px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #f1f7fb 0%, #ffffff 100%);
+        border: 1px solid #d9e6f0;
+        text-align: center;
+    }
+
+    .report-form .cont-tit h3{
+        margin: 0 0 4px;
+        color: #19344c;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 24px;
+        font-weight: 700;
+    }
+
+    .report-form .cont-tit h5,
+    .report-form .cont-tit p{
+        margin: 0;
+        color: #577086;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .report-form .form-group{
+        margin-left: -8px;
+        margin-right: -8px;
+        margin-bottom: 4px;
+    }
+
+    .report-form .form-group > [class*="col-sm-"]{
+        padding-left: 8px;
+        padding-right: 8px;
+        margin-bottom: 16px;
+    }
+
+    .report-form strong{
+        display: block;
+        margin-bottom: 8px;
+        color: #243c55;
+        font-size: 13px;
+        letter-spacing: 0.2px;
+    }
+
+    .report-form .form-control,
+    .report-form select,
+    .report-form textarea{
+        min-height: 46px;
+        height: auto;
+        border-radius: 14px;
+        border: 1px solid #c7d6e2;
+        background: #f8fbfd;
+        box-shadow: none;
+        color: #1f3348;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    }
+
+    .report-form textarea.form-control{
+        min-height: 120px;
+    }
+
+    .report-form .form-control:focus,
+    .report-form select:focus,
+    .report-form textarea:focus{
+        border-color: #4f8db6;
+        background: #ffffff;
+        box-shadow: 0 0 0 4px rgba(79, 141, 182, 0.14);
+    }
+
+    .report-form .form-control[readonly],
+    .report-form .form-control[disabled],
+    .report-form select[disabled],
+    .report-form textarea[disabled]{
+        background: #eef4f8;
+        color: #53687b;
+    }
+
+    .report-form input[type="file"].form-control{
+        padding: 10px 12px;
+    }
+
+    .report-form .btn{
+        border-radius: 14px;
+        padding: 11px 18px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        border: 0;
+        box-shadow: 0 12px 24px rgba(20, 56, 86, 0.14);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+    }
+
+    .report-form .btn:hover,
+    .report-form .btn:focus{
+        transform: translateY(-1px);
+        box-shadow: 0 16px 26px rgba(20, 56, 86, 0.18);
+        filter: brightness(1.02);
+    }
+
+    .report-form .btn-success{
+        background: linear-gradient(135deg, #2d8658 0%, #39a977 100%);
+        color: #ffffff;
+    }
+
+    .report-form .btn-info{
+        background: linear-gradient(135deg, #2c6d8f 0%, #3d90bb 100%);
+        color: #ffffff;
+    }
+
+    .report-form .btn-warning{
+        background: linear-gradient(135deg, #d89d2f 0%, #efb64c 100%);
+        color: #ffffff;
+    }
+
+    .report-form .btn-danger{
+        background: linear-gradient(135deg, #c54c43 0%, #df6a61 100%);
+        color: #ffffff;
+    }
+
+    .report-form .btn-cir-uno,
+    .report-form .btn-eliminar-fila{
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+        padding: 0;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .report-form #tablaAdd,
+    .report-form #tablaAdd2,
+    .report-form #tablaAdd3{
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        overflow: hidden;
+        border-radius: 18px;
+        border: 1px solid #dce7ef;
+        background: #f9fbfd;
+    }
+
+    .report-form #tablaAdd td,
+    .report-form #tablaAdd2 td,
+    .report-form #tablaAdd3 td{
+        padding: 16px 14px;
+        vertical-align: top;
+        border-top: 1px solid #e2eaf1;
+    }
+
+    .report-form #tablaAdd tr:first-child td,
+    .report-form #tablaAdd2 tr:first-child td,
+    .report-form #tablaAdd3 tr:first-child td{
+        border-top: 0;
+    }
+
+    .report-shell .cont-btn{
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .report-shell .cont-btn.fl-cent{
+        justify-content: center;
+    }
+
+    .report-shell .item-btn{
+        margin: 0;
+    }
+
+    .report-shell .item-btn .btn,
+    .report-shell .item-btn input.btn{
+        min-width: 180px;
+    }
+
+    @media (max-width: 991px){
+        .report-shell{
+            padding: 0 12px 22px;
+        }
+
+        .report-form{
+            padding: 18px 16px 26px;
+            border-radius: 24px;
+        }
+
+        .report-form > .col-sm-12{
+            padding: 20px 16px 12px;
+            border-radius: 20px;
+        }
+
+        .report-form .cont-tit{
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .report-form .cont-tit .hr{
+            width: 100%;
+        }
+
+        .report-form .cont-tit .tit-cen{
+            width: 100%;
+            min-width: 0;
+        }
+    }
+
+    @media (max-width: 767px){
+        .report-shell{
+            margin-top: 14px;
+            padding: 0 10px 18px;
+        }
+
+        .report-shell .alert{
+            border-radius: 18px;
+            padding: 16px 18px;
+            font-size: 18px;
+        }
+
+        .report-form .form-group{
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .report-form .form-group > [class*="col-sm-"]{
+            padding-left: 0;
+            padding-right: 0;
+            margin-bottom: 14px;
+        }
+
+        .report-form [class*="col-sm-"]:empty{
+            display: none;
+        }
+
+        .report-form #tablaAdd td,
+        .report-form #tablaAdd2 td,
+        .report-form #tablaAdd3 td{
+            display: block;
+            width: 100% !important;
+        }
+
+        .report-shell .cont-btn{
+            justify-content: center;
+        }
+
+        .report-shell .item-btn,
+        .report-shell .item-btn .btn,
+        .report-shell .item-btn input.btn{
+            width: 100%;
+        }
+
+        .report-form center .btn{
+            width: 100%;
+            max-width: none;
+        }
+    }
+</style>
+<style type="text/css">
+    .report-shell{
+        max-width: 1260px;
+        margin: 28px auto 40px;
+        padding: 0 18px 24px;
+    }
+
+    .report-shell .alert{
+        background: #ffffff;
+        color: #1f2933;
+        border: 1px solid #d9dee3;
+        border-left-width: 4px;
+        border-radius: 12px;
+        padding: 18px 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        font-weight: 700;
+        letter-spacing: 0.01em;
+    }
+
+    .report-shell .alert-info{
+        background: #f8f9fb;
+        color: #1f2d3a;
+        border-left-color: #243746;
+    }
+
+    .report-shell .alert-success{
+        background: #f7f9f7;
+        color: #27352d;
+        border-left-color: #56685a;
+    }
+
+    .report-shell .alert-warning{
+        background: #fbf8f2;
+        color: #6d5634;
+        border-left-color: #8a6a3f;
+    }
+
+    .report-shell .alert-danger{
+        background: #fbf6f5;
+        color: #6b3b38;
+        border-left-color: #7a4340;
+    }
+
+    .report-form{
+        background: #f5f5f3;
+        border: 1px solid #d7dbdf;
+        border-radius: 18px;
+        padding: 28px 26px 34px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+    }
+
+    .report-form:before{
+        display: none;
+    }
+
+    .report-form > .col-sm-12{
+        margin-bottom: 18px;
+        padding: 24px 22px 18px;
+        border-radius: 14px;
+        border: 1px solid #e1e4e8;
+        background: #ffffff;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+    }
+
+    .report-form .cont-tit{
+        gap: 16px;
+        margin: 0 0 24px;
+    }
+
+    .report-form .cont-tit hr{
+        margin: 0;
+        border: 0;
+        border-top: 1px solid #d7dce1;
+    }
+
+    .report-form .cont-tit .tit-cen{
+        width: auto;
+        max-width: 560px;
+        min-width: 320px;
+        padding: 14px 22px 12px;
+        border-radius: 12px;
+        background: #f8f9fa;
+        border: 1px solid #d9dee3;
+        text-align: center;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    .report-form .cont-tit h3{
+        margin: 0;
+        color: #1e2d3a;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 23px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+
+    .report-form .cont-tit h5{
+        margin: 5px 0 0;
+        color: #52606d;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .report-form .cont-tit p{
+        margin: 6px 0 0;
+        color: #5b6875;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .report-form .form-group{
+        margin-left: -10px;
+        margin-right: -10px;
+        margin-bottom: 2px;
+    }
+
+    .report-form .form-group > [class*="col-sm-"]{
+        padding-left: 10px;
+        padding-right: 10px;
+        margin-bottom: 18px;
+    }
+
+    .report-form strong{
+        margin-bottom: 7px;
+        color: #24313d;
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.45;
+    }
+
+    .report-form .form-control,
+    .report-form select,
+    .report-form textarea{
+        padding: 11px 14px;
+        border-radius: 10px;
+        border: 1px solid #cfd5db;
+        background: #ffffff;
+        color: #1f2933;
+    }
+
+    .report-form .form-control:focus,
+    .report-form select:focus,
+    .report-form textarea:focus{
+        border-color: #334e68;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(51, 78, 104, 0.10);
+    }
+
+    .report-form .form-control[readonly],
+    .report-form .form-control[disabled],
+    .report-form select[disabled],
+    .report-form textarea[disabled]{
+        background: #f4f5f6;
+        color: #5f6b76;
+    }
+
+    .report-form input[type="file"].form-control{
+        padding: 8px 10px;
+    }
+
+    .report-form .btn{
+        border-radius: 10px;
+        padding: 11px 18px;
+        letter-spacing: 0.03em;
+        border: 1px solid transparent;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+
+    .report-form .btn:hover,
+    .report-form .btn:focus{
+        box-shadow: 0 12px 22px rgba(15, 23, 42, 0.10);
+        filter: brightness(1.01);
+    }
+
+    .report-form .btn-success{
+        background: #1f3547;
+        border-color: #1f3547;
+        color: #ffffff;
+    }
+
+    .report-form .btn-info{
+        background: #4b5b68;
+        border-color: #4b5b68;
+        color: #ffffff;
+    }
+
+    .report-form .btn-warning{
+        background: #8a6a3f;
+        border-color: #8a6a3f;
+        color: #ffffff;
+    }
+
+    .report-form .btn-danger{
+        background: #7a4340;
+        border-color: #7a4340;
+        color: #ffffff;
+    }
+
+    .report-form .btn-cir-uno,
+    .report-form .btn-eliminar-fila{
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+    }
+
+    .report-form #tablaAdd,
+    .report-form #tablaAdd2,
+    .report-form #tablaAdd3{
+        border-radius: 14px;
+        border: 1px solid #e0e4e7;
+        background: #ffffff;
+    }
+
+    .report-form #tablaAdd td,
+    .report-form #tablaAdd2 td,
+    .report-form #tablaAdd3 td{
+        border-top: 1px solid #eceff2;
+    }
+
+    .report-shell .cont-btn{
+        margin-bottom: 20px;
+    }
+
+    @media (max-width: 991px){
+        .report-shell{
+            padding: 0 14px 22px;
+        }
+
+        .report-form{
+            padding: 22px 18px 28px;
+            border-radius: 16px;
+        }
+
+        .report-form > .col-sm-12{
+            padding: 20px 16px 14px;
+            border-radius: 12px;
+        }
+
+        .report-form .cont-tit{
+            gap: 12px;
+        }
+
+        .report-form .cont-tit .tit-cen{
+            width: 100%;
+            min-width: 0;
+            max-width: none;
+        }
+    }
+
+    @media (max-width: 767px){
+        .report-shell{
+            margin-top: 16px;
+            padding: 0 10px 16px;
+        }
+
+        .report-shell .alert{
+            padding: 16px 18px;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+    }
+</style>
+<?php
 if($idReporteActual > 0){
     //No hacemos nada.
 }else if($varExitoREP == 1){?>
-    <div class="container">
+    <div class="container report-shell">
         <div class="row">
             <h2 class="alert alert-info text-center"><?php
             if($idReporteActual == 0){
@@ -2018,7 +3010,7 @@ if($idReporteActual > 0){
             display: none;
         }
     </style>
-<div class="container">
+<div class="container report-shell">
     <div class="row">
         <h3 class="alert alert-info text-center"><?php
             if($idReporteActual == 0){
@@ -2054,7 +3046,7 @@ if($idReporteActual > 0){
         <!--<div class="progress">
             <div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
         </div>-->
-        <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="form-horizontal">
+        <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="form-horizontal report-form">
             <input name="fechaReporte" type="hidden" id="fechaReporte" value="<?=$fechaReporte; ?>" />
             <!--<fieldset>--><div class="col-sm-12">
                 <div class="cont-tit">
