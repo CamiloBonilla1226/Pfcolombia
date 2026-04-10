@@ -90,6 +90,56 @@ function normalizarAdjuntos($nombres, $documentos)
     return $adjuntos;
 }
 
+function guardarAdjuntos($db, $reporteId, $tipo, $adjuntos, $reemplazar = false)
+{
+    if ($reemplazar) {
+        $db->query("DELETE FROM tbl_adjuntos WHERE adj_rep_fk = " . $reporteId . " AND adj_tip = " . $tipo);
+    }
+
+    if (!is_array($adjuntos) || sizeof($adjuntos) === 0) {
+        return true;
+    }
+
+    $valores = array();
+    foreach ($adjuntos as $adjunto) {
+        $valores[] = "('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',NULL," . $tipo . "," . $reporteId . ")";
+    }
+
+    $sql = "INSERT INTO tbl_adjuntos (adj_nom,adj_url,adj_fec,adj_can,adj_tip,adj_rep_fk) VALUES " . implode(',', $valores);
+    return $db->query($sql);
+}
+
+function obtenerAdjuntosPorTipo($db, $reporteId)
+{
+    $adjuntos = array(
+        1 => array(),
+        2 => array(),
+        3 => array(),
+    );
+
+    if ((int) $reporteId <= 0) {
+        return $adjuntos;
+    }
+
+    $sql = "SELECT adj_id, adj_nom, adj_url, adj_tip FROM tbl_adjuntos WHERE adj_rep_fk = '" . $reporteId . "' ORDER BY adj_tip ASC, adj_id ASC";
+    $db->query($sql);
+
+    while ($db->next_record()) {
+        $tipo = (int) $db->f("adj_tip");
+        if (!isset($adjuntos[$tipo])) {
+            $adjuntos[$tipo] = array();
+        }
+
+        $adjuntos[$tipo][] = array(
+            'id' => $db->f("adj_id"),
+            'nombre' => $db->f("adj_nom"),
+            'documento' => $db->f("adj_url"),
+        );
+    }
+
+    return $adjuntos;
+}
+
 $preguntarGeneracion = 0;
 
 if (isset($_REQUEST["generacion"]) && $_REQUEST["generacion"] != "") {
@@ -639,31 +689,7 @@ unidad_total ,
 
                 $adjuntosGraduados = normalizarAdjuntos(requestValue("act_grad_nom", array()), requestValue('act_grad_tar', array()));
 
-                if (sizeof($adjuntosGraduados) > 0) {
-                    $sql = 'INSERT INTO tbl_adjuntos (
-
-                    adj_nom,
-
-                    adj_url,
-
-                    adj_fec,
-
-                    adj_tip, 
-
-                    adj_rep_fk)';
-
-                    $sql .= 'VALUES';
-
-                    foreach ($adjuntosGraduados as $adjunto) {
-
-                        $sql .= "('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',1," . $ultimoId . "),";
-
-                    }
-
-                    $sql = substr($sql, 0, -1);
-
-                    $ultimoQuery = $PSN1->query($sql);
-                }
+                guardarAdjuntos($PSN1, $ultimoId, 1, $adjuntosGraduados);
 
             }
 
@@ -671,31 +697,7 @@ unidad_total ,
 
                 $adjuntosVoluntariosInternos = normalizarAdjuntos(requestValue("act_vin_nom", array()), requestValue('act_vin_tar', array()));
 
-                if (sizeof($adjuntosVoluntariosInternos) > 0) {
-                    $sql = 'INSERT INTO tbl_adjuntos (
-
-                    adj_nom,
-
-                    adj_url,
-
-                    adj_fec,
-
-                    adj_tip, 
-
-                    adj_rep_fk)';
-
-                    $sql .= 'VALUES';
-
-                    foreach ($adjuntosVoluntariosInternos as $adjunto) {
-
-                        $sql .= "('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',2," . $ultimoId . "),";
-
-                    }
-
-                    $sql = substr($sql, 0, -1);
-
-                    $ultimoQuery = $PSN1->query($sql);
-                }
+                guardarAdjuntos($PSN1, $ultimoId, 2, $adjuntosVoluntariosInternos);
 
             }
 
@@ -703,31 +705,7 @@ unidad_total ,
 
                 $adjuntosVoluntariosExternos = normalizarAdjuntos(requestValue("act_vex_nom", array()), requestValue('act_vex_tar', array()));
 
-                if (sizeof($adjuntosVoluntariosExternos) > 0) {
-                    $sql = 'INSERT INTO tbl_adjuntos (
-
-                    adj_nom,
-
-                    adj_url,
-
-                    adj_fec,
-
-                    adj_tip, 
-
-                    adj_rep_fk)';
-
-                    $sql .= 'VALUES';
-
-                    foreach ($adjuntosVoluntariosExternos as $adjunto) {
-
-                        $sql .= "('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',3," . $ultimoId . "),";
-
-                    }
-
-                    $sql = substr($sql, 0, -1);
-
-                    $ultimoQuery = $PSN1->query($sql);
-                }
+                guardarAdjuntos($PSN1, $ultimoId, 3, $adjuntosVoluntariosExternos);
 
             }
 
@@ -1138,52 +1116,16 @@ unidad_total ,
         } else {
         $adjuntosGraduados = normalizarAdjuntos(requestValue('act_grad_nom', array()), requestValue('act_grad_tar', array()));
 
-        $sqlDel = "DELETE FROM tbl_adjuntos WHERE adj_rep_fk = " . $idReporteActual . " AND adj_tip = 1 ";
-
-        $PSN1->query($sqlDel);
-
-        foreach ($adjuntosGraduados as $adjunto) {
-
-            $sqlA = "INSERT INTO tbl_adjuntos (adj_nom,adj_url,adj_fec,adj_can,adj_tip,adj_rep_fk)";
-
-            $sqlA .= " VALUES ('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',NULL,1," . $idReporteActual . ")";
-
-            $PSN1->query($sqlA);
-
-        }
+        guardarAdjuntos($PSN1, $idReporteActual, 1, $adjuntosGraduados, true);
 
         $adjuntosVoluntariosInternos = normalizarAdjuntos(requestValue('act_vin_nom', array()), requestValue('act_vin_tar', array()));
 
-        $sqlDel2 = "DELETE FROM tbl_adjuntos WHERE adj_rep_fk = " . $idReporteActual . " AND adj_tip = 2 ";
-
-        $PSN1->query($sqlDel2);
-
-        foreach ($adjuntosVoluntariosInternos as $adjunto) {
-
-            $sqlA2 = "INSERT INTO tbl_adjuntos (adj_nom,adj_url,adj_fec,adj_can,adj_tip,adj_rep_fk)";
-
-            $sqlA2 .= " VALUES ('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',NULL,2," . $idReporteActual . ")";
-
-            $PSN1->query($sqlA2);
-
-        }
+        guardarAdjuntos($PSN1, $idReporteActual, 2, $adjuntosVoluntariosInternos, true);
 
 
         $adjuntosVoluntariosExternos = normalizarAdjuntos(requestValue('act_vex_nom', array()), requestValue('act_vex_tar', array()));
 
-        $sqlDel3 = "DELETE FROM tbl_adjuntos WHERE adj_rep_fk = " . $idReporteActual . " AND adj_tip = 3 ";
-
-        $PSN1->query($sqlDel3);
-
-        foreach ($adjuntosVoluntariosExternos as $adjunto) {
-
-            $sqlA3 = "INSERT INTO tbl_adjuntos (adj_nom,adj_url,adj_fec,adj_can,adj_tip,adj_rep_fk)";
-
-            $sqlA3 .= " VALUES ('" . $adjunto['nombre'] . "','" . $adjunto['documento'] . "','" . date('Y-m-d') . "',NULL,3," . $idReporteActual . ")";
-
-            $PSN1->query($sqlA3);
-
-        }
+        guardarAdjuntos($PSN1, $idReporteActual, 3, $adjuntosVoluntariosExternos, true);
 
         $varExitoREP_UPD = 1;
         }
@@ -1536,6 +1478,11 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
         }
 
     }
+
+    $adjuntosReporte = obtenerAdjuntosPorTipo($PSN1, $idReporteActual);
+    $graduadosAdjuntos = isset($adjuntosReporte[1]) ? $adjuntosReporte[1] : array();
+    $voluntariosInternosAdjuntos = isset($adjuntosReporte[2]) ? $adjuntosReporte[2] : array();
+    $voluntariosExternosAdjuntos = isset($adjuntosReporte[3]) ? $adjuntosReporte[3] : array();
 
     ?>
     <div class="container">
@@ -2204,15 +2151,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
 
                     <?php
 
-                    $sql = "SELECT * ";
-
-                    $sql .= " FROM tbl_adjuntos ";
-
-                    $sql .= " WHERE adj_rep_fk = '" . $idReporteActual . "' AND adj_tip = 1 ";
-
-                    $PSN1->query($sql);
-
-                    $numero = $PSN1->num_rows();
+                    $numero = sizeof($graduadosAdjuntos);
 
                     $cont = 0;
 
@@ -2220,9 +2159,9 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
 
                     if ($numero > 0) {
 
-                        while ($PSN1->next_record()) { ?>
+                        foreach ($graduadosAdjuntos as $adjunto) { ?>
 
-                    <input type="hidden" name="act_grad_id[]" value="<?= $PSN1->f("adj_id"); ?>">
+                    <input type="hidden" name="act_grad_id[]" value="<?= $adjunto["id"]; ?>">
 
                     <tr <?php echo ($cont == 0) ? 'class="fila-fijaAdd"' : ''; ?>>
 
@@ -2233,7 +2172,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                             <strong>Nombre completo del graduado linea dos mil:</strong>
 
                             <input name="act_grad_nom[]" type="text" id="act_grad_nom" class="act_grad_nom form-control"
-                                value="<?= $PSN1->f("adj_nom"); ?>" required />
+                                value="<?= $adjunto["nombre"]; ?>" required />
 
                         </td>
 
@@ -2242,7 +2181,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                             <strong>Tarjeta dactilar / N° identificación: linea dos mil</strong>
 
                             <input name="act_grad_tar[]" type="text" id="act_grad_tar" min="0"
-                                class="act_grad_tar form-control" value="<?= $PSN1->f("adj_url"); ?>" required />
+                                class="act_grad_tar form-control" value="<?= $adjunto["documento"]; ?>" required />
 
                         </td>
 
@@ -2507,15 +2446,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
 
                         <?php
 
-                        $sql = "SELECT * ";
-
-                        $sql .= " FROM tbl_adjuntos ";
-
-                        $sql .= " WHERE adj_rep_fk = '" . $idReporteActual . "' AND adj_tip = 2 ";
-
-                        $PSN1->query($sql);
-
-                        $numero = $PSN1->num_rows();
+                        $numero = sizeof($voluntariosInternosAdjuntos);
 
                         $cont = 0;
 
@@ -2523,9 +2454,9 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
 
                         if ($numero > 0) {
 
-                            while ($PSN1->next_record()) { ?>
+                            foreach ($voluntariosInternosAdjuntos as $adjunto) { ?>
 
-                                <input type="hidden" name="act_vin_id[]" value="<?= $PSN1->f("adj_id"); ?>">
+                                <input type="hidden" name="act_vin_id[]" value="<?= $adjunto["id"]; ?>">
 
                                 <tr <?php echo ($cont == 0) ? 'class="fila-fijaAdd2"' : ''; ?>>
 
@@ -2534,7 +2465,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                                         <strong>Nombre completo del siervo facilitador:</strong>
 
                                         <input name="act_vin_nom[]" type="text" id="act_vin_nom" class="act_vin_nom form-control"
-                                            value="<?= $PSN1->f("adj_nom"); ?>" required />
+                                            value="<?= $adjunto["nombre"]; ?>" required />
 
                                     </td>
 
@@ -2543,7 +2474,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                                         <strong>Tarjeta dactilar / N° identificación:</strong>
 
                                         <input name="act_vin_tar[]" type="text" id="act_vin_tar" min="0"
-                                            class="act_vin_tar form-control" value="<?= $PSN1->f("adj_url"); ?>" required />
+                                            class="act_vin_tar form-control" value="<?= $adjunto["documento"]; ?>" required />
 
                                     </td>
 
@@ -2806,15 +2737,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
 
                         <?php
 
-                        $sql = "SELECT * ";
-
-                        $sql .= " FROM tbl_adjuntos ";
-
-                        $sql .= " WHERE adj_rep_fk = '" . $idReporteActual . "' AND adj_tip = 3 ";
-
-                        $PSN1->query($sql);
-
-                        $numero = $PSN1->num_rows();
+                        $numero = sizeof($voluntariosExternosAdjuntos);
 
                         $cont = 0;
 
@@ -2822,9 +2745,9 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
 
                         if ($numero > 0) {
 
-                            while ($PSN1->next_record()) { ?>
+                            foreach ($voluntariosExternosAdjuntos as $adjunto) { ?>
 
-                                <input type="hidden" name="act_vex_id[]" value="<?= $PSN1->f("adj_id"); ?>">
+                                <input type="hidden" name="act_vex_id[]" value="<?= $adjunto["id"]; ?>">
 
                                 <tr <?php echo ($cont == 0) ? 'class="fila-fijaAdd3"' : ''; ?>>
 
@@ -2833,7 +2756,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                                         <strong>Nombre completo del entrenador:</strong>
 
                                         <input name="act_vex_nom[]" type="text" id="act_vex_nom" class="act_vex_nom form-control"
-                                            value="<?= $PSN1->f("adj_nom"); ?>" required />
+                                            value="<?= $adjunto["nombre"]; ?>" required />
 
                                     </td>
 
@@ -2842,7 +2765,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                                         <strong>N° identificación:</strong>
 
                                         <input name="act_vex_tar[]" type="text" id="act_vex_tar" min="0"
-                                            class="act_vex_tar form-control" value="<?= $PSN1->f("adj_url"); ?>" required />
+                                            class="act_vex_tar form-control" value="<?= $adjunto["documento"]; ?>" required />
 
                                     </td>
 

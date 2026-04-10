@@ -20,6 +20,54 @@ function compressImage($source, $destination, $quality) {
   imagejpeg($image, $destination, $quality);
 }
 
+function requestValue($key, $default = '') {
+    return isset($_REQUEST[$key]) ? $_REQUEST[$key] : $default;
+}
+
+function normalizarAdjuntos($nombres, $documentos) {
+    $adjuntos = array();
+
+    if (!is_array($nombres) || !is_array($documentos)) {
+        return $adjuntos;
+    }
+
+    $total = min(sizeof($nombres), sizeof($documentos));
+
+    for ($i = 0; $i < $total; $i++) {
+        $nombre = addslashes(eliminarInvalidos(trim((string) $nombres[$i])));
+        $documento = addslashes(eliminarInvalidos(trim((string) $documentos[$i])));
+
+        if ($nombre === '' || $documento === '') {
+            continue;
+        }
+
+        $adjuntos[] = array(
+            'nombre' => $nombre,
+            'documento' => $documento,
+        );
+    }
+
+    return $adjuntos;
+}
+
+function guardarAdjuntos($db, $reporteId, $tipo, $adjuntos, $reemplazar = false) {
+    if ($reemplazar) {
+        $db->query("DELETE FROM tbl_adjuntos WHERE adj_rep_fk = ".$reporteId." AND adj_tip = ".$tipo);
+    }
+
+    if (!is_array($adjuntos) || sizeof($adjuntos) === 0) {
+        return true;
+    }
+
+    $valores = array();
+    foreach ($adjuntos as $adjunto) {
+        $valores[] = "('".$adjunto['nombre']."','".$adjunto['documento']."','".date('Y-m-d')."',NULL,".$tipo.",".$reporteId.")";
+    }
+
+    $sql = "INSERT INTO tbl_adjuntos (adj_nom,adj_url,adj_fec,adj_can,adj_tip,adj_rep_fk) VALUES ".implode(',', $valores);
+    return $db->query($sql);
+}
+
 
 
 /*
@@ -295,56 +343,17 @@ if(isset($_POST["funcion"])){
                 }
 
             if ($asistencia_nin > 0) {
-                $act_grad_nom = $_REQUEST["act_grad_nom"];
-                $act_grad_tar = $_REQUEST['act_grad_tar'];
+                $adjuntosGraduados = normalizarAdjuntos(requestValue("act_grad_nom", array()), requestValue('act_grad_tar', array()));
 
-                $sql = 'INSERT INTO tbl_adjuntos (
-                    adj_nom,
-                    adj_url,
-                    adj_fec,
-                    adj_tip, 
-                    adj_rep_fk)';
-                $sql .= 'VALUES';
-                for ($i=0; $i < sizeof($act_grad_tar); $i++) { 
-                    $sql .= "('".$act_grad_nom[$i]."','".$act_grad_tar[$i]."','".date('Y-m-d')."',1,".$ultimoId."),";
-                }
-                $sql = substr($sql, 0, -1);
-                //echo $sql;
-                $ultimoQuery = $PSN1->query($sql);
+                guardarAdjuntos($PSN1, $ultimoId, 1, $adjuntosGraduados);
             } 
             if ($bautizados > 0) {
-                $act_vin_nom = $_REQUEST["act_vin_nom"];
-                $act_vin_tar = $_REQUEST['act_vin_tar'];
-
-                $sql = 'INSERT INTO tbl_adjuntos (
-                    adj_nom,
-                    adj_url,
-                    adj_fec,
-                    adj_tip, 
-                    adj_rep_fk)';
-                $sql .= 'VALUES';
-                for ($i=0; $i < sizeof($act_vin_tar); $i++) { 
-                    $sql .= "('".$act_vin_nom[$i]."','".$act_vin_tar[$i]."','".date('Y-m-d')."',2,".$ultimoId."),";
-                }
-                $sql = substr($sql, 0, -1);
-                $ultimoQuery = $PSN1->query($sql);
+                $adjuntosVoluntariosInternos = normalizarAdjuntos(requestValue("act_vin_nom", array()), requestValue('act_vin_tar', array()));
+                guardarAdjuntos($PSN1, $ultimoId, 2, $adjuntosVoluntariosInternos);
             } 
             if ($desiciones > 0) {
-                $act_vex_nom = $_REQUEST["act_vex_nom"];
-                $act_vex_tar = $_REQUEST['act_vex_tar'];
-
-                $sql = 'INSERT INTO tbl_adjuntos (
-                    adj_nom,
-                    adj_url,
-                    adj_fec,
-                    adj_tip, 
-                    adj_rep_fk)';
-                $sql .= 'VALUES';
-                for ($i=0; $i < sizeof($act_vex_tar); $i++) { 
-                    $sql .= "('".$act_vex_nom[$i]."','".$act_vex_tar[$i]."','".date('Y-m-d')."',3,".$ultimoId."),";
-                }
-                $sql = substr($sql, 0, -1);
-                $ultimoQuery = $PSN1->query($sql);
+                $adjuntosVoluntariosExternos = normalizarAdjuntos(requestValue("act_vex_nom", array()), requestValue('act_vex_tar', array()));
+                guardarAdjuntos($PSN1, $ultimoId, 3, $adjuntosVoluntariosExternos);
             }         
             $varExitoREP = 1;
         }
@@ -509,40 +518,16 @@ if(isset($_POST["funcion"])){
                 WHERE id = "'.$idReporteActual.'"';
                 //echo $sql;
         $PSN1->query($sql);
-        $num_grad_ant = 0;
-        $act_grad_id = $_REQUEST['act_grad_id'];
-        $act_grad_nom = $_REQUEST['act_grad_nom'];
-        $act_grad_tar = $_REQUEST['act_grad_tar'];
-        $num_grad_ant = $_REQUEST['grad_regist'];
-        $num_grad_nue = $_REQUEST['total'];
-        $sqlDel = "DELETE FROM tbl_adjuntos WHERE adj_rep_fk = ".$idReporteActual." AND adj_tip = 1 ";
-        $PSN1->query($sqlDel);
-        //echo "Si hay antiguos a modificar: ".sizeof($act_bau_id);
-        //var_dump($act_bau_id);
-        for ($i=0; $i < $num_grad_nue; $i++) {
-            
-            $sqlA = "REPLACE INTO tbl_adjuntos (adj_id,adj_nom,adj_url,adj_fec,adj_can, adj_tip,adj_rep_fk)";
-                $sqlA .= "VALUES (0".$act_grad_id[$i].",'".$act_grad_nom[$i]."','".$act_grad_tar[$i]."','".date('Y-m-d')."',NULL,1,".$idReporteActual."); ";
-            //echo $sqlA;
-            $PSN1->query($sqlA);
-        }
+        $adjuntosGraduados = normalizarAdjuntos(requestValue('act_grad_nom', array()), requestValue('act_grad_tar', array()));
+        guardarAdjuntos($PSN1, $idReporteActual, 1, $adjuntosGraduados, true);
         $num_vin_ant = 0;
         $act_vin_id = $_REQUEST['act_vin_id'];
         $act_vin_nom = $_REQUEST['act_vin_nom'];
         $act_vin_tar = $_REQUEST['act_vin_tar'];
         $num_vin_ant = $_REQUEST['vin_regist'];
         $num_vin_nue = $_REQUEST['total2'];
-        $sqlDel2 = "DELETE FROM tbl_adjuntos WHERE adj_rep_fk = ".$idReporteActual." AND adj_tip = 2 ";
-        $PSN1->query($sqlDel2);
-        //echo "Si hay antiguos a modificar: ".sizeof($act_bau_id);
-        //var_dump($act_bau_id);
-        for ($i=0; $i < $num_vin_nue; $i++) {
-            
-            $sqlA2 = "REPLACE INTO tbl_adjuntos (adj_id,adj_nom,adj_url,adj_fec,adj_can, adj_tip,adj_rep_fk)";
-                $sqlA2 .= "VALUES (0".$act_vin_id[$i].",'".$act_vin_nom[$i]."','".$act_vin_tar[$i]."','".date('Y-m-d')."',NULL,2,".$idReporteActual."); ";
-            //echo $sqlA2;
-            $PSN1->query($sqlA2);
-        }
+        $adjuntosVoluntariosInternos = normalizarAdjuntos($act_vin_nom, $act_vin_tar);
+        guardarAdjuntos($PSN1, $idReporteActual, 2, $adjuntosVoluntariosInternos, true);
 
         $num_vex_ant = 0;
         $act_vex_id = $_REQUEST['act_vex_id'];
@@ -550,17 +535,8 @@ if(isset($_POST["funcion"])){
         $act_vex_tar = $_REQUEST['act_vex_tar'];
         $num_vex_ant = $_REQUEST['vex_regist'];
         $num_vex_nue = $_REQUEST['total3'];
-        $sqlDel3 = "DELETE FROM tbl_adjuntos WHERE adj_rep_fk = ".$idReporteActual." AND adj_tip = 3 ";
-        $PSN1->query($sqlDel3);
-        //echo "Si hay antiguos a modificar: ".sizeof($act_bau_id);
-        //var_dump($act_bau_id);
-        for ($i=0; $i < $num_vex_nue; $i++) {
-            
-            $sqlA3 = "REPLACE INTO tbl_adjuntos (adj_id,adj_nom,adj_url,adj_fec,adj_can, adj_tip,adj_rep_fk)";
-                $sqlA3 .= "VALUES (0".$act_vex_id[$i].",'".$act_vex_nom[$i]."','".$act_vex_tar[$i]."','".date('Y-m-d')."',NULL,3,".$idReporteActual."); ";
-            //echo $sqlA3;
-            $PSN1->query($sqlA3);
-        }
+        $adjuntosVoluntariosExternos = normalizarAdjuntos($act_vex_nom, $act_vex_tar);
+        guardarAdjuntos($PSN1, $idReporteActual, 3, $adjuntosVoluntariosExternos, true);
         $varExitoREP_UPD = 1;
         //
         //
@@ -738,6 +714,18 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
             $sum_baut = $PSN1->f("suma");
         }
     }
+    $graduadosAdjuntos = array();
+    if ((int) $idReporteActual > 0) {
+        $sql = "SELECT adj_id, adj_nom, adj_url FROM tbl_adjuntos WHERE adj_rep_fk = '".$idReporteActual."' AND adj_tip = 1 ORDER BY adj_id ASC";
+        $PSN1->query($sql);
+        while ($PSN1->next_record()) {
+            $graduadosAdjuntos[] = array(
+                'id' => $PSN1->f("adj_id"),
+                'nombre' => $PSN1->f("adj_nom"),
+                'documento' => $PSN1->f("adj_url"),
+            );
+        }
+    }
     ?><div class="container">
     <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="form-horizontal">
         <h3 class="alert alert-info text-center"><?php
@@ -909,6 +897,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                 <input name="asistencia_jov" type="number" id="asistencia_jov" value="<?=$asistencia_jov; ?>" class="form-control" readonly />
             </div>
         </div>
+        <?php if (false) { ?>
         <!--MODIFICAR REGISTRO DE GRADUADOS--->
         <div class="cont-tit">
             <div class="hr"><hr></div>
@@ -1111,6 +1100,419 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                 </div>
             </div>
         </div>
+        <?php } ?>
+        <div class="cont-tit">
+            <div class="hr"><hr></div>
+            <div class="tit-cen">
+                <h3 class="text-center">MODIFICAR DE GRADUADOS</h3>
+                <p>A continuacion por favor ingrese los datos requeridos</p>
+            </div>
+            <div class="hr"><hr></div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-2"></div>
+            <div class="col-sm-8">
+                <?php
+                $graduadosEdicion = array();
+                foreach ($graduadosAdjuntos as $adjunto) {
+                    $graduadosEdicion[] = array(
+                        'nombre' => $adjunto['nombre'],
+                        'tarjeta' => $adjunto['documento'],
+                    );
+                }
+                ?>
+                <table id="tablaAdd" class="table table-bordered">
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="col-sm-2"></div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-2"></div>
+            <div class="col-sm-8">
+                <div class="row" style="margin-bottom: 15px;">
+                    <div class="col-sm-6">
+                        <label for="cantidadAdd" style="font-weight: bold; margin-top: 8px;">Cuantos registros desea realizar?</label>
+                    </div>
+                    <div class="col-sm-3">
+                        <input type="number" id="cantidadAdd" class="form-control" min="1" placeholder="Ej: 5">
+                    </div>
+                    <div class="col-sm-3">
+                        <button id="generarVariasAdd" class="btn btn-primary btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
+                            <i class="fa fa-list"></i> Generar
+                        </button>
+                    </div>
+                </div>
+                <div class="row" style="margin-bottom: 15px;">
+                    <div class="col-sm-6">
+                        <strong>Numero de graduados en LPP en la prision:</strong>
+                    </div>
+                    <div class="col-sm-2">
+                        <input type="text" name="total" id="total" class="form-control" value="<?=$asistencia_nin; ?>" readonly>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-3" style="margin-bottom: 10px;">
+                        <button id="adicionarAdd" class="btn btn-success btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
+                            <i class="fa fa-plus"></i> Adicionar
+                        </button>
+                    </div>
+                    <div class="col-sm-3" style="margin-bottom: 10px;">
+                        <button id="borrarTodoAdd" class="btn btn-danger btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
+                            <i class="fa fa-trash"></i> Borrar todo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <style>
+            #tablaAdd {
+                width: 100%;
+                max-width: 100%;
+            }
+
+            #tablaAdd td {
+                vertical-align: top;
+                padding: 14px;
+            }
+
+            #tablaAdd input {
+                margin-top: 8px;
+            }
+
+            #tablaAdd .campo-identificacion-graduado {
+                display: flex !important;
+                align-items: center;
+                gap: 12px;
+                margin-top: 8px;
+            }
+
+            #tablaAdd .campo-identificacion-graduado .contenedor-input {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+
+            #tablaAdd .btn-eliminar-fila {
+                width: 36px;
+                height: 34px;
+                min-width: 36px;
+                padding: 0;
+                border-radius: 4px;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                background-color: #d9534f !important;
+                border: 1px solid #d43f3a;
+                color: #fff !important;
+                font-size: 22px;
+                font-weight: bold;
+                line-height: 1;
+                text-align: center;
+                text-decoration: none !important;
+                cursor: pointer;
+                flex: 0 0 36px;
+                opacity: 1 !important;
+                visibility: visible !important;
+            }
+
+            #cantidadAdd {
+                text-align: center;
+                font-size: 16px;
+                font-weight: bold;
+            }
+
+            #generarVariasAdd,
+            #adicionarAdd,
+            #borrarTodoAdd {
+                white-space: nowrap;
+            }
+
+            @media (min-width: 992px) {
+                #tablaAdd td:first-child {
+                    width: 58% !important;
+                }
+
+                #tablaAdd td:nth-child(2) {
+                    width: 42% !important;
+                }
+            }
+        </style>
+        <script>
+            $(function () {
+                var STORAGE_KEY = 'lpp_graduados_edicion_<?= $idReporteActual; ?>';
+                var registrosIniciales = <?= json_encode($graduadosEdicion); ?>;
+                var soloLectura = <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'true' : 'false'; ?>;
+                var storage = window.sessionStorage;
+
+                function crearFila() {
+                    return $(
+                        '<tr class="fila-fijaAdd">' +
+                            '<td>' +
+                                '<strong>Nombre completo del graduado:</strong>' +
+                                '<input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />' +
+                            '</td>' +
+                            '<td>' +
+                                '<strong>Tarjeta dactilar / N&deg; identificacion:</strong>' +
+                                '<div class="campo-identificacion-graduado">' +
+                                    '<div class="contenedor-input">' +
+                                        '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
+                                    '</div>' +
+                                    '<button type="button" class="btn-eliminar-fila" title="Eliminar" aria-label="Eliminar registro">&times;</button>' +
+                                '</div>' +
+                            '</td>' +
+                        '</tr>'
+                    );
+                }
+
+                function obtenerMaximoGraduados() {
+                    var maximo = parseInt($('#asistencia_muj').val(), 10);
+                    return isNaN(maximo) || maximo < 1 ? null : maximo;
+                }
+
+                function actualizarLimitesAsistencia() {
+                    var asistenciaTotal = parseInt($('#asistencia_total').val(), 10);
+                    var asistenciaHombres = parseInt($('#asistencia_hom').val(), 10);
+
+                    if (!isNaN(asistenciaTotal) && asistenciaTotal >= 0) {
+                        $('#asistencia_hom').attr('max', Math.max(asistenciaTotal - 1, 0));
+                    }
+
+                    if (!isNaN(asistenciaHombres) && asistenciaHombres >= 0) {
+                        $('#asistencia_muj').attr('max', asistenciaHombres);
+                    }
+                }
+
+                function obtenerDatosFila($fila) {
+                    return {
+                        nombre: $.trim($fila.find('.act_grad_nom').val()),
+                        tarjeta: $.trim($fila.find('.act_grad_tar').val())
+                    };
+                }
+
+                function filaCompleta($fila) {
+                    var datos = obtenerDatosFila($fila);
+                    return datos.nombre !== '' && datos.tarjeta !== '';
+                }
+
+                function filaIncompleta($fila) {
+                    var datos = obtenerDatosFila($fila);
+                    return (datos.nombre !== '' && datos.tarjeta === '') || (datos.nombre === '' && datos.tarjeta !== '');
+                }
+
+                function contarCompletos() {
+                    var total = 0;
+                    $('#tablaAdd tbody tr').each(function () {
+                        if (filaCompleta($(this))) {
+                            total++;
+                        }
+                    });
+                    return total;
+                }
+
+                function sincronizarTotal() {
+                    var total = contarCompletos();
+                    $('#total').val(total);
+                    $('#rep_ndis').attr('max', total > 0 ? total : 0);
+                    return total;
+                }
+
+                function guardarDatos() {
+                    if (!storage || soloLectura) {
+                        return;
+                    }
+
+                    var datos = [];
+                    $('#tablaAdd tbody tr').each(function () {
+                        datos.push(obtenerDatosFila($(this)));
+                    });
+
+                    try {
+                        storage.setItem(STORAGE_KEY, JSON.stringify(datos));
+                    } catch (error) {
+                    }
+                }
+
+                function obtenerDatosGuardados() {
+                    if (!storage) {
+                        return null;
+                    }
+
+                    try {
+                        var datos = storage.getItem(STORAGE_KEY);
+                        if (!datos) {
+                            return null;
+                        }
+
+                        datos = JSON.parse(datos);
+                        return Array.isArray(datos) ? datos : null;
+                    } catch (error) {
+                        return null;
+                    }
+                }
+
+                function renderizarFilas(datos) {
+                    var $tbody = $('#tablaAdd tbody');
+                    $tbody.empty();
+
+                    if (!Array.isArray(datos) || datos.length === 0) {
+                        datos = [{ nombre: '', tarjeta: '' }];
+                    }
+
+                    $.each(datos, function (_, item) {
+                        var $fila = crearFila();
+                        $fila.find('.act_grad_nom').val(item.nombre || '');
+                        $fila.find('.act_grad_tar').val(item.tarjeta || '');
+                        $tbody.append($fila);
+                    });
+                }
+
+                function asegurarMinimoUnaFila() {
+                    if ($('#tablaAdd tbody tr').length === 0) {
+                        renderizarFilas([]);
+                    }
+                }
+
+                function hayDatosCapturados() {
+                    var hayDatos = false;
+                    $('#tablaAdd tbody tr').each(function () {
+                        var datos = obtenerDatosFila($(this));
+                        if (datos.nombre !== '' || datos.tarjeta !== '') {
+                            hayDatos = true;
+                            return false;
+                        }
+                    });
+                    return hayDatos;
+                }
+
+                function actualizarBotones() {
+                    var maximo = obtenerMaximoGraduados();
+                    var filas = $('#tablaAdd tbody tr').length;
+                    var deshabilitarAgregar = soloLectura || (maximo !== null && filas >= maximo);
+
+                    $('#adicionarAdd').prop('disabled', deshabilitarAgregar);
+                    $('#generarVariasAdd').prop('disabled', soloLectura);
+                    $('#borrarTodoAdd').prop('disabled', soloLectura);
+                    $('#tablaAdd .btn-eliminar-fila').prop('disabled', soloLectura);
+                }
+
+                function restaurarDatos() {
+                    var datosGuardados = obtenerDatosGuardados();
+                    renderizarFilas(datosGuardados !== null ? datosGuardados : registrosIniciales);
+                    actualizarLimitesAsistencia();
+                    sincronizarTotal();
+                    actualizarBotones();
+                }
+
+                function agregarFila() {
+                    var maximo = obtenerMaximoGraduados();
+                    var filas = $('#tablaAdd tbody tr').length;
+
+                    if (maximo !== null && filas >= maximo) {
+                        alert('No puede registrar mas graduados que prisioneros que iniciaron el curso (' + maximo + ').');
+                        return;
+                    }
+
+                    $('#tablaAdd tbody').append(crearFila());
+                    actualizarBotones();
+                    guardarDatos();
+                }
+
+                function generarFilas(cantidad) {
+                    var maximo = obtenerMaximoGraduados();
+                    var filasActuales = $('#tablaAdd tbody tr').length;
+
+                    if (maximo !== null && (filasActuales + cantidad) > maximo) {
+                        alert('No puede generar mas registros que prisioneros que iniciaron el curso (' + maximo + ').');
+                        return;
+                    }
+
+                    for (var i = 0; i < cantidad; i++) {
+                        $('#tablaAdd tbody').append(crearFila());
+                    }
+
+                    sincronizarTotal();
+                    actualizarBotones();
+                    guardarDatos();
+                }
+
+                function borrarTodo() {
+                    renderizarFilas([]);
+                    sincronizarTotal();
+                    actualizarBotones();
+                    guardarDatos();
+                }
+
+                restaurarDatos();
+
+                $('#asistencia_hom, #asistencia_total, #asistencia_muj').on('change keyup', function () {
+                    actualizarLimitesAsistencia();
+                    actualizarBotones();
+                });
+
+                $(document).on('click', '#adicionarAdd', function (e) {
+                    e.preventDefault();
+                    agregarFila();
+                });
+
+                $(document).on('click', '#generarVariasAdd', function (e) {
+                    e.preventDefault();
+
+                    var cantidad = parseInt($('#cantidadAdd').val(), 10);
+                    if (isNaN(cantidad) || cantidad <= 0) {
+                        alert('Ingrese una cantidad valida mayor a 0.');
+                        $('#cantidadAdd').focus();
+                        return;
+                    }
+
+                    generarFilas(cantidad);
+                });
+
+                $(document).on('click', '#borrarTodoAdd', function (e) {
+                    e.preventDefault();
+
+                    if (hayDatosCapturados() && !confirm('Esta seguro de borrar todos los registros cargados?')) {
+                        return;
+                    }
+
+                    borrarTodo();
+                });
+
+                $(document).on('click', '#tablaAdd .btn-eliminar-fila', function (e) {
+                    e.preventDefault();
+
+                    $(this).closest('tr').remove();
+                    asegurarMinimoUnaFila();
+                    sincronizarTotal();
+                    actualizarBotones();
+                    guardarDatos();
+                });
+
+                $(document).on('keyup change blur', '.act_grad_nom, .act_grad_tar', function () {
+                    sincronizarTotal();
+                    actualizarBotones();
+                    guardarDatos();
+                });
+
+                $('form').on('submit', function (e) {
+                    var hayIncompletas = false;
+
+                    $('#tablaAdd tbody tr').each(function () {
+                        if (filaIncompleta($(this))) {
+                            hayIncompletas = true;
+                            return false;
+                        }
+                    });
+
+                    if (hayIncompletas) {
+                        e.preventDefault();
+                        alert('Si diligencia una fila de graduados, debe completar tanto el nombre como la identificacion.');
+                        return false;
+                    }
+
+                    sincronizarTotal();
+                });
+            });
+        </script>
         <!--MODIFICAR REGISTRO DE VOLUNTARIOS INTERNOS-->
         <div class="cont-tit">
             <div class="hr"><hr></div>
@@ -1776,6 +2178,7 @@ if($idReporteActual > 0){
                     </div>
                 </div>
             </fieldset>--></div>
+        <?php if (false) { ?>
         <!--REGISTRO DE GRADUADOS--->
             <!--<fieldset>--><div class="col-sm-12">
                 <div class="cont-tit">
@@ -1949,6 +2352,407 @@ if($idReporteActual > 0){
                     </div>
                 </div>
             </fieldset>--></div>
+        <?php } ?>
+        <!--<fieldset>--><div class="col-sm-12">
+            <div class="cont-tit">
+                <div class="hr"><hr></div>
+                <div class="tit-cen">
+                    <h3 class="text-center">REGISTRO DE GRADUADOS</h3>
+                    <p>A continuacion por favor ingrese los datos requeridos</p>
+                </div>
+                <div class="hr"><hr></div>
+            </div>
+            <div class="form-group">
+                <div class="col-sm-2"></div>
+                <div class="col-sm-8">
+                    <table id="tablaAdd" class="table table-bordered">
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="col-sm-2"></div>
+            </div>
+            <div class="form-group">
+                <div class="col-sm-2"></div>
+                <div class="col-sm-8">
+                    <div class="row" style="margin-bottom: 15px;">
+                        <div class="col-sm-6">
+                            <label for="cantidadAdd" style="font-weight: bold; margin-top: 8px;">Cuantos registros desea realizar?</label>
+                        </div>
+                        <div class="col-sm-3">
+                            <input type="number" id="cantidadAdd" class="form-control" min="1" placeholder="Ej: 5">
+                        </div>
+                        <div class="col-sm-3">
+                            <button id="generarVariasAdd" class="btn btn-primary btn-block" type="button">
+                                <i class="fa fa-list"></i> Generar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="row" style="margin-bottom: 15px;">
+                        <div class="col-sm-6">
+                            <strong>Numero de graduados en LPP en la prision:</strong>
+                        </div>
+                        <div class="col-sm-2">
+                            <input type="text" name="total" id="total" class="form-control" value="" readonly>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-3" style="margin-bottom: 10px;">
+                            <button id="adicionarAdd" class="btn btn-success btn-block" type="button">
+                                <i class="fa fa-plus"></i> Adicionar
+                            </button>
+                        </div>
+                        <div class="col-sm-3" style="margin-bottom: 10px;">
+                            <button id="borrarTodoAdd" class="btn btn-danger btn-block" type="button">
+                                <i class="fa fa-trash"></i> Borrar todo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <style>
+                #tablaAdd {
+                    width: 100%;
+                    max-width: 100%;
+                }
+
+                #tablaAdd td {
+                    vertical-align: top;
+                    padding: 14px;
+                }
+
+                #tablaAdd input {
+                    margin-top: 8px;
+                }
+
+                #tablaAdd .campo-identificacion-graduado {
+                    display: flex !important;
+                    align-items: center;
+                    gap: 12px;
+                    margin-top: 8px;
+                }
+
+                #tablaAdd .campo-identificacion-graduado .contenedor-input {
+                    flex: 1 1 auto;
+                    min-width: 0;
+                }
+
+                #tablaAdd .btn-eliminar-fila {
+                    width: 36px;
+                    height: 34px;
+                    min-width: 36px;
+                    padding: 0;
+                    border-radius: 4px;
+                    display: flex !important;
+                    align-items: center;
+                    justify-content: center;
+                    background-color: #d9534f !important;
+                    border: 1px solid #d43f3a;
+                    color: #fff !important;
+                    font-size: 22px;
+                    font-weight: bold;
+                    line-height: 1;
+                    text-align: center;
+                    text-decoration: none !important;
+                    cursor: pointer;
+                    flex: 0 0 36px;
+                    opacity: 1 !important;
+                    visibility: visible !important;
+                }
+
+                #cantidadAdd {
+                    text-align: center;
+                    font-size: 16px;
+                    font-weight: bold;
+                }
+
+                #generarVariasAdd,
+                #adicionarAdd,
+                #borrarTodoAdd {
+                    white-space: nowrap;
+                }
+
+                @media (min-width: 992px) {
+                    #tablaAdd td:first-child {
+                        width: 58% !important;
+                    }
+
+                    #tablaAdd td:nth-child(2) {
+                        width: 42% !important;
+                    }
+                }
+            </style>
+            <script>
+                $(function () {
+                    var STORAGE_KEY = 'lpp_graduados_nuevo';
+                    var registrosIniciales = [];
+                    var storage = window.sessionStorage;
+
+                    function crearFila() {
+                        return $(
+                            '<tr class="fila-fijaAdd">' +
+                                '<td>' +
+                                    '<strong>Nombre completo del graduado:</strong>' +
+                                    '<input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />' +
+                                '</td>' +
+                                '<td>' +
+                                    '<strong>Tarjeta dactilar / N&deg; identificacion:</strong>' +
+                                    '<div class="campo-identificacion-graduado">' +
+                                        '<div class="contenedor-input">' +
+                                            '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
+                                        '</div>' +
+                                        '<button type="button" class="btn-eliminar-fila" title="Eliminar" aria-label="Eliminar registro">&times;</button>' +
+                                    '</div>' +
+                                '</td>' +
+                            '</tr>'
+                        );
+                    }
+
+                    function obtenerMaximoGraduados() {
+                        var maximo = parseInt($('#asistencia_muj').val(), 10);
+                        return isNaN(maximo) || maximo < 1 ? null : maximo;
+                    }
+
+                    function actualizarLimitesAsistencia() {
+                        var asistenciaTotal = parseInt($('#asistencia_total').val(), 10);
+                        var asistenciaHombres = parseInt($('#asistencia_hom').val(), 10);
+
+                        if (!isNaN(asistenciaTotal) && asistenciaTotal >= 0) {
+                            $('#asistencia_hom').attr('max', Math.max(asistenciaTotal - 1, 0));
+                        }
+
+                        if (!isNaN(asistenciaHombres) && asistenciaHombres >= 0) {
+                            $('#asistencia_muj').attr('max', asistenciaHombres);
+                        }
+                    }
+
+                    function obtenerDatosFila($fila) {
+                        return {
+                            nombre: $.trim($fila.find('.act_grad_nom').val()),
+                            tarjeta: $.trim($fila.find('.act_grad_tar').val())
+                        };
+                    }
+
+                    function filaCompleta($fila) {
+                        var datos = obtenerDatosFila($fila);
+                        return datos.nombre !== '' && datos.tarjeta !== '';
+                    }
+
+                    function filaIncompleta($fila) {
+                        var datos = obtenerDatosFila($fila);
+                        return (datos.nombre !== '' && datos.tarjeta === '') || (datos.nombre === '' && datos.tarjeta !== '');
+                    }
+
+                    function contarCompletos() {
+                        var total = 0;
+                        $('#tablaAdd tbody tr').each(function () {
+                            if (filaCompleta($(this))) {
+                                total++;
+                            }
+                        });
+                        return total;
+                    }
+
+                    function sincronizarTotal() {
+                        var total = contarCompletos();
+                        $('#total').val(total);
+                        $('#rep_ndis').attr('max', total > 0 ? total : 0);
+                        return total;
+                    }
+
+                    function guardarDatos() {
+                        if (!storage) {
+                            return;
+                        }
+
+                        var datos = [];
+                        $('#tablaAdd tbody tr').each(function () {
+                            datos.push(obtenerDatosFila($(this)));
+                        });
+
+                        try {
+                            storage.setItem(STORAGE_KEY, JSON.stringify(datos));
+                        } catch (error) {
+                        }
+                    }
+
+                    function obtenerDatosGuardados() {
+                        if (!storage) {
+                            return null;
+                        }
+
+                        try {
+                            var datos = storage.getItem(STORAGE_KEY);
+                            if (!datos) {
+                                return null;
+                            }
+
+                            datos = JSON.parse(datos);
+                            return Array.isArray(datos) ? datos : null;
+                        } catch (error) {
+                            return null;
+                        }
+                    }
+
+                    function renderizarFilas(datos) {
+                        var $tbody = $('#tablaAdd tbody');
+                        $tbody.empty();
+
+                        if (!Array.isArray(datos) || datos.length === 0) {
+                            datos = [{ nombre: '', tarjeta: '' }];
+                        }
+
+                        $.each(datos, function (_, item) {
+                            var $fila = crearFila();
+                            $fila.find('.act_grad_nom').val(item.nombre || '');
+                            $fila.find('.act_grad_tar').val(item.tarjeta || '');
+                            $tbody.append($fila);
+                        });
+                    }
+
+                    function asegurarMinimoUnaFila() {
+                        if ($('#tablaAdd tbody tr').length === 0) {
+                            renderizarFilas([]);
+                        }
+                    }
+
+                    function hayDatosCapturados() {
+                        var hayDatos = false;
+                        $('#tablaAdd tbody tr').each(function () {
+                            var datos = obtenerDatosFila($(this));
+                            if (datos.nombre !== '' || datos.tarjeta !== '') {
+                                hayDatos = true;
+                                return false;
+                            }
+                        });
+                        return hayDatos;
+                    }
+
+                    function actualizarBotones() {
+                        var maximo = obtenerMaximoGraduados();
+                        var filas = $('#tablaAdd tbody tr').length;
+                        $('#adicionarAdd').prop('disabled', maximo !== null && filas >= maximo);
+                        $('#tablaAdd .btn-eliminar-fila').prop('disabled', false);
+                    }
+
+                    function restaurarDatos() {
+                        var datosGuardados = obtenerDatosGuardados();
+                        renderizarFilas(datosGuardados !== null ? datosGuardados : registrosIniciales);
+                        actualizarLimitesAsistencia();
+                        sincronizarTotal();
+                        actualizarBotones();
+                    }
+
+                    function agregarFila() {
+                        var maximo = obtenerMaximoGraduados();
+                        var filas = $('#tablaAdd tbody tr').length;
+
+                        if (maximo !== null && filas >= maximo) {
+                            alert('No puede registrar mas graduados que prisioneros que iniciaron el curso (' + maximo + ').');
+                            return;
+                        }
+
+                        $('#tablaAdd tbody').append(crearFila());
+                        actualizarBotones();
+                        guardarDatos();
+                    }
+
+                    function generarFilas(cantidad) {
+                        var maximo = obtenerMaximoGraduados();
+                        var filasActuales = $('#tablaAdd tbody tr').length;
+
+                        if (maximo !== null && (filasActuales + cantidad) > maximo) {
+                            alert('No puede generar mas registros que prisioneros que iniciaron el curso (' + maximo + ').');
+                            return;
+                        }
+
+                        for (var i = 0; i < cantidad; i++) {
+                            $('#tablaAdd tbody').append(crearFila());
+                        }
+
+                        sincronizarTotal();
+                        actualizarBotones();
+                        guardarDatos();
+                    }
+
+                    function borrarTodo() {
+                        renderizarFilas([]);
+                        sincronizarTotal();
+                        actualizarBotones();
+                        guardarDatos();
+                    }
+
+                    restaurarDatos();
+
+                    $('#asistencia_hom, #asistencia_total, #asistencia_muj').on('change keyup', function () {
+                        actualizarLimitesAsistencia();
+                        actualizarBotones();
+                    });
+
+                    $(document).on('click', '#adicionarAdd', function (e) {
+                        e.preventDefault();
+                        agregarFila();
+                    });
+
+                    $(document).on('click', '#generarVariasAdd', function (e) {
+                        e.preventDefault();
+
+                        var cantidad = parseInt($('#cantidadAdd').val(), 10);
+                        if (isNaN(cantidad) || cantidad <= 0) {
+                            alert('Ingrese una cantidad valida mayor a 0.');
+                            $('#cantidadAdd').focus();
+                            return;
+                        }
+
+                        generarFilas(cantidad);
+                    });
+
+                    $(document).on('click', '#borrarTodoAdd', function (e) {
+                        e.preventDefault();
+
+                        if (hayDatosCapturados() && !confirm('Esta seguro de borrar todos los registros cargados?')) {
+                            return;
+                        }
+
+                        borrarTodo();
+                    });
+
+                    $(document).on('click', '#tablaAdd .btn-eliminar-fila', function (e) {
+                        e.preventDefault();
+
+                        $(this).closest('tr').remove();
+                        asegurarMinimoUnaFila();
+                        sincronizarTotal();
+                        actualizarBotones();
+                        guardarDatos();
+                    });
+
+                    $(document).on('keyup change blur', '.act_grad_nom, .act_grad_tar', function () {
+                        sincronizarTotal();
+                        actualizarBotones();
+                        guardarDatos();
+                    });
+
+                    $('form').on('submit', function (e) {
+                        var hayIncompletas = false;
+
+                        $('#tablaAdd tbody tr').each(function () {
+                            if (filaIncompleta($(this))) {
+                                hayIncompletas = true;
+                                return false;
+                            }
+                        });
+
+                        if (hayIncompletas) {
+                            e.preventDefault();
+                            alert('Si diligencia una fila de graduados, debe completar tanto el nombre como la identificacion.');
+                            return false;
+                        }
+
+                        sincronizarTotal();
+                    });
+                });
+            </script>
+        </div>
         <!--REGISTRO DE VOLUNTARIOS INTERNOS-->
             <!--<fieldset>--><div class="col-sm-12">
                 <div class="cont-tit">
@@ -2398,6 +3202,10 @@ else{
         $(".eliminarAdd").prop( "disabled", true );
         $(".eliminarAdd2").prop( "disabled", true );
         $(".eliminarAdd3").prop( "disabled", true );
+        $(".btn-eliminar-fila").prop("disabled", true);
+        $("#adicionarAdd").prop('disabled', true);
+        $("#generarVariasAdd").prop('disabled', true);
+        $("#borrarTodoAdd").prop('disabled', true);
         $("#btn-check").prop('disabled', false);
     </script>
 <?php } ?> 

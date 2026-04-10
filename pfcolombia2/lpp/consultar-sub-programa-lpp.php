@@ -373,10 +373,10 @@ else{
     if(isset($_REQUEST["empresa_sitio_cor"]) && $_REQUEST["empresa_sitio_cor"] != "") {
         $buscar_zona = soloNumeros($_REQUEST["empresa_sitio_cor"]);
         if($buscar_zona != "") {
-            $sqlFiltro .= " AND sat_reportes.idUsuario IN (SELECT UE.idUsuario FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE C.idSec = '".$buscar_zona."')";
+            $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE UE.idUsuario = sat_reportes.idUsuario AND C.idSec = '".$buscar_zona."')";
         }
     } else if (!isset($_REQUEST["empresa_sitio_cor"]) && $_SESSION["id_zona"]!="" && $_SESSION["id_zona"]!=0) {
-        $sqlFiltro .= " AND sat_reportes.idUsuario IN (SELECT UE.idUsuario FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE C.idSec = '".$_SESSION["id_zona"]."')";
+        $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE UE.idUsuario = sat_reportes.idUsuario AND C.idSec = '".$_SESSION["id_zona"]."')";
         $_REQUEST["empresa_sitio_cor"] = $_SESSION["id_zona"];
         $buscar_zona = $_SESSION["id_zona"];
     }
@@ -385,11 +385,11 @@ else{
     if(isset($_REQUEST["empresa_pd"]) && $_REQUEST["empresa_pd"] != "") {
         $buscar_regional = soloNumeros($_REQUEST["empresa_pd"]);
         if($buscar_regional != "") {
-            $sqlFiltro .= " AND sat_reportes.idUsuario IN (SELECT idUsuario FROM usuario_empresa WHERE empresa_pd = '".$buscar_regional."')";
+            $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE WHERE UE.idUsuario = sat_reportes.idUsuario AND UE.empresa_pd = '".$buscar_regional."')";
         }
     } else if (!isset($_REQUEST["empresa_pd"]) && $_SESSION["empresa_pd"]!="" && $_SESSION["empresa_pd"]!=0) {
         $buscar_regional = soloNumeros($_SESSION["empresa_pd"]);
-        $sqlFiltro .= " AND sat_reportes.idUsuario IN (SELECT idUsuario FROM usuario_empresa WHERE empresa_pd = '".$_SESSION["empresa_pd"]."')";
+        $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE WHERE UE.idUsuario = sat_reportes.idUsuario AND UE.empresa_pd = '".$_SESSION["empresa_pd"]."')";
         $_REQUEST["empresa_pd"] = $_SESSION["empresa_pd"];
     }
     
@@ -432,7 +432,7 @@ else{
     }
     
     // Conteo optimizado - consulta simple
-    $sql = "SELECT count(DISTINCT sat_reportes.id) as conteo FROM sat_reportes WHERE sat_reportes.rep_tip = 307 ".$sqlFiltro;
+    $sql = "SELECT count(*) as conteo FROM sat_reportes WHERE sat_reportes.rep_tip = 307 ".$sqlFiltro;
     $PSN1->query($sql);
     $total_registros = 0;
     if($PSN1->num_rows() > 0){
@@ -443,7 +443,7 @@ else{
     $total_paginas = ceil($total_registros / $registros);
     
     // Paso 1: Obtener solo los IDs necesarios para la página (RÁPIDO)
-    $sql_ids = "SELECT sat_reportes.id FROM sat_reportes WHERE sat_reportes.rep_tip = 307 ".$sqlFiltro." ORDER BY sat_reportes.id DESC LIMIT ".$inicio.", ".$registros;
+    $sql_ids = "SELECT sat_reportes.id FROM sat_reportes WHERE sat_reportes.rep_tip = 307 ".$sqlFiltro." ORDER BY sat_reportes.fechaReporte DESC, sat_reportes.id DESC LIMIT ".$inicio.", ".$registros;
     $PSN_ids = new DBbase_Sql;
     $PSN_ids->query($sql_ids);
     $report_ids = [];
@@ -453,18 +453,28 @@ else{
 
     // Paso 2: Solo si hay IDs, obtener los datos completos (RÁPIDO)
     if (count($report_ids) > 0) {
-        $sql = "SELECT C.descripcion AS regional, RU.*,sat_reportes.*, U.nombre as nombreUsuario, sat_grupos.nombre as nombreGrupo, tbl_adjuntos.adj_url 
+        $sql = "SELECT 
+        sat_reportes.id,
+        sat_reportes.pabellon,
+        sat_reportes.asistencia_total,
+        sat_reportes.asistencia_hom,
+        sat_reportes.asistencia_muj,
+        sat_reportes.asistencia_jov,
+        sat_reportes.asistencia_nin,
+        sat_reportes.bautizados,
+        sat_reportes.desiciones,
+        sat_reportes.rep_ndis,
+        sat_reportes.ext1,
+        sat_reportes.ext2,
+        U.nombre as nombreUsuario,
+        RU.reub_nom,
+        C.descripcion AS regional
         FROM sat_reportes 
         LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario 
-        LEFT JOIN sat_grupos ON sat_grupos.id = sat_reportes.idGrupoMadre 
-        LEFT JOIN tbl_adjuntos ON sat_reportes.id = tbl_adjuntos.adj_rep_fk 
         LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion
         LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk 
-        LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = sat_reportes.idUsuario
-        LEFT JOIN categorias AS CA ON CA.id = C.idSec 
         WHERE sat_reportes.id IN (" . implode(',', $report_ids) . ") 
-        GROUP BY sat_reportes.id
-        ORDER BY sat_reportes.fechaReporte DESC";
+        ORDER BY sat_reportes.fechaReporte DESC, sat_reportes.id DESC";
         
         $PSN1->query($sql);
     } else {
@@ -498,7 +508,7 @@ else{
                     /*
                     *   TRAEMOS LOS TIPOS DE CLIENTE/EMPRESA (15)
                     */
-                    $sql = "SELECT * ";
+                    $sql = "SELECT id, descripcion ";
                     $sql.=" FROM categorias ";
                     $sql.=" WHERE idSec = 85 ";
                     if ($_SESSION["id_zona"]!="" && $_SESSION["id_zona"]!=0) {
@@ -523,7 +533,7 @@ else{
                 <strong>Regional:</strong>
                 <select  name="empresa_pd" id="regional" class="form-control" onchange="this.form.submit()">
                     <?php echo($zona == "" && $_SESSION["perfil"]!=163 && $_SESSION["perfil"]!=162 )?'<option value="" selected >Todas la regionales</option>':"";
-                    $sql = "SELECT C.id, C.descripcion AS regional, CA.descripcion AS zona FROM categorias AS C";
+                    $sql = "SELECT C.id, C.descripcion AS regional FROM categorias AS C";
                     $sql.=" LEFT JOIN categorias AS CA ON CA.id = C.idSec
                     WHERE CA.idSec = 85 ";
                     if (!empty($buscar_zona)) {
@@ -536,7 +546,6 @@ else{
                     }
                     
                     $PSN2->query($sql); 
-                    echo $sql;
                     $numero=$PSN2->num_rows();
                     if($numero > 0){
                         while($PSN2->next_record()){?>
@@ -561,7 +570,7 @@ else{
                 /*
                 *   TRAEMOS LOS USUARIOS
                 */
-                $sql = "SELECT * ";
+                $sql = "SELECT DISTINCT U.id, U.nombre ";
                 $sql.=" FROM usuario AS U
                 LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id";
                 $sql.=" WHERE U.tipo IN (162, 163, 167) ";
@@ -598,7 +607,7 @@ else{
                         */
                         if ($_SESSION['empresa_pd'] != "") {
                             echo '<option value="">Sin especificar</option>';
-                            $sql = "SELECT * ";
+                            $sql = "SELECT reub_id, reub_nom ";
                             $sql.=" FROM tbl_regional_ubicacion ";
                             if(!empty($buscar_regional)){
                                 $sql.=" WHERE reub_reg_fk = ".$buscar_regional;
@@ -720,58 +729,20 @@ else{
                         {
                             //Solo si no se ha modificado ya el formulario.
                             $id = $PSN1->f('id');
-                            $regional = $PSN1->f("regional");                            
+                            $regional = $PSN1->f("regional");
                             $prision = $PSN1->f("reub_nom");
-                            $plantador = $PSN1->f("plantador");
-                            $fechaReporte = $PSN1->f("fechaReporte");
-                            $fechaInicio = $PSN1->f("fechaInicio");        
-                            $sitioReunion = $PSN1->f("sitioReunion");
-                            $grupoMadre_txt = $PSN1->f("grupoMadre_txt");
-                            $idGrupoMadre = $PSN1->f("idGrupoMadre");
-                            $pabellon = $PSN1->f("pabellon");
-                            $ciudad = $PSN1->f("ciudad");
-                            $direccion = $PSN1->f("direccion");
-                            $generacionNumero = intval($PSN1->f("generacionNumero"));
-                            
                             $nombreUsuario = $PSN1->f("nombreUsuario");
-                            $nombreGrupo = $PSN1->f("nombreGrupo");
-                            
-                            
-                            
-                            $mapeo_comprometido = $PSN1->f("mapeo_comprometido");
-                            $nombreGrupo_txt = $PSN1->f("nombreGrupo_txt");
-                            $mapeo_fecha = $PSN1->f("mapeo_fecha");  
-
-                            $mapeo_oracion = $PSN1->f("mapeo_oracion");  
-                            $mapeo_companerismo = $PSN1->f("mapeo_companerismo");  
-                            $mapeo_adoracion = $PSN1->f("mapeo_adoracion");  
-                            $mapeo_biblia = $PSN1->f("mapeo_biblia");  
-                            $mapeo_evangelizar = $PSN1->f("mapeo_evangelizar");  
-                            $mapeo_cena = $PSN1->f("mapeo_cena");  
-                            $mapeo_dar = $PSN1->f("mapeo_dar");  
-                            $mapeo_bautizar = $PSN1->f("mapeo_bautizar");  
-                            $mapeo_trabajadores = $PSN1->f("mapeo_trabajadores");  
-                            
-
+                            $pabellon = $PSN1->f("pabellon");
                             $ext1 = $PSN1->f("ext1");
                             $ext2 = $PSN1->f("ext2");
-                            $ext3 = $PSN1->f("ext3");
-                            
-
                             $asistencia_hom = $PSN1->f("asistencia_hom");
                             $asistencia_muj = $PSN1->f("asistencia_muj");
                             $asistencia_jov = $PSN1->f("asistencia_jov");
                             $asistencia_nin = $PSN1->f("asistencia_nin");
-
                             $bautizados = $PSN1->f("bautizados");
-
-                            //Calculados:
                             $asistencia_total  = $PSN1->f("asistencia_total");
                             $rep_ndis  = $PSN1->f("rep_ndis");
                             $desiciones  = $PSN1->f("desiciones");
-                            $comentario  = $PSN1->f("comentario");
-                            $url_baut  = $PSN1->f("adj_url");
-                            $iglesias_reconocidas = $PSN1->f("iglesias_reconocidas");  
                             
                             ?><tr class='clickable-row' data-href='index.php?doc=gestionar-sub-programa-lpp&id=<?=$id; ?>' >
                                 <!--<td><a href="index.php?doc=gestionar-sub-programa-lpp&id=<?=$id; ?>"><?=str_pad($id, 6, "0", STR_PAD_LEFT); ?></a></td>//-->
@@ -850,16 +821,6 @@ else{
         </ul>
     </div>
     </center>
-
-    <script language="javascript">
-    function init(){
-    }
-    window.onload = function(){
-        init();
-    }
-    </script>
-
-
     <script>
     jQuery(document).ready(function($) {
         $(".clickable-row").click(function() {
