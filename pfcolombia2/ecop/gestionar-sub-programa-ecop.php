@@ -1892,6 +1892,172 @@ switch ($error_datos) {
         }
     }
 </style>
+<style type="text/css">
+    .report-shell .alert,
+    .report-shell .alert-info,
+    .report-shell .alert-success,
+    .report-shell .alert-warning,
+    .report-shell .alert-danger{
+        background: #ffffff;
+        color: #20262d;
+        border: 1px solid #d7dce1;
+        border-left: 4px solid #2d3338;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+    }
+
+    .report-form{
+        background: #f7f7f7;
+        border: 1px solid #d8d8d8;
+        box-shadow: 0 14px 32px rgba(0, 0, 0, 0.05);
+    }
+
+    .report-form:before{
+        display: none !important;
+    }
+
+    .report-form > .col-sm-12{
+        background: #ffffff;
+        border: 1px solid #e1e1e1;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+    }
+
+    .report-form .cont-tit .tit-cen{
+        background: #fbfbfb;
+        border: 1px solid #d9d9d9;
+        box-shadow: none;
+    }
+
+    .report-form .cont-tit hr{
+        border-top-color: #d0d0d0;
+    }
+
+    .report-form .cont-tit h3{
+        color: #111111;
+    }
+
+    .report-form .cont-tit h5,
+    .report-form .cont-tit p{
+        color: #555555;
+    }
+
+    .report-form .form-group > [class*="col-sm-"] > strong:first-child{
+        min-height: 3.7em;
+    }
+
+    .report-form .form-control,
+    .report-form select,
+    .report-form textarea{
+        background: #ffffff;
+        border: 1px solid #cfcfcf;
+        color: #1f1f1f;
+    }
+
+    .report-form .form-control:focus,
+    .report-form select:focus,
+    .report-form textarea:focus{
+        border-color: #6f7780;
+        box-shadow: 0 0 0 3px rgba(70, 70, 70, 0.08);
+    }
+
+    .report-form .btn,
+    .report-form input.btn{
+        background: #f3f3f3;
+        border-color: #cccccc;
+        color: #222222;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .report-form .btn-success,
+    .report-form .btn-info,
+    .report-form .btn-warning{
+        background: #f3f3f3;
+        border-color: #cccccc;
+        color: #222222;
+    }
+
+    #adicionarAdd,
+    #adicionarAdd2,
+    #adicionarAdd3,
+    #generarVariasAdd{
+        background: #2f7d32 !important;
+        border-color: #2f7d32 !important;
+        color: #ffffff !important;
+    }
+
+    #borrarTodoAdd,
+    .report-form .btn-danger,
+    .report-form .btn-cir-uno,
+    .report-form .btn-eliminar-fila{
+        background: #c0392b !important;
+        border-color: #c0392b !important;
+        color: #ffffff !important;
+    }
+
+    .report-form input[type="submit"][name="button"],
+    .report-form input[type="submit"][value="Guardar"]{
+        background: #2b5daa !important;
+        border-color: #2b5daa !important;
+        color: #ffffff !important;
+    }
+
+    .report-form .registro-section{
+        border-top: 3px solid #252525;
+    }
+
+    .report-form .registro-section.registro-internos{
+        border-top-color: #5a5a5a;
+        background: linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
+    }
+
+    .report-form .registro-section.registro-externos{
+        border-top-color: #7a7a7a;
+        background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+    }
+
+    .report-form .registro-table-wrap{
+        float: none;
+        margin: 0 auto;
+    }
+
+    .report-form .registro-table-wrap table{
+        width: 100% !important;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .report-form #tablaAdd,
+    .report-form #tablaAdd2,
+    .report-form #tablaAdd3{
+        min-height: 148px;
+    }
+
+    .report-form #tablaAdd td,
+    .report-form #tablaAdd2 td,
+    .report-form #tablaAdd3 td{
+        padding: 16px 14px !important;
+        vertical-align: top;
+    }
+
+    .report-form #tablaAdd input,
+    .report-form #tablaAdd2 input,
+    .report-form #tablaAdd3 input{
+        min-height: 44px !important;
+        margin-top: 8px;
+    }
+
+    @media (min-width: 992px){
+        .report-form .registro-table-wrap{
+            width: 78% !important;
+        }
+    }
+
+    @media (max-width: 767px){
+        .report-form .form-group > [class*="col-sm-"] > strong:first-child{
+            min-height: 0;
+        }
+    }
+</style>
 <?php
 
 if ($idReporteActual > 0) {
@@ -3981,7 +4147,7 @@ if ($idReporteActual > 0) {
                             <input name="fechaReporte" type="hidden" id="fechaReporte" value="<?= $fechaReporte; ?>" />
 
                             <!--<fieldset>-->
-                            <div class="col-sm-12">
+                            <div class="col-sm-12 registro-section registro-graduados">
 
                                 <div class="cont-tit">
 
@@ -4273,7 +4439,7 @@ if ($idReporteActual > 0) {
 
                                     <div class="col-sm-2"></div>
 
-                                    <div class="col-sm-8">
+                                    <div class="col-sm-8 registro-table-wrap">
 
                                         <script>
 
@@ -4519,7 +4685,7 @@ if ($idReporteActual > 0) {
 
                                         </script>
                                         <div class="form-group">
-                                            <div class="col-sm-12">
+                                            <div class="col-sm-12 registro-section registro-internos">
                                                 <table id="tablaAdd" class="table table-bordered">
                                                     <tbody>
                                                         <tr class="fila-fijaAdd">
@@ -4649,6 +4815,10 @@ if ($idReporteActual > 0) {
 
                                         <script>
                                             $(document).ready(function () {
+                                                $('.act_grad_nom').off('change');
+                                                $('.act_grad_tar').off('change');
+                                                $('#adicionarAdd').off('click');
+                                                $(document).off('click', '.eliminarAdd');
 
                                                 var STORAGE_KEY = 'graduados_temp';
 
@@ -4775,6 +4945,7 @@ if ($idReporteActual > 0) {
                                                 }
 
                                                 restaurarDatos();
+                                                $('#adicionarAdd').prop('disabled', false);
 
                                                 $(document).on('click', '#adicionarAdd', function (e) {
                                                     e.preventDefault();
@@ -4880,7 +5051,7 @@ if ($idReporteActual > 0) {
 
                                                 <div class="col-sm-1"></div>
 
-                                                <div class="col-sm-10">
+                                                <div class="col-sm-10 registro-table-wrap">
 
                                                     <script>
                                                         $(function () {
@@ -5047,7 +5218,7 @@ if ($idReporteActual > 0) {
 
                                         </div>
 
-                                        <div class="col-sm-12">
+                                        <div class="col-sm-12 registro-section registro-externos">
 
                                             <div class="cont-tit">
 
@@ -5073,7 +5244,7 @@ if ($idReporteActual > 0) {
 
                                                 <div class="col-sm-1"></div>
 
-                                                <div class="col-sm-10">
+                                                <div class="col-sm-10 registro-table-wrap">
 
                                                     <script>
                                                         $(function () {
