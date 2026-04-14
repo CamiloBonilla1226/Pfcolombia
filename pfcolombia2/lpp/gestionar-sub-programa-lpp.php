@@ -1385,8 +1385,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
             <div class="hr"><hr></div>
         </div>
         <div class="form-group">
-            <div class="col-sm-2"></div>
-            <div class="col-sm-8">
+            <div class="col-sm-12 registro-table-wrap">
                 <script>
                         $(function(){
                             var total = <?= $asistencia_nin; ?>;
@@ -1563,8 +1562,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
             <div class="col-sm-2"></div>
         </div>
         <div class="form-group">
-            <div class="col-sm-2"></div>
-            <div class="col-sm-8">
+            <div class="col-sm-12 registro-table-wrap">
                 <div class="col-sm-4"><strong>Número de graduados en LPP en la prisión:</strong> </div>
                 <div class="col-sm-2">
                     <input type="text" name="total" id="total" class="form-control" value="<?=$asistencia_nin; ?>" readonly>
@@ -1587,8 +1585,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
             <div class="hr"><hr></div>
         </div>
         <div class="form-group">
-            <div class="col-sm-2"></div>
-            <div class="col-sm-8">
+            <div class="col-sm-12 registro-table-wrap">
                 <?php
                 $graduadosEdicion = array();
                 foreach ($graduadosAdjuntos as $adjunto) {
@@ -1598,46 +1595,44 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                     );
                 }
                 ?>
-                <table id="tablaAdd" class="table table-bordered">
+                <table id="tablaAdd" class="table table-bordered registro-table">
                     <tbody></tbody>
                 </table>
             </div>
-            <div class="col-sm-2"></div>
         </div>
         <div class="form-group">
-            <div class="col-sm-2"></div>
-            <div class="col-sm-8">
-                <div class="row" style="margin-bottom: 15px;">
-                    <div class="col-sm-6">
-                        <label for="cantidadAdd" style="font-weight: bold; margin-top: 8px;">Cuantos registros desea realizar?</label>
+            <div class="col-sm-12">
+                <div class="registro-bulk-controls" style="margin-bottom: 15px;">
+                    <div class="col-sm-6 registro-bulk-controls__text">
+                        <label for="cantidadAdd">Cuantos registros desea realizar?</label>
                     </div>
-                    <div class="col-sm-3">
+                    <div class="col-sm-3 registro-bulk-controls__value">
                         <input type="number" id="cantidadAdd" class="form-control" min="1" placeholder="Ej: 5">
                     </div>
-                    <div class="col-sm-3">
+                    <div class="col-sm-3 registro-bulk-controls__actions">
                         <button id="generarVariasAdd" class="btn btn-primary btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
                             <i class="fa fa-list"></i> Generar
                         </button>
                     </div>
                 </div>
-                <div class="row" style="margin-bottom: 15px;">
-                    <div class="col-sm-6">
+                <div class="registro-summary">
+                    <div class="col-sm-6 registro-summary__text">
                         <strong>Numero de graduados en LPP en la prision:</strong>
                     </div>
-                    <div class="col-sm-2">
+                    <div class="col-sm-2 registro-summary__value">
                         <input type="text" name="total" id="total" class="form-control" value="<?=$asistencia_nin; ?>" readonly>
                     </div>
-                </div>
-                <div class="row">
-                    <div class="col-sm-3" style="margin-bottom: 10px;">
-                        <button id="adicionarAdd" class="btn btn-success btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
-                            <i class="fa fa-plus"></i> Adicionar
-                        </button>
-                    </div>
-                    <div class="col-sm-3" style="margin-bottom: 10px;">
-                        <button id="borrarTodoAdd" class="btn btn-danger btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
-                            <i class="fa fa-trash"></i> Borrar todo
-                        </button>
+                    <div class="col-sm-4 registro-summary__actions">
+                        <div class="col-sm-6">
+                            <button id="adicionarAdd" class="btn btn-success btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
+                                <i class="fa fa-plus"></i> Adicionar
+                            </button>
+                        </div>
+                        <div class="col-sm-6">
+                            <button id="borrarTodoAdd" class="btn btn-danger btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
+                                <i class="fa fa-trash"></i> Borrar todo
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1723,19 +1718,19 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
 
                 function crearFila() {
                     return $(
-                        '<tr class="fila-fijaAdd">' +
-                            '<td>' +
+                        '<tr class="fila-fijaAdd registro-table-row">' +
+                            '<td class="registro-col registro-col--nombre">' +
                                 '<strong>Nombre completo del graduado:</strong>' +
                                 '<input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />' +
                             '</td>' +
-                            '<td>' +
+                            '<td class="registro-col registro-col--identificacion">' +
                                 '<strong>Tarjeta dactilar / N&deg; identificacion:</strong>' +
-                                '<div class="campo-identificacion-graduado">' +
-                                    '<div class="contenedor-input">' +
-                                        '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
-                                    '</div>' +
-                                    '<button type="button" class="btn-eliminar-fila" title="Eliminar" aria-label="Eliminar registro">&times;</button>' +
-                                '</div>' +
+                                '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
+                            '</td>' +
+                            '<td class="registro-col registro-col--action">' +
+                                '<button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar" aria-label="Eliminar registro">' +
+                                    '<i class="fa fa-times"></i>' +
+                                '</button>' +
                             '</td>' +
                         '</tr>'
                     );
@@ -2000,8 +1995,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
             <div class="hr"><hr></div>
         </div>
         <div class="form-group">
-            <div class="col-sm-2"></div>
-            <div class="col-sm-8">
+            <div class="col-sm-12 registro-table-wrap">
                 <script>
                     $(function(){
                         var total = <?=$bautizados; ?>;
@@ -2056,9 +2050,9 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                         });
 
                         $("#adicionarAdd2").on('click',function(){
-                            $("#tablaAdd2 tr:last").clone().removeClass('fila-fijaAdd2').appendTo("#tablaAdd2");
-                            $("#tablaAdd2 tr input.act_vin_nom:last").val('');
-                            $("#tablaAdd2 tr input.act_vin_tar:last").val('');
+                            $("#tablaAdd2 tbody tr:last").clone().removeClass('fila-fijaAdd2').appendTo("#tablaAdd2 tbody");
+                            $("#tablaAdd2 tbody tr input.act_vin_nom:last").val('');
+                            $("#tablaAdd2 tbody tr input.act_vin_tar:last").val('');
                             var tar2 = $(".act_vin_tar").val();
                             var nom2 = $(".act_vin_nom").val();
                             if (tar2!="" && nom2!="") {
@@ -2077,60 +2071,67 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                         
                     });
                 </script>
-                <table id="tablaAdd2">
-                    <?php 
-                    $sql = "SELECT * ";
-                    $sql.=" FROM tbl_adjuntos ";
-                    $sql.=" WHERE adj_rep_fk = '".$idReporteActual."' AND adj_tip = 2 ";
+                <?php 
+                $sql = "SELECT * ";
+                $sql.=" FROM tbl_adjuntos ";
+                $sql.=" WHERE adj_rep_fk = '".$idReporteActual."' AND adj_tip = 2 ";
+                $PSN1->query($sql);
+                $numero=$PSN1->num_rows();
+                $cont = 0;
+                echo '<input type="hidden" name="vin_regist" value="'.$numero.'" placeholder="">';
+                if($numero > 0){
+                    while($PSN1->next_record()){ ?>
+                        <input type="hidden" name="act_vin_id[]" value="<?= $PSN1->f("adj_id");  ?>">
+                    <?php }
                     $PSN1->query($sql);
-                    $numero=$PSN1->num_rows();
-                    $cont = 0;
-                        echo '<input type="hidden" name="vin_regist" value="'.$numero.'" placeholder="">';
+                }
+                ?>
+                <table id="tablaAdd2" class="table table-bordered registro-table">
+                    <tbody>
+                    <?php
                     if($numero > 0){
                         while($PSN1->next_record()){ ?>
-                            <input type="hidden" name="act_vin_id[]" value="<?= $PSN1->f("adj_id");  ?>">
-                            <tr <?php echo($cont==0)?'class="fila-fijaAdd2"':''; ?>>
-                                <td class="col-sm-7">
+                            <tr <?php echo($cont==0)?'class="fila-fijaAdd2 registro-table-row"':'class="registro-table-row"'; ?>>
+                                <td class="registro-col registro-col--nombre">
                                     <strong>Nombre completo del siervo facilitador:</strong>
                                     <input name="act_vin_nom[]" type="text" id="act_vin_nom" class="act_vin_nom form-control" value="<?=$PSN1->f("adj_nom"); ?>" required />
                                 </td>
-                                <td class="col-sm-4">
+                                <td class="registro-col registro-col--identificacion">
                                     <strong>Tarjeta dactilar / N° identificación:</strong>
                                     <input name="act_vin_tar[]" type="text" id="act_vin_tar" min="0" class="act_vin_tar form-control" value="<?=$PSN1->f("adj_url"); ?>" required />
                                 </td>
-                                <td class="eliminarAdd2"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
+                                <td class="registro-col registro-col--action eliminarAdd2"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                             </tr>
                         <?php $cont++;
                         }
                     }else{ ?>
-                        <tr class="fila-fijaAdd2">
-                            <td class="col-sm-7">
+                        <tr class="fila-fijaAdd2 registro-table-row">
+                            <td class="registro-col registro-col--nombre">
                                 <strong>Nombre completo del siervo facilitador:</strong>
                                 <input name="act_vin_nom[]" type="text" id="act_vin_nom" class="act_vin_nom form-control"  />
                             </td>
-                            <td class="col-sm-4">
+                            <td class="registro-col registro-col--identificacion">
                                 <strong>Tarjeta dactilar / N° identificación:</strong>
                                 <input name="act_vin_tar[]" type="text" id="act_vin_tar" min="0" class="act_vin_tar form-control"  />
                             </td>
-                            <td class="eliminarAdd2"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
+                            <td class="registro-col registro-col--action eliminarAdd2"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                         </tr>
                     <?php } ?>
+                    </tbody>
                 </table>
-            </div>
-            <div class="col-sm-2"></div>
         </div>
         <div class="form-group">
-            <div class="col-sm-2"></div>
-            <div class="col-sm-8">
-                <div class="col-sm-4"><strong>Número de voluntarios internos activos en esta prisión:</strong> </div>
-                <div class="col-sm-2">
-                    <input type="text" name="total2" id="total2" class="form-control" value="<?=$bautizados; ?>" readonly>
-                </div>
-                <div class="col-sm-4"></div>
-                <div class="col-sm-2">
-                    <center>
-                        <button id="adicionarAdd2" class="btn btn-success" type="button" class="boton" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>><i class="fas fa-plus"></i>  Adicionar</button>
-                    </center>
+            <div class="col-sm-12">
+                <div class="registro-summary">
+                    <div class="col-sm-6 registro-summary__text"><strong>Número de voluntarios internos activos en esta prisión:</strong></div>
+                    <div class="col-sm-2 registro-summary__value">
+                        <input type="text" name="total2" id="total2" class="form-control" value="<?=$bautizados; ?>" readonly>
+                    </div>
+                    <div class="col-sm-4 registro-summary__actions">
+                        <center>
+                            <button id="adicionarAdd2" class="btn btn-success" type="button" class="boton" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>><i class="fas fa-plus"></i>  Adicionar</button>
+                        </center>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2144,8 +2145,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
             <div class="hr"><hr></div>
         </div>
         <div class="form-group">
-            <div class="col-sm-2"></div>
-            <div class="col-sm-8">
+            <div class="col-sm-12 registro-table-wrap">
                 <script>
                     $(function(){
                         var total = <?=$desiciones; ?>;
@@ -2200,9 +2200,9 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                         });
 
                         $("#adicionarAdd3").on('click',function(){
-                            $("#tablaAdd3 tr:last").clone().removeClass('fila-fijaAdd3').appendTo("#tablaAdd3");
-                            $("#tablaAdd3 tr input.act_vex_nom:last").val('');
-                            $("#tablaAdd3 tr input.act_vex_tar:last").val('');
+                            $("#tablaAdd3 tbody tr:last").clone().removeClass('fila-fijaAdd3').appendTo("#tablaAdd3 tbody");
+                            $("#tablaAdd3 tbody tr input.act_vex_nom:last").val('');
+                            $("#tablaAdd3 tbody tr input.act_vex_tar:last").val('');
                             var tar2 = $(".act_vex_tar").val();
                             var nom2 = $(".act_vex_nom").val();
                             if (tar2!="" && nom2!="") {
@@ -2221,60 +2221,67 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                         
                     });
                 </script>
-                <table id="tablaAdd3">
-                    <?php 
-                    $sql = "SELECT * ";
-                    $sql.=" FROM tbl_adjuntos ";
-                    $sql.=" WHERE adj_rep_fk = '".$idReporteActual."' AND adj_tip = 3 ";
+                <?php 
+                $sql = "SELECT * ";
+                $sql.=" FROM tbl_adjuntos ";
+                $sql.=" WHERE adj_rep_fk = '".$idReporteActual."' AND adj_tip = 3 ";
+                $PSN1->query($sql);
+                $numero=$PSN1->num_rows();
+                $cont = 0;
+                echo '<input type="hidden" name="vex_regist" value="'.$numero.'" placeholder="">';
+                if($numero > 0){
+                    while($PSN1->next_record()){ ?>
+                        <input type="hidden" name="act_vex_id[]" value="<?= $PSN1->f("adj_id");  ?>">
+                    <?php }
                     $PSN1->query($sql);
-                    $numero=$PSN1->num_rows();
-                    $cont = 0;
-                    echo '<input type="hidden" name="vex_regist" value="'.$numero.'" placeholder="">';
+                }
+                ?>
+                <table id="tablaAdd3" class="table table-bordered registro-table">
+                    <tbody>
+                    <?php
                     if($numero > 0){
                         while($PSN1->next_record()){ ?>
-                            <input type="hidden" name="act_vex_id[]" value="<?= $PSN1->f("adj_id");  ?>">
-                            <tr <?php echo($cont==0)?'class="fila-fijaAdd3"':''; ?>>
-                                <td class="col-sm-7">
+                            <tr <?php echo($cont==0)?'class="fila-fijaAdd3 registro-table-row"':'class="registro-table-row"'; ?>>
+                                <td class="registro-col registro-col--nombre">
                                     <strong>Nombre completo del entrenador:</strong>
                                     <input name="act_vex_nom[]" type="text" id="act_vex_nom" class="act_vex_nom form-control" value="<?=$PSN1->f("adj_nom"); ?>" required />
                                 </td>
-                                <td class="col-sm-4">
+                                <td class="registro-col registro-col--identificacion">
                                     <strong>N° identificación:</strong>
                                     <input name="act_vex_tar[]" type="text" id="act_vex_tar" min="0" class="act_vex_tar form-control" value="<?=$PSN1->f("adj_url"); ?>" required />
                                 </td>
-                                <td class="eliminarAdd3"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
+                                <td class="registro-col registro-col--action eliminarAdd3"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                             </tr>
                         <?php $cont++;
                         }
                     }else{ ?>
-                        <tr class="fila-fijaAdd3">
-                                <td class="col-sm-7">
+                        <tr class="fila-fijaAdd3 registro-table-row">
+                                <td class="registro-col registro-col--nombre">
                                     <strong>Nombre completo del entrenador:</strong>
                                     <input name="act_vex_nom[]" type="text" id="act_vex_nom" class="act_vex_nom form-control"  />
                                 </td>
-                                <td class="col-sm-4">
+                                <td class="registro-col registro-col--identificacion">
                                     <strong>N° identificación:</strong>
                                     <input name="act_vex_tar[]" type="text" id="act_vex_tar" min="0" class="act_vex_tar form-control"  />
                                 </td>
-                                <td class="eliminarAdd3"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
+                                <td class="registro-col registro-col--action eliminarAdd3"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                             </tr>
                     <?php } ?>
+                    </tbody>
                 </table>
-            </div>
-            <div class="col-sm-2"></div>
         </div>
         <div class="form-group">
-            <div class="col-sm-2"></div>
-            <div class="col-sm-8">
-                <div class="col-sm-4"><strong>Número de voluntarios externos para esta prisión:</strong> </div>
-                <div class="col-sm-2">
+            <div class="col-sm-12">
+                <div class="registro-summary">
+                <div class="col-sm-6 registro-summary__text"><strong>Número de voluntarios externos para esta prisión:</strong> </div>
+                <div class="col-sm-2 registro-summary__value">
                     <input type="text" name="total3" id="total3" class="form-control" value="<?=$desiciones; ?>" readonly>
                 </div>
-                <div class="col-sm-4"></div>
-                <div class="col-sm-2">
+                <div class="col-sm-4 registro-summary__actions">
                     <center>
                         <button id="adicionarAdd3" class="btn btn-success" type="button" class="boton" ><i class="fas fa-plus"></i>  Adicionar</button>
                     </center>
+                </div>
                 </div>
             </div>
         </div>
@@ -3203,6 +3210,11 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
         border-top: 3px solid #252525;
     }
 
+    .report-form .registro-section.registro-graduados{
+        border-top-color: #404040;
+        background: linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
+    }
+
     .report-form .registro-section.registro-internos{
         border-top-color: #5a5a5a;
         background: linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
@@ -3215,45 +3227,260 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
 
     .report-form .registro-table-wrap{
         float: none;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+
+    .report-form .registro-table{
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0;
+        table-layout: fixed;
+        border: 0 !important;
+        border-collapse: separate !important;
+        border-spacing: 0 14px !important;
+        background: transparent !important;
+    }
+
+    .report-form .registro-table > tbody > tr > td,
+    .report-form .registro-table > tr > td{
+        padding: 18px 20px !important;
+        vertical-align: top !important;
+        border: 1px solid #dbe3ea !important;
+        border-left-width: 0 !important;
+        background: #ffffff;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    .report-form .registro-table > tbody > tr > td:first-child,
+    .report-form .registro-table > tr > td:first-child{
+        border-left-width: 1px !important;
+        border-radius: 18px 0 0 18px;
+    }
+
+    .report-form .registro-table > tbody > tr > td:last-child,
+    .report-form .registro-table > tr > td:last-child{
+        border-radius: 0 18px 18px 0;
+    }
+
+    .report-form .registro-table .registro-col--nombre{
+        width: 52%;
+    }
+
+    .report-form .registro-table .registro-col--identificacion{
+        width: 38%;
+    }
+
+    .report-form .registro-table .registro-col--action{
+        width: 10%;
+        padding: 18px 10px !important;
+        text-align: center;
+        vertical-align: middle !important;
+    }
+
+    .report-form .registro-table strong{
+        display: block;
+        width: 100%;
+        min-height: 0 !important;
+        margin-bottom: 8px;
+    }
+
+    .report-form .registro-table input{
+        width: 100% !important;
+        min-height: 44px !important;
+        margin-top: 0;
+    }
+
+    .report-form .registro-table .btn,
+    .report-form .registro-table .btn-cir-uno,
+    .report-form .registro-table .btn-eliminar-fila{
         margin: 0 auto;
     }
 
-    .report-form .registro-table-wrap table{
-        width: 100% !important;
-        table-layout: fixed;
-        border-collapse: separate;
-        border-spacing: 0;
+    .report-form .registro-summary,
+    .report-form .registro-bulk-controls{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 14px 16px;
+        width: 100%;
+        padding: 18px 20px;
+        border: 1px solid #dbe3ea;
+        border-radius: 18px;
+        background: #f8fafc;
     }
 
-    .report-form #tablaAdd,
-    .report-form #tablaAdd2,
-    .report-form #tablaAdd3{
-        min-height: 148px;
+    .report-form .registro-summary > [class*="col-sm-"],
+    .report-form .registro-bulk-controls > [class*="col-sm-"]{
+        float: none;
+        width: auto;
+        padding: 0;
+        margin: 0;
     }
 
-    .report-form #tablaAdd td,
-    .report-form #tablaAdd2 td,
-    .report-form #tablaAdd3 td{
-        padding: 16px 14px !important;
-        vertical-align: top;
+    .report-form .registro-summary > :first-child,
+    .report-form .registro-bulk-controls > :first-child{
+        flex: 1 1 360px;
+        min-width: 0;
     }
 
-    .report-form #tablaAdd input,
-    .report-form #tablaAdd2 input,
-    .report-form #tablaAdd3 input{
-        min-height: 44px;
-        margin-top: 8px;
+    .report-form .registro-summary > :nth-child(2),
+    .report-form .registro-bulk-controls > :nth-child(2){
+        flex: 0 0 160px;
+        max-width: 180px;
+        min-width: 130px;
     }
 
-    @media (min-width: 992px){
-        .report-form .registro-table-wrap{
-            width: 78% !important;
-        }
+    .report-form .registro-summary > :nth-child(3){
+        display: none;
+    }
+
+    .report-form .registro-summary > :last-child,
+    .report-form .registro-bulk-controls > :last-child{
+        flex: 1 1 220px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-end;
+    }
+
+    .report-form .registro-summary > :last-child > center,
+    .report-form .registro-bulk-controls > :last-child > center{
+        width: 100%;
+    }
+
+    .report-form .registro-summary__text,
+    .report-form .registro-bulk-controls__text{
+        flex: 1 1 360px;
+        min-width: 0;
+    }
+
+    .report-form .registro-summary__text strong,
+    .report-form .registro-bulk-controls__text label{
+        display: block;
+        width: 100%;
+        margin: 0;
+        min-height: 0 !important;
+    }
+
+    .report-form .registro-summary__value,
+    .report-form .registro-bulk-controls__value{
+        flex: 0 0 160px;
+        max-width: 180px;
+        min-width: 130px;
+    }
+
+    .report-form .registro-summary__value .form-control,
+    .report-form .registro-bulk-controls__value .form-control{
+        width: 100%;
+        text-align: center;
+        font-weight: 700;
+    }
+
+    .report-form .registro-summary__actions,
+    .report-form .registro-bulk-controls__actions{
+        flex: 1 1 220px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .report-form .registro-summary__actions > [class*="col-sm-"],
+    .report-form .registro-bulk-controls__actions > [class*="col-sm-"]{
+        float: none;
+        width: auto;
+        padding: 0;
+        margin: 0;
+    }
+
+    .report-form .registro-summary__actions .btn,
+    .report-form .registro-bulk-controls__actions .btn,
+    .report-form .registro-summary > :last-child .btn,
+    .report-form .registro-bulk-controls > :last-child .btn{
+        min-width: 160px;
+        white-space: nowrap;
     }
 
     @media (max-width: 767px){
         .report-form .form-group > [class*="col-sm-"] > strong:first-child{
             min-height: 0;
+        }
+
+        .report-form .registro-table{
+            border-spacing: 0 12px !important;
+        }
+
+        .report-form .registro-table > tbody > tr,
+        .report-form .registro-table > tr{
+            display: block;
+        }
+
+        .report-form .registro-table > tbody > tr > td,
+        .report-form .registro-table > tr > td{
+            display: block;
+            width: 100% !important;
+            border-left-width: 1px !important;
+            border-radius: 0 !important;
+        }
+
+        .report-form .registro-table > tbody > tr > td:first-child,
+        .report-form .registro-table > tr > td:first-child{
+            border-radius: 18px 18px 0 0 !important;
+        }
+
+        .report-form .registro-table > tbody > tr > td:last-child,
+        .report-form .registro-table > tr > td:last-child{
+            border-top: 0 !important;
+            border-radius: 0 0 18px 18px !important;
+        }
+
+        .report-form .registro-table .registro-col--action{
+            min-height: 74px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .report-form .registro-summary,
+        .report-form .registro-bulk-controls{
+            padding: 16px;
+        }
+
+        .report-form .registro-summary__text,
+        .report-form .registro-summary__value,
+        .report-form .registro-summary__actions,
+        .report-form .registro-bulk-controls__text,
+        .report-form .registro-bulk-controls__value,
+        .report-form .registro-bulk-controls__actions{
+            flex: 1 1 100%;
+            max-width: none;
+        }
+
+        .report-form .registro-summary__actions,
+        .report-form .registro-bulk-controls__actions{
+            justify-content: stretch;
+        }
+
+        .report-form .registro-summary__actions .btn,
+        .report-form .registro-bulk-controls__actions .btn,
+        .report-form .registro-summary > :last-child .btn,
+        .report-form .registro-bulk-controls > :last-child .btn{
+            width: 100%;
+            min-width: 0;
+        }
+
+        .report-form .registro-summary > :last-child,
+        .report-form .registro-bulk-controls > :last-child{
+            width: 100%;
+            justify-content: stretch;
+        }
+
+        .report-form .registro-summary__actions > [class*="col-sm-"],
+        .report-form .registro-bulk-controls__actions > [class*="col-sm-"]{
+            width: 100%;
         }
     }
 </style>
@@ -3635,50 +3862,47 @@ if($idReporteActual > 0){
                 <div class="hr"><hr></div>
             </div>
             <div class="form-group">
-                <div class="col-sm-2"></div>
-                <div class="col-sm-8 registro-table-wrap">
-                    <table id="tablaAdd" class="table table-bordered">
+                <div class="col-sm-12 registro-table-wrap">
+                    <table id="tablaAdd" class="table table-bordered registro-table">
                         <tbody></tbody>
                     </table>
                 </div>
-                <div class="col-sm-2"></div>
             </div>
             <div class="form-group">
-                <div class="col-sm-2"></div>
-                <div class="col-sm-8 registro-table-wrap">
-                    <div class="row" style="margin-bottom: 15px;">
-                        <div class="col-sm-6">
-                            <label for="cantidadAdd" style="font-weight: bold; margin-top: 8px;">
+                <div class="col-sm-12">
+                    <div class="registro-bulk-controls" style="margin-bottom: 15px;">
+                        <div class="col-sm-6 registro-bulk-controls__text">
+                            <label for="cantidadAdd">
                                 Cuantos registros desea realizar?
                             </label>
                         </div>
-                        <div class="col-sm-3">
+                        <div class="col-sm-3 registro-bulk-controls__value">
                             <input type="number" id="cantidadAdd" class="form-control" min="1" placeholder="Ej: 5">
                         </div>
-                        <div class="col-sm-3">
+                        <div class="col-sm-3 registro-bulk-controls__actions">
                             <button id="generarVariasAdd" class="btn btn-primary btn-block" type="button">
                                 <i class="fa fa-list"></i> Generar
                             </button>
                         </div>
                     </div>
-                    <div class="row" style="margin-bottom: 15px;">
-                        <div class="col-sm-6">
+                    <div class="registro-summary">
+                        <div class="col-sm-6 registro-summary__text">
                             <strong>Numero de graduados en LPP en la prision:</strong>
                         </div>
-                        <div class="col-sm-2">
+                        <div class="col-sm-2 registro-summary__value">
                             <input type="text" name="total" id="total" class="form-control" value="0" readonly>
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-sm-3" style="margin-bottom: 10px;">
-                            <button id="adicionarAdd" class="btn btn-success btn-block" type="button">
-                                <i class="fa fa-plus"></i> Adicionar
-                            </button>
-                        </div>
-                        <div class="col-sm-3" style="margin-bottom: 10px;">
-                            <button id="borrarTodoAdd" class="btn btn-danger btn-block" type="button">
-                                <i class="fa fa-trash"></i> Borrar todo
-                            </button>
+                        <div class="col-sm-4 registro-summary__actions">
+                            <div class="col-sm-6">
+                                <button id="adicionarAdd" class="btn btn-success btn-block" type="button">
+                                    <i class="fa fa-plus"></i> Adicionar
+                                </button>
+                            </div>
+                            <div class="col-sm-6">
+                                <button id="borrarTodoAdd" class="btn btn-danger btn-block" type="button">
+                                    <i class="fa fa-trash"></i> Borrar todo
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3738,16 +3962,16 @@ if($idReporteActual > 0){
 
                     function crearFila() {
                         return $(
-                            '<tr class="fila-fijaAdd">' +
-                                '<td style="width: 58%;">' +
+                            '<tr class="fila-fijaAdd registro-table-row">' +
+                                '<td class="registro-col registro-col--nombre">' +
                                     '<strong>Nombre completo del graduado:</strong>' +
                                     '<input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />' +
                                 '</td>' +
-                                '<td style="width: 32%;">' +
+                                '<td class="registro-col registro-col--identificacion">' +
                                     '<strong>Tarjeta dactilar / N&deg; identificacion:</strong>' +
                                     '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
                                 '</td>' +
-                                '<td style="width: 10%; text-align: center; vertical-align: middle;">' +
+                                '<td class="registro-col registro-col--action">' +
                                     '<button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar">' +
                                         '<i class="fa fa-times"></i>' +
                                     '</button>' +
@@ -4013,8 +4237,7 @@ if($idReporteActual > 0){
                     <div class="hr"><hr></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-2"></div>
-                    <div class="col-sm-8 registro-table-wrap">
+                    <div class="col-sm-12 registro-table-wrap">
                         <script>
                             $(function(){
                                 var total = 0;
@@ -4068,9 +4291,9 @@ if($idReporteActual > 0){
                                     var tar2 = $(".act_vin_tar").val();
                                     var nom2 = $(".act_vin_nom").val();
                                     if (tar2!="" && nom2!="") {
-                                        $("#tablaAdd2 tr:last").clone().removeClass('fila-fijaAdd2').appendTo("#tablaAdd2");
-                                        $("#tablaAdd2 tr input.act_vin_nom:last").val('');
-                                        $("#tablaAdd2 tr input.act_vin_tar:last").val('');
+                                        $("#tablaAdd2 tbody tr:last").clone().removeClass('fila-fijaAdd2').appendTo("#tablaAdd2 tbody");
+                                        $("#tablaAdd2 tbody tr input.act_vin_nom:last").val('');
+                                        $("#tablaAdd2 tbody tr input.act_vin_tar:last").val('');
                                         total = total + 1;
                                     }else{
                                         alert("Ingrese toda la información antes de agregar otro campo");
@@ -4088,36 +4311,38 @@ if($idReporteActual > 0){
                                 
                             });
                         </script>
-                        <table id="tablaAdd2">
-                            <tr class="fila-fijaAdd2">
-                                <td class="col-sm-7">
+                        <table id="tablaAdd2" class="table table-bordered registro-table">
+                            <tbody>
+                            <tr class="fila-fijaAdd2 registro-table-row">
+                                <td class="registro-col registro-col--nombre">
                                     <strong>Nombre completo del siervo Facilitador:</strong>
                                     <input name="act_vin_nom[]" type="text" id="act_vin_nom" class="act_vin_nom form-control" />
                                 </td>
-                                <td class="col-sm-4">
+                                <td class="registro-col registro-col--identificacion">
                                     <strong>Tarjeta dactilar / N° identificación:</strong>
                                     <input name="act_vin_tar[]" type="text" id="act_vin_tar" min="0" class="act_vin_tar form-control" />
                                 </td>
-                                <td class="eliminarAdd2"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
+                                <td class="registro-col registro-col--action eliminarAdd2"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                             </tr>
+                            </tbody>
                         </table>
                     </div>
-                    <div class="col-sm-2"></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-2"></div>
-                    <div class="col-sm-8 registro-table-wrap">
-                        <div class="col-sm-4"><strong>Número de voluntarios internos activos en esta prisión:</strong> </div>
-                        <div class="col-sm-2">
+                    <div class="col-sm-12">
+                        <div class="registro-summary">
+                        <div class="col-sm-6 registro-summary__text"><strong>Número de voluntarios internos activos en esta prisión:</strong> </div>
+                        <div class="col-sm-2 registro-summary__value">
                             <input type="text" name="total2" id="total2" value="" class="form-control" readonly>
                         </div>
-                        <div class="col-sm-4"></div>
-                        <div class="col-sm-2">
+                        <div class="col-sm-4 registro-summary__actions">
                             <center>
                                 <button id="adicionarAdd2" class="btn btn-success" type="button" class="boton"><i class="fas fa-plus"></i>  Adicionar</button>
                             </center>
                         </div>
+                        </div>
                     </div>
+                </div>
                 <!--<div class="cont-btn cont-flex fl-sbet">
                     <div class="item-btn">
                         <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
@@ -4138,8 +4363,7 @@ if($idReporteActual > 0){
                     <div class="hr"><hr></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-2"></div>
-                    <div class="col-sm-8 registro-table-wrap">
+                    <div class="col-sm-12 registro-table-wrap">
                         <script>
                             $(function(){
                                 var total = 0;
@@ -4193,9 +4417,9 @@ if($idReporteActual > 0){
                                     var tar2 = $(".act_vex_tar").val();
                                     var nom2 = $(".act_vex_nom").val();
                                     if (tar2!="" && nom2!="") {
-                                        $("#tablaAdd3 tr:last").clone().removeClass('fila-fijaAdd3').appendTo("#tablaAdd3");
-                                        $("#tablaAdd3 tr input.act_vex_nom:last").val('');
-                                        $("#tablaAdd3 tr input.act_vex_tar:last").val('');
+                                        $("#tablaAdd3 tbody tr:last").clone().removeClass('fila-fijaAdd3').appendTo("#tablaAdd3 tbody");
+                                        $("#tablaAdd3 tbody tr input.act_vex_nom:last").val('');
+                                        $("#tablaAdd3 tbody tr input.act_vex_tar:last").val('');
                                         total = total + 1;
                                     }else{
                                         alert("Ingrese toda la información antes de agregar otro campo");
@@ -4213,36 +4437,38 @@ if($idReporteActual > 0){
                                 
                             });
                         </script>
-                        <table id="tablaAdd3">
-                            <tr class="fila-fijaAdd3">
-                                <td class="col-sm-7">
+                        <table id="tablaAdd3" class="table table-bordered registro-table">
+                            <tbody>
+                            <tr class="fila-fijaAdd3 registro-table-row">
+                                <td class="registro-col registro-col--nombre">
                                     <strong>Nombre completo del entrenador:</strong>
                                     <input name="act_vex_nom[]" type="text" id="act_vex_nom" class="act_vex_nom form-control"  />
                                 </td>
-                                <td class="col-sm-4">
+                                <td class="registro-col registro-col--identificacion">
                                     <strong>N° identificación:</strong>
                                     <input name="act_vex_tar[]" type="text" id="act_vex_tar" min="0" class="act_vex_tar form-control" />
                                 </td>
-                                <td class="eliminarAdd3"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
+                                <td class="registro-col registro-col--action eliminarAdd3"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                             </tr>
+                            </tbody>
                         </table>
                     </div>
-                    <div class="col-sm-2"></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-2"></div>
-                    <div class="col-sm-8 registro-table-wrap">
-                        <div class="col-sm-4"><strong>Número de voluntarios externos para esta prisión:</strong> </div>
-                        <div class="col-sm-2">
+                    <div class="col-sm-12">
+                        <div class="registro-summary">
+                        <div class="col-sm-6 registro-summary__text"><strong>Número de voluntarios externos para esta prisión:</strong> </div>
+                        <div class="col-sm-2 registro-summary__value">
                             <input type="text" name="total3" id="total3" value="" class="form-control" readonly>
                         </div>
-                        <div class="col-sm-4"></div>
-                        <div class="col-sm-2">
+                        <div class="col-sm-4 registro-summary__actions">
                             <center>
                                 <button id="adicionarAdd3" class="btn btn-success" type="button" class="boton" ><i class="fas fa-plus"></i>  Adicionar</button>
                             </center>
                         </div>
+                        </div>
                     </div>
+                </div>
                 <!--<div class="cont-btn cont-flex fl-sbet">
                     <div class="item-btn">
                         <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
