@@ -1,5 +1,36 @@
 <?php
 
+?>
+<style>
+        /* Botón micrófono */
+    .mic-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1px solid #ddd;
+      background: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .mic-btn:hover {
+      background: #f0f0f0;
+    }
+
+    /* Estado activo: grabando */
+    .mic-btn.grabando {
+      background: #fff0f0;
+      border-color: #f09595;
+      animation: pulsar 1s infinite;
+    }
+
+</style>
+<?php
+
 $PSN1 = new DBbase_Sql;
 
 $PSN = new DBbase_Sql;
@@ -4693,6 +4724,7 @@ if ($idReporteActual > 0) {
                                                                 <strong>Nombre completo del graduado:</strong>
                                                                 <input name="act_grad_nom[]" type="text"
                                                                     class="act_grad_nom form-control" />
+                                                                    
                                                             </td>
 
                                                             <td style="width: 32%;">
@@ -4826,8 +4858,11 @@ if ($idReporteActual > 0) {
                                                     return `
             <tr class="fila-fijaAdd">
                 <td style="width: 58%;">
-                    <strong>Nombre completo del graduado:</strong>
+                    <strong>Nombre completo del graduado :</strong>
                     <input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />
+                    
+
+                    
                 </td>
 
                 <td style="width: 32%;">
@@ -4843,6 +4878,89 @@ if ($idReporteActual > 0) {
             </tr>
         `;
                                                 }
+                                                
+
+// ─── Compatibilidad Web Speech API ────────────────────────────────────────────
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (!SpeechRecognition) {
+  document.getElementById('alerta-voz').style.display = 'block';
+}
+
+// ─── Estado global de grabación ───────────────────────────────────────────────
+let reconocimientoActivo = null;
+let botonActivo = null;
+
+
+// ─── Lógica de micrófono ──────────────────────────────────────────────────────
+document.querySelectorAll('.mic-btn').forEach(boton => {
+  boton.addEventListener('click', () => {
+    if (!SpeechRecognition) return;
+
+    const idCampo   = boton.dataset.campo;
+    const inputEl   = document.getElementById(idCampo);
+    const estadoEl  = document.getElementById('estado-' + idCampo);
+
+    // Si ya está grabando este campo → detener
+    if (reconocimientoActivo) {
+      reconocimientoActivo.stop();
+      if (botonActivo) botonActivo.classList.remove('grabando');
+      estadoEl.textContent = '';
+      estadoEl.classList.remove('activo');
+      reconocimientoActivo = null;
+      botonActivo = null;
+      return;
+    }
+
+    // Crear nueva instancia
+    const rec = new SpeechRecognition();
+    rec.lang            = 'es-CO';   // español Colombia
+    rec.interimResults  = true;      // mostrar texto parcial mientras habla
+    rec.maxAlternatives = 1;
+
+    reconocimientoActivo = rec;
+    botonActivo          = boton;
+
+    boton.classList.add('grabando');
+    estadoEl.textContent = 'Escuchando…';
+    estadoEl.classList.add('activo');
+
+    // Resultado parcial / final
+    rec.onresult = (evento) => {
+      const transcripcion = Array.from(evento.results)
+        .map(r => r[0].transcript)
+        .join('');
+
+        // Capitalizar primera letra
+        inputEl.value = transcripcion.charAt(0).toUpperCase() + transcripcion.slice(1);
+      
+    };
+
+    // Al terminar la grabación
+    rec.onend = () => {
+      boton.classList.remove('grabando');
+      estadoEl.classList.remove('activo');
+      if (estadoEl.textContent === 'Escuchando…') estadoEl.textContent = '';
+      reconocimientoActivo = null;
+      botonActivo = null;
+    };
+
+    // Error de grabación
+    rec.onerror = (e) => {
+      boton.classList.remove('grabando');
+      estadoEl.classList.remove('activo');
+      estadoEl.textContent =
+        e.error === 'no-speech' ? 'No se detectó audio.' : 'Error: ' + e.error;
+      reconocimientoActivo = null;
+      botonActivo = null;
+    };
+
+    rec.start();
+  });
+});
+                                                
+                                                
 
                                                 function obtenerValoresFila($fila) {
                                                     var nombre = $.trim($fila.find('.act_grad_nom').val());

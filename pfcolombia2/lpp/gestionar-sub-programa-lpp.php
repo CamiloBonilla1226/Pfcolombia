@@ -1518,7 +1518,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                             
                         });
                     </script>
-                <table id="tablaAdd" class="table table-bordered" style="width:100%; table-layout:fixed;">
+                <table id="tablaAdd">
                     <?php 
                     $sql = "SELECT * ";
                     $sql.=" FROM tbl_adjuntos ";
@@ -1531,39 +1531,31 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                         while($PSN1->next_record()){ ?>
                             <input type="hidden" name="act_grad_id[]" value="<?= $PSN1->f("adj_id");  ?>">
                             <tr <?php echo($cont==0)?'class="fila-fijaAdd"':''; ?>>
-                                <td style="width:58%;">
+                                <td class="col-sm-7">
                                    
                                     <strong>Nombre completo del graduado:</strong>
                                     <input name="act_grad_nom[]" type="text" id="act_grad_nom" class="act_grad_nom form-control" value="<?=$PSN1->f("adj_nom"); ?>" required />
                                 </td>
-                                <td style="width:32%;">
+                                <td class="col-sm-4">
                                     <strong>Tarjeta dactilar / N° identificación:</strong>
                                     <input name="act_grad_tar[]" type="text" id="act_grad_tar" min="0" class="act_grad_tar form-control" value="<?=$PSN1->f("adj_url"); ?>" required />
                                 </td>
-                                <td style="width:10%; text-align:center; vertical-align:middle;">
-                                    <button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar">
-                                        <i class="fa fa-times"></i>
-                                    </button>
-                                </td>
+                                <td class="eliminarAdd"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
                             </tr>
                         <?php $cont++;
                         }
                     }else{ ?>
                         
                         <tr class="fila-fijaAdd">
-                            <td style="width:58%;">
+                            <td class="col-sm-7">
                                 <strong>Nombre completo del graduado:</strong>
                                 <input name="act_grad_nom[]" type="text" id="act_grad_nom" class="act_grad_nom form-control"  />
                             </td>
-                            <td style="width:32%;">
+                            <td class="col-sm-4">
                                 <strong>Tarjeta dactilar / N° identificación:</strong>
                                 <input name="act_grad_tar[]" type="text" id="act_grad_tar" min="0" class="act_grad_tar form-control" />
                             </td>
-                            <td style="width:10%; text-align:center; vertical-align:middle;">
-                                <button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar">
-                                    <i class="fa fa-times"></i>
-                                </button>
-                            </td>
+                            <td class="eliminarAdd"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
                         </tr>
                     <?php } ?>
                 </table>
@@ -1606,7 +1598,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                     );
                 }
                 ?>
-                <table id="tablaAdd" class="table table-bordered" style="width:100%; table-layout:fixed;">
+                <table id="tablaAdd" class="table table-bordered">
                     <tbody></tbody>
                 </table>
             </div>
@@ -1665,9 +1657,39 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                 margin-top: 8px;
             }
 
+            #tablaAdd .campo-identificacion-graduado {
+                display: flex !important;
+                align-items: center;
+                gap: 12px;
+                margin-top: 8px;
+            }
+
+            #tablaAdd .campo-identificacion-graduado .contenedor-input {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+
             #tablaAdd .btn-eliminar-fila {
-                padding: 6px 10px;
+                width: 36px;
+                height: 34px;
+                min-width: 36px;
+                padding: 0;
                 border-radius: 4px;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                background-color: #d9534f !important;
+                border: 1px solid #d43f3a;
+                color: #fff !important;
+                font-size: 22px;
+                font-weight: bold;
+                line-height: 1;
+                text-align: center;
+                text-decoration: none !important;
+                cursor: pointer;
+                flex: 0 0 36px;
+                opacity: 1 !important;
+                visibility: visible !important;
             }
 
             #cantidadAdd {
@@ -1688,11 +1710,7 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                 }
 
                 #tablaAdd td:nth-child(2) {
-                    width: 32% !important;
-                }
-
-                #tablaAdd td:nth-child(3) {
-                    width: 10% !important;
+                    width: 42% !important;
                 }
             }
         </style>
@@ -1706,18 +1724,18 @@ LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
                 function crearFila() {
                     return $(
                         '<tr class="fila-fijaAdd">' +
-                            '<td style="width: 58%;">' +
+                            '<td>' +
                                 '<strong>Nombre completo del graduado:</strong>' +
                                 '<input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />' +
                             '</td>' +
-                            '<td style="width: 32%;">' +
+                            '<td>' +
                                 '<strong>Tarjeta dactilar / N&deg; identificacion:</strong>' +
-                                '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
-                            '</td>' +
-                            '<td style="width: 10%; text-align: center; vertical-align: middle;">' +
-                                '<button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar">' +
-                                    '<i class="fa fa-times"></i>' +
-                                '</button>' +
+                                '<div class="campo-identificacion-graduado">' +
+                                    '<div class="contenedor-input">' +
+                                        '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
+                                    '</div>' +
+                                    '<button type="button" class="btn-eliminar-fila" title="Eliminar" aria-label="Eliminar registro">&times;</button>' +
+                                '</div>' +
                             '</td>' +
                         '</tr>'
                     );
@@ -3567,21 +3585,17 @@ if($idReporteActual > 0){
                                 
                             });
                         </script>
-                        <table id="tablaAdd" class="table table-bordered" style="width:100%; table-layout:fixed;">
+                        <table id="tablaAdd">
                             <tr class="fila-fijaAdd">
-                                <td style="width:58%;">
+                                <td class="col-sm-7">
                                     <strong>Nombre completo del graduado:</strong>
                                     <input name="act_grad_nom[]" type="text" id="act_grad_nom" class="act_grad_nom form-control" />
                                 </td>
-                                <td style="width:32%;">
+                                <td class="col-sm-4">
                                     <strong>Tarjeta dactilar / N° identificación:</strong>
                                     <input name="act_grad_tar[]" type="text" id="act_grad_tar" min="0" class="act_grad_tar form-control" />
                                 </td>
-                                <td style="width:10%; text-align:center; vertical-align:middle;">
-                                    <button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar">
-                                        <i class="fa fa-times"></i>
-                                    </button>
-                                </td>
+                                <td class="eliminarAdd"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
                             </tr>
                         </table>
                     </div>
@@ -3623,7 +3637,7 @@ if($idReporteActual > 0){
             <div class="form-group">
                 <div class="col-sm-2"></div>
                 <div class="col-sm-8 registro-table-wrap">
-                    <table id="tablaAdd" class="table table-bordered" style="width:100%; table-layout:fixed;">
+                    <table id="tablaAdd" class="table table-bordered">
                         <tbody></tbody>
                     </table>
                 </div>
@@ -3685,6 +3699,7 @@ if($idReporteActual > 0){
                 }
 
                 #tablaAdd .btn-eliminar-fila {
+                    margin-top: 18px;
                     padding: 6px 10px;
                     border-radius: 4px;
                 }
