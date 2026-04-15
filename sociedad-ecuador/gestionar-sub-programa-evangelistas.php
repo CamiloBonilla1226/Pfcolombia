@@ -4,6 +4,9 @@ $PSN2 = new DBbase_Sql;
 $PSN = new DBbase_Sql;
 $webArchivo = "preoperacional";
 $temp_letrero = "EVANGELISTAS";
+$usua_id = isset($_SESSION["id"]) ? soloNumeros($_SESSION["id"]) : 0;
+$nombre_evangelista = isset($_SESSION["nombre"]) ? $_SESSION["nombre"] : "";
+$tipo_usuario_evangelista = 163;
 
 
 // Compress image
@@ -19,6 +22,30 @@ function compressImage($source, $destination, $quality) {
         $image = imagecreatefrompng($source);
   }
   imagejpeg($image, $destination, $quality);
+}
+
+function obtenerOpcionesEvangelista($idSeleccionado, $tipoUsuarioEvangelista) {
+    $PSNUsuarios = new DBbase_Sql;
+    $idSeleccionado = intval($idSeleccionado);
+
+    $sql = "SELECT DISTINCT U.id, U.nombre FROM usuario AS U ";
+    $sql .= "WHERE U.id != 2 ";
+    $sql .= "AND U.tipo = '".$tipoUsuarioEvangelista."' ";
+    $sql .= "ORDER BY U.nombre ASC";
+
+    $PSNUsuarios->query($sql);
+
+    $opciones = "";
+    if($PSNUsuarios->num_rows() > 0){
+        while($PSNUsuarios->next_record()){
+            $idUsuarioLista = $PSNUsuarios->f("id");
+            $nombreUsuarioLista = htmlspecialchars($PSNUsuarios->f("nombre"), ENT_QUOTES, "UTF-8");
+            $selected = ((string)$idSeleccionado === (string)$idUsuarioLista) ? ' selected="selected"' : '';
+            $opciones .= '<option value="'.$idUsuarioLista.'"'.$selected.'>'.$nombreUsuarioLista.'</option>';
+        }
+    }
+
+    return $opciones;
 }
 
 
@@ -69,6 +96,16 @@ if(isset($_POST["funcion"])){
         /*
         *   PESTAÑA GENERAL
         */
+        $usua_id = soloNumeros($_REQUEST["usua_id"]);
+        if($usua_id == ""){
+            $usua_id = soloNumeros($_SESSION["id"]);
+        }
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_evangelista."' LIMIT 1";
+        $PSN2->query($sqlUsuario);
+        if($PSN2->num_rows() == 0){
+            $error_datos = 4;
+        }
+
         $fechaReporte = eliminarInvalidos($_REQUEST["fechaReporte"]);
         $fechaInicio = eliminarInvalidos($_REQUEST["fechaInicio"]);        
         if (isset($_REQUEST['sitioReunion'])) {
@@ -216,7 +253,7 @@ if(isset($_POST["funcion"])){
             
             $sql .= ' VALUES 
                 (
-                "'.$_SESSION["id"].'",
+                "'.$usua_id.'",
                 "'.$rep_text1.'",
                 "'.$rep_text2.'", 
                 "'.$rep_text3.'", 
@@ -353,6 +390,16 @@ if(isset($_POST["funcion"])){
         /*
         *   PESTAÑA GENERAL
         */
+        $usua_id = soloNumeros($_REQUEST["usua_id"]);
+        if($usua_id == ""){
+            $usua_id = soloNumeros($_SESSION["id"]);
+        }
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_evangelista."' LIMIT 1";
+        $PSN2->query($sqlUsuario);
+        if($PSN2->num_rows() == 0){
+            $error_datos = 4;
+        }
+
         $fechaReporte = eliminarInvalidos($_REQUEST["fechaReporte"]);
         $fechaInicio = eliminarInvalidos($_REQUEST["fechaInicio"]);        
         if (isset($_REQUEST['sitioReunion'])) {
@@ -433,8 +480,10 @@ if(isset($_POST["funcion"])){
         $archivo3 = extension_archivo($nombre_archivo);
       
         
+        if($error_datos == 0){
         //
         $sql = 'UPDATE  sat_reportes SET 
+                    idUsuario = "'.$usua_id.'",
                     inactivo = '.$inactivo.', 
                     rep_entr = "'.$entrenador.'", 
                     plantador = "'.$plantador.'", 
@@ -578,6 +627,7 @@ if(isset($_POST["funcion"])){
                 }
                 //
             //}        
+        }
         
         //
     }
@@ -593,6 +643,9 @@ switch($error_datos){
         break;
     case 3:
         $texto_error = "Ese REPORTE ya existe en el sistema para el grupo y lugar seleccionado.";
+        break;
+    case 4:
+        $texto_error = "El evangelista seleccionado no esta registrado en el sistema.";
         break;
     default:
         break;
@@ -626,6 +679,8 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
             $entrenador = $PSN1->f("rep_entr");
             $coordinador = $PSN1->f("coordinador");
             $id_coordinador = $PSN1->f("id_coordinador");
+            $usua_id = $id_coordinador;
+            $nombre_evangelista = $coordinador;
             $fechaReporte = $PSN1->f("fechaReporte");
             $fechaInicio = $PSN1->f("fechaInicio");        
             $sitioReunion = $PSN1->f("sitioReunion");
@@ -797,10 +852,13 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                 <input name="regional" type="text" id="regional" maxlength="250" value="<?=$regional; ?>" class="form-control" readonly required />
             </div>
             <div class="col-sm-3">
-                <strong>Miembro de la regional:</strong>
-                <select required readonly name="usua_id" id="usua_id" class="form-control">
-                    <option value="<?=$id_coordinador; ?>"><?=$coordinador; ?></option>
+                <strong>Nombre del evangelista:</strong>
+                <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
+                <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
+                <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
+                    <?=obtenerOpcionesEvangelista($usua_id, $tipo_usuario_evangelista); ?>
                 </select>
+                <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo.</small>
             </div>
             <div class="col-sm-2">
                 <strong>Fecha del reporte:</strong>
@@ -1280,6 +1338,15 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 if($idReporteActual > 0){
     //No hacemos nada.
 }else if($varExitoREP == 1){?>
+    <?php
+    $urlNuevoFormulario = "index.php?doc=gestionar-sub-programa-evangelistas";
+    if($generacionActual != ""){
+        $urlNuevoFormulario .= "&generacion=".$generacionActual;
+    }
+    if($idGrupoMadre != ""){
+        $urlNuevoFormulario .= "&idGrupoMadre=".$idGrupoMadre;
+    }
+    ?>
     <div class="container">
         <div class="row">
             <h2 class="alert alert-info text-center"><?php
@@ -1303,6 +1370,11 @@ if($idReporteActual > 0){
             ?> correctamente el registro, para ver el reporte de clic aquí</a>.</h2>
         </div>
     </div>   
+    <?php if(isset($_POST["guardar_modo"]) && $_POST["guardar_modo"] == "nuevo"){ ?>
+    <script type="text/javascript">
+        window.location.href = "<?=$urlNuevoFormulario; ?>";
+    </script>
+    <?php } ?>
 <?php }else if($idReporteActual == 0){?>
     <style type="text/css">
         #form1 fieldset:not(:first-of-type){
@@ -1373,7 +1445,12 @@ if($idReporteActual > 0){
                     </div>  */ ?>
                     <div class="col-sm-3">
                         <strong>Nombre del evangelista:</strong>
-                        <input  name="usua_id" id="usua_id" class="form-control" value="<?=$_SESSION["nombre"]; ?>" readonly required />
+                        <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
+                        <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
+                        <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
+                            <?=obtenerOpcionesEvangelista($usua_id, $tipo_usuario_evangelista); ?>
+                        </select>
+                        <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo.</small>
                     </div>
                     
                 </div>
@@ -1986,16 +2063,29 @@ if($idReporteActual > 0){
                         <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
                     </div>-->
                     <div class="item-btn">
-                        <input type="submit" name="button" <?php echo($resul!=0)?'disabled="disabled"':""; ?>  value="Guardar" class="btn btn-success">
+                        <input type="submit" name="button" id="btn_guardar" <?php echo($resul!=0)?'disabled="disabled"':""; ?>  value="Guardar" class="btn btn-success">
+                    </div>
+                    <div class="item-btn">
+                        <input type="button" name="button_guardar_nuevo" id="btn_guardar_nuevo" <?php echo($resul!=0)?'disabled="disabled"':""; ?> value="Guardar y nuevo" class="btn btn-primary">
                     </div>
                 </div>
             <!--</fieldset>--></div>
             <input type="submit" name="button-hidden" id="button-hidden" style="display:none">
             <input type="hidden" name="funcion" id="funcion" value="insertar" />
             <input type="hidden" name="generacion" id="generacion" value="<?=$generacionActual; ?>" />
+            <input type="hidden" name="idGrupoMadre" id="idGrupoMadre" value="<?=$idGrupoMadre; ?>" />
+            <input type="hidden" name="guardar_modo" id="guardar_modo" value="guardar" />
         </form>
     <script language="javascript">
         var current = 1,current_step,next_step,steps;
+        function guardarYNuevo(){
+            document.getElementById('guardar_modo').value = "nuevo";
+            if(document.getElementById('form1').requestSubmit){
+                document.getElementById('form1').requestSubmit();
+            }else{
+                $('#form1').trigger('submit');
+            }
+        }
         //
         function generarForm(){
             //Completo el formulario  
@@ -2019,6 +2109,7 @@ if($idReporteActual > 0){
                             $(':input[type="submit"]').prop('disabled', true);
                             document.getElementById('funcion').value = "<?=$temp_accionForm; ?>";
                         }else{
+                            document.getElementById('guardar_modo').value = "guardar";
                             return false;
                         }
                         return true;
@@ -2081,6 +2172,7 @@ if($idReporteActual > 0){
                         $(':input[type="submit"]').prop('disabled', true);
                         document.getElementById('funcion').value = "<?=$temp_accionForm; ?>";
                         }else{
+                            document.getElementById('guardar_modo').value = "guardar";
                             return false;
                         }
                         return true;
@@ -2098,6 +2190,16 @@ if($idReporteActual > 0){
         function init(){
             document.getElementById('form1').onsubmit = function(){
                     return generarForm();
+            }
+            if(document.getElementById('btn_guardar')){
+                document.getElementById('btn_guardar').onclick = function(){
+                    document.getElementById('guardar_modo').value = "guardar";
+                }
+            }
+            if(document.getElementById('btn_guardar_nuevo')){
+                document.getElementById('btn_guardar_nuevo').onclick = function(){
+                    guardarYNuevo();
+                }
             }
             
             <?php
@@ -2170,7 +2272,150 @@ else{
 }
 ?>
 <script type="text/javascript">
+    function inicializarBuscadorEvangelista(){
+        var input = document.getElementById('usua_nombre');
+        var hidden = document.getElementById('usua_id');
+        var selector = document.getElementById('usua_selector');
+        var form = document.getElementById('form1');
+
+        if(!input || !hidden || !selector){
+            return;
+        }
+
+        var opcionesOriginales = [];
+        for(var i = 0; i < selector.options.length; i++){
+            opcionesOriginales.push({
+                value: selector.options[i].value,
+                text: selector.options[i].text
+            });
+        }
+
+        function normalizarTexto(texto){
+            return (texto || '').toLowerCase().trim();
+        }
+
+        function mostrarSelector(){
+            selector.style.display = 'block';
+        }
+
+        function ocultarSelector(){
+            selector.style.display = 'none';
+        }
+
+        function renderizarOpciones(filtro){
+            var filtroNormalizado = normalizarTexto(filtro);
+            selector.innerHTML = '';
+
+            var coincidencias = [];
+            for(var j = 0; j < opcionesOriginales.length; j++){
+                if(filtroNormalizado === '' || normalizarTexto(opcionesOriginales[j].text).indexOf(filtroNormalizado) !== -1){
+                    coincidencias.push(opcionesOriginales[j]);
+                }
+            }
+
+            if(coincidencias.length === 0){
+                var opcionVacia = document.createElement('option');
+                opcionVacia.value = '';
+                opcionVacia.text = 'Sin coincidencias';
+                opcionVacia.disabled = true;
+                selector.appendChild(opcionVacia);
+                mostrarSelector();
+                return;
+            }
+
+            for(var k = 0; k < coincidencias.length; k++){
+                var option = document.createElement('option');
+                option.value = coincidencias[k].value;
+                option.text = coincidencias[k].text;
+                if(coincidencias[k].value === hidden.value){
+                    option.selected = true;
+                }
+                selector.appendChild(option);
+            }
+
+            mostrarSelector();
+        }
+
+        function resolverCoincidenciaExacta(texto){
+            var textoNormalizado = normalizarTexto(texto);
+            for(var j = 0; j < opcionesOriginales.length; j++){
+                if(normalizarTexto(opcionesOriginales[j].text) === textoNormalizado){
+                    hidden.value = opcionesOriginales[j].value;
+                    input.value = opcionesOriginales[j].text;
+                    return true;
+                }
+            }
+
+            hidden.value = '';
+            return false;
+        }
+
+        input.addEventListener('input', function(){
+            hidden.value = '';
+            renderizarOpciones(this.value);
+        });
+
+        input.addEventListener('focus', function(){
+            renderizarOpciones(this.value);
+        });
+
+        input.addEventListener('click', function(){
+            renderizarOpciones(this.value);
+        });
+
+        input.addEventListener('blur', function(){
+            window.setTimeout(function(){
+                resolverCoincidenciaExacta(input.value);
+            }, 150);
+        });
+
+        selector.addEventListener('change', function(){
+            if(this.value === ''){
+                hidden.value = '';
+                return;
+            }
+
+            hidden.value = this.value;
+            input.value = this.options[this.selectedIndex].text;
+            renderizarOpciones(input.value);
+            ocultarSelector();
+        });
+
+        selector.addEventListener('click', function(){
+            if(this.value === ''){
+                return;
+            }
+
+            hidden.value = this.value;
+            input.value = this.options[this.selectedIndex].text;
+            ocultarSelector();
+        });
+
+        document.addEventListener('click', function(e){
+            if(e.target !== input && e.target !== selector){
+                ocultarSelector();
+            }
+        });
+
+        if(form){
+            form.addEventListener('submit', function(e){
+                if(hidden.value !== ''){
+                    return;
+                }
+
+                if(!resolverCoincidenciaExacta(input.value)){
+                    e.preventDefault();
+                    alert('Debe seleccionar un evangelista registrado de la lista.');
+                    input.focus();
+                }
+            });
+        }
+
+        ocultarSelector();
+    }
+
     $(document).ready(function(){
+        inicializarBuscadorEvangelista();
         recargaLista();
         $('#rep_carcel').change(function(){
             recargaLista();
