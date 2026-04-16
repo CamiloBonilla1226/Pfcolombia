@@ -1,12 +1,16 @@
 <?php
 
 $PSN1 = new DBbase_Sql;
+$PSN2 = new DBbase_Sql;
 
 $PSN = new DBbase_Sql;
 
 $webArchivo = "preoperacional";
 
 $temp_letrero = "CADA COMUNIDAD PARA CRISTO (ECC)";
+$usua_id = isset($_SESSION["id"]) ? soloNumeros($_SESSION["id"]) : 0;
+$nombre_evangelista = isset($_SESSION["nombre"]) ? $_SESSION["nombre"] : "";
+$tipo_usuario_ecc = 163;
 
 
 
@@ -38,6 +42,30 @@ function compressImage($source, $destination, $quality) {
 
   imagejpeg($image, $destination, $quality);
 
+}
+
+function obtenerOpcionesUsuarioEcc($idSeleccionado, $tipoUsuarioEcc) {
+    $PSNUsuarios = new DBbase_Sql;
+    $idSeleccionado = intval($idSeleccionado);
+
+    $sql = "SELECT DISTINCT U.id, U.nombre FROM usuario AS U ";
+    $sql .= "WHERE U.id != 2 ";
+    $sql .= "AND U.tipo = '".$tipoUsuarioEcc."' ";
+    $sql .= "ORDER BY U.nombre ASC";
+
+    $PSNUsuarios->query($sql);
+
+    $opciones = "";
+    if($PSNUsuarios->num_rows() > 0){
+        while($PSNUsuarios->next_record()){
+            $idUsuarioLista = $PSNUsuarios->f("id");
+            $nombreUsuarioLista = htmlspecialchars($PSNUsuarios->f("nombre"), ENT_QUOTES, "UTF-8");
+            $selected = ((string)$idSeleccionado === (string)$idUsuarioLista) ? ' selected="selected"' : '';
+            $opciones .= '<option value="'.$idUsuarioLista.'"'.$selected.'>'.$nombreUsuarioLista.'</option>';
+        }
+    }
+
+    return $opciones;
 }
 
 
@@ -124,6 +152,24 @@ if(isset($_POST["funcion"])){
         *   PESTAÑA GENERAL
 
         */
+
+        $usua_id = soloNumeros($_REQUEST["usua_id"]);
+
+        if($usua_id == ""){
+
+            $usua_id = soloNumeros($_SESSION["id"]);
+
+        }
+
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_ecc."' LIMIT 1";
+
+        $PSN2->query($sqlUsuario);
+
+        if($PSN2->num_rows() == 0){
+
+            $error_datos = 4;
+
+        }
 
         $comentario = eliminarInvalidos($_REQUEST["final_comentarios"]);
 
@@ -479,7 +525,7 @@ if(isset($_POST["funcion"])){
 
                 (
 
-                "'.$_SESSION["id"].'",
+                "'.$usua_id.'",
 
                 "'.$comentario.'", 
 
@@ -734,6 +780,24 @@ if(isset($_POST["funcion"])){
 
         */
 
+        $usua_id = soloNumeros($_REQUEST["usua_id"]);
+
+        if($usua_id == ""){
+
+            $usua_id = soloNumeros($_SESSION["id"]);
+
+        }
+
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_ecc."' LIMIT 1";
+
+        $PSN2->query($sqlUsuario);
+
+        if($PSN2->num_rows() == 0){
+
+            $error_datos = 4;
+
+        }
+
         $entrenador = eliminarInvalidos($_REQUEST["entrenador"]);
 
         $plantador = eliminarInvalidos($_REQUEST["plantador"]);
@@ -896,7 +960,11 @@ if(isset($_POST["funcion"])){
 
         //
 
+        if($error_datos == 0){
+
         $sql = 'UPDATE  sat_reportes SET 
+
+                    idUsuario = "'.$usua_id.'",
 
                     inactivo = '.$inactivo.', 
 
@@ -1183,6 +1251,7 @@ if(isset($_POST["funcion"])){
         }
 
         $varExitoREP_UPD = 1;
+        }
 
         $ultimoId = $idReporteActual;
 
@@ -1310,6 +1379,12 @@ switch($error_datos){
 
         break;
 
+    case 4:
+
+        $texto_error = "El usuario seleccionado no esta registrado en el sistema o no corresponde al tipo permitido.";
+
+        break;
+
     default:
 
         break;
@@ -1373,6 +1448,10 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
             $coordinador = $PSN1->f("coordinador");
 
             $id_coordinador = $PSN1->f("id_coordinador");
+
+            $usua_id = $id_coordinador;
+
+            $nombre_evangelista = $coordinador;
 
             $fechaReporte = $PSN1->f("fechaReporte");
 
@@ -1688,11 +1767,17 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
                 <strong>Miembro del distrito:</strong>
 
-                <select required readonly name="usua_id" id="usua_id" class="form-control">
+                <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
 
-                    <option value="<?=$id_coordinador; ?>"><?=$coordinador; ?></option>
+                <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
+
+                <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
+
+                    <?=obtenerOpcionesUsuarioEcc($usua_id, $tipo_usuario_ecc); ?>
 
                 </select>
+
+                <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo.</small>
 
             </div>
 
@@ -3696,7 +3781,17 @@ else if($idReporteActual == 0){
 
                 <strong>Pastor/Plantador/Entrenador:</strong>
 
-                <input  name="usua_id" id="usua_id" class="form-control" value="<?=$_SESSION["nombre"]; ?>" readonly required />
+                <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
+
+                <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
+
+                <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
+
+                    <?=obtenerOpcionesUsuarioEcc($usua_id, $tipo_usuario_ecc); ?>
+
+                </select>
+
+                <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo.</small>
 
             </div>
 
@@ -3879,7 +3974,17 @@ else if($idReporteActual == 0){
 
                     <strong>Pastor/Plantador/Entrenador:</strong>
 
-                    <input  name="usua_id" id="usua_id" class="form-control" value="<?=$_SESSION["nombre"]; ?>" readonly required />
+                    <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
+
+                    <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
+
+                    <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
+
+                        <?=obtenerOpcionesUsuarioEcc($usua_id, $tipo_usuario_ecc); ?>
+
+                    </select>
+
+                    <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo.</small>
 
                 </div>
 
@@ -5942,7 +6047,151 @@ else{
 
 <script type="text/javascript">
 
+            function inicializarBuscadorUsuarioEcc(){
+                var input = document.getElementById('usua_nombre');
+                var hidden = document.getElementById('usua_id');
+                var selector = document.getElementById('usua_selector');
+                var form = document.getElementById('form1');
+
+                if(!input || !hidden || !selector){
+                    return;
+                }
+
+                var opcionesOriginales = [];
+                for(var i = 0; i < selector.options.length; i++){
+                    opcionesOriginales.push({
+                        value: selector.options[i].value,
+                        text: selector.options[i].text
+                    });
+                }
+
+                function normalizarTexto(texto){
+                    return (texto || '').toLowerCase().trim();
+                }
+
+                function mostrarSelector(){
+                    selector.style.display = 'block';
+                }
+
+                function ocultarSelector(){
+                    selector.style.display = 'none';
+                }
+
+                function renderizarOpciones(filtro){
+                    var filtroNormalizado = normalizarTexto(filtro);
+                    selector.innerHTML = '';
+
+                    var coincidencias = [];
+                    for(var j = 0; j < opcionesOriginales.length; j++){
+                        if(filtroNormalizado === '' || normalizarTexto(opcionesOriginales[j].text).indexOf(filtroNormalizado) !== -1){
+                            coincidencias.push(opcionesOriginales[j]);
+                        }
+                    }
+
+                    if(coincidencias.length === 0){
+                        var opcionVacia = document.createElement('option');
+                        opcionVacia.value = '';
+                        opcionVacia.text = 'Sin coincidencias';
+                        opcionVacia.disabled = true;
+                        selector.appendChild(opcionVacia);
+                        mostrarSelector();
+                        return;
+                    }
+
+                    for(var k = 0; k < coincidencias.length; k++){
+                        var option = document.createElement('option');
+                        option.value = coincidencias[k].value;
+                        option.text = coincidencias[k].text;
+                        if(coincidencias[k].value === hidden.value){
+                            option.selected = true;
+                        }
+                        selector.appendChild(option);
+                    }
+
+                    mostrarSelector();
+                }
+
+                function resolverCoincidenciaExacta(texto){
+                    var textoNormalizado = normalizarTexto(texto);
+                    for(var j = 0; j < opcionesOriginales.length; j++){
+                        if(normalizarTexto(opcionesOriginales[j].text) === textoNormalizado){
+                            hidden.value = opcionesOriginales[j].value;
+                            input.value = opcionesOriginales[j].text;
+                            return true;
+                        }
+                    }
+
+                    hidden.value = '';
+                    return false;
+                }
+
+                input.addEventListener('input', function(){
+                    hidden.value = '';
+                    renderizarOpciones(this.value);
+                });
+
+                input.addEventListener('focus', function(){
+                    renderizarOpciones(this.value);
+                });
+
+                input.addEventListener('click', function(){
+                    renderizarOpciones(this.value);
+                });
+
+                input.addEventListener('blur', function(){
+                    window.setTimeout(function(){
+                        resolverCoincidenciaExacta(input.value);
+                    }, 150);
+                });
+
+                selector.addEventListener('change', function(){
+                    if(this.value === ''){
+                        hidden.value = '';
+                        return;
+                    }
+
+                    hidden.value = this.value;
+                    input.value = this.options[this.selectedIndex].text;
+                    renderizarOpciones(input.value);
+                    ocultarSelector();
+                });
+
+                selector.addEventListener('click', function(){
+                    if(this.value === ''){
+                        return;
+                    }
+
+                    hidden.value = this.value;
+                    input.value = this.options[this.selectedIndex].text;
+                    ocultarSelector();
+                });
+
+                document.addEventListener('click', function(e){
+                    if(e.target !== input && e.target !== selector){
+                        ocultarSelector();
+                    }
+                });
+
+                if(form){
+                    form.addEventListener('submit', function(e){
+                        if(hidden.value !== ''){
+                            return;
+                        }
+
+                        if(!resolverCoincidenciaExacta(input.value)){
+                            e.preventDefault();
+                            alert('Debe seleccionar un usuario registrado de la lista.');
+                            input.focus();
+                        }
+                    });
+                }
+
+                ocultarSelector();
+            }
+
             $(document).ready(function(){
+
+                inicializarBuscadorUsuarioEcc();
 
                 /*recargaLista();
 
