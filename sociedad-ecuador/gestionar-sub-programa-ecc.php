@@ -1942,6 +1942,7 @@ else if($preguntarGeneracion == 1){
     //No sabemos aún la GENERACIÓN.
 }
 else if($varExitoREP == 1){
+    $urlNuevoReporte = "index.php?doc=gestionar-sub-programa-ecc&idGrupoMadre=".$idGrupoMadre."&generacion=".$generacionActual;
     ?><div class="container">
         <div class="row">
             <h2 class="alert alert-info text-center"><?php
@@ -1968,8 +1969,9 @@ else if($varExitoREP == 1){
         
     <script LANGUAGE="JavaScript">
         
-        //alert("Se ha creado correctamente el registro.");
-        //window.location.href= "index.php?doc=reportar&opc=2&id=<?=$ultimoId; ?>";
+        setTimeout(function(){
+            window.location.href = "<?=$urlNuevoReporte; ?>";
+        }, 600);
     </script>
     <?php
 }

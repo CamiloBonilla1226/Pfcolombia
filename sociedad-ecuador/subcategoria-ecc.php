@@ -3575,6 +3575,8 @@ else if($preguntarGeneracion == 1){
 
 else if($varExitoREP == 1){
 
+    $urlNuevoReporte = "index.php?doc=subcategoria-ecc&idGrupoMadre=".$idGrupoMadre."&generacion=".$generacionActual;
+
     ?><div class="container">
 
         <div class="row">
@@ -3625,9 +3627,9 @@ else if($varExitoREP == 1){
 
     <script LANGUAGE="JavaScript">
 
-        //alert("Se ha creado correctamente el registro.");
-
-        //window.location.href= "index.php?doc=reportar&opc=2&id=<?=$ultimoId; ?>";
+        setTimeout(function(){
+            window.location.href = "<?=$urlNuevoReporte; ?>";
+        }, 600);
 
     </script>
 
