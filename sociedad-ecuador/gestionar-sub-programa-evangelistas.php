@@ -880,7 +880,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                 <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
                     <?=obtenerOpcionesEvangelista($usua_id, $tipos_usuario_evangelista); ?>
                 </select>
-                <small>Escriba para filtrar y seleccione un usuario tipo 162 o 163.</small>
+                <small>Escriba para filtrar y seleccione un usuario.</small>
             </div>
             <div class="col-sm-2">
                 <strong>Fecha del reporte:</strong>
