@@ -6,7 +6,7 @@ $webArchivo = "preoperacional";
 $temp_letrero = "EVANGELISTAS";
 $usua_id = isset($_SESSION["id"]) ? soloNumeros($_SESSION["id"]) : 0;
 $nombre_evangelista = isset($_SESSION["nombre"]) ? $_SESSION["nombre"] : "";
-$tipo_usuario_evangelista = 163;
+$tipos_usuario_evangelista = array(162, 163);
 
 
 // Compress image
@@ -24,13 +24,33 @@ function compressImage($source, $destination, $quality) {
   imagejpeg($image, $destination, $quality);
 }
 
-function obtenerOpcionesEvangelista($idSeleccionado, $tipoUsuarioEvangelista) {
+function obtenerTiposUsuarioEvangelistaSql($tiposUsuarioEvangelista) {
+    if(!is_array($tiposUsuarioEvangelista)){
+        $tiposUsuarioEvangelista = array($tiposUsuarioEvangelista);
+    }
+
+    $tiposLimpios = array();
+    foreach($tiposUsuarioEvangelista as $tipoUsuarioEvangelista){
+        $tipoUsuarioEvangelista = intval($tipoUsuarioEvangelista);
+        if($tipoUsuarioEvangelista > 0){
+            $tiposLimpios[] = $tipoUsuarioEvangelista;
+        }
+    }
+
+    return implode(",", $tiposLimpios);
+}
+
+function obtenerOpcionesEvangelista($idSeleccionado, $tiposUsuarioEvangelista) {
     $PSNUsuarios = new DBbase_Sql;
     $idSeleccionado = intval($idSeleccionado);
+    $tiposUsuarioEvangelistaSql = obtenerTiposUsuarioEvangelistaSql($tiposUsuarioEvangelista);
+    if($tiposUsuarioEvangelistaSql == ""){
+        return "";
+    }
 
     $sql = "SELECT DISTINCT U.id, U.nombre FROM usuario AS U ";
     $sql .= "WHERE U.id != 2 ";
-    $sql .= "AND U.tipo = '".$tipoUsuarioEvangelista."' ";
+    $sql .= "AND U.tipo IN (".$tiposUsuarioEvangelistaSql.") ";
     $sql .= "ORDER BY U.nombre ASC";
 
     $PSNUsuarios->query($sql);
@@ -47,6 +67,8 @@ function obtenerOpcionesEvangelista($idSeleccionado, $tipoUsuarioEvangelista) {
 
     return $opciones;
 }
+
+$tipos_usuario_evangelista_sql = obtenerTiposUsuarioEvangelistaSql($tipos_usuario_evangelista);
 
 
 
@@ -100,7 +122,7 @@ if(isset($_POST["funcion"])){
         if($usua_id == ""){
             $usua_id = soloNumeros($_SESSION["id"]);
         }
-        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_evangelista."' LIMIT 1";
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo IN (".$tipos_usuario_evangelista_sql.") LIMIT 1";
         $PSN2->query($sqlUsuario);
         if($PSN2->num_rows() == 0){
             $error_datos = 4;
@@ -394,7 +416,7 @@ if(isset($_POST["funcion"])){
         if($usua_id == ""){
             $usua_id = soloNumeros($_SESSION["id"]);
         }
-        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_evangelista."' LIMIT 1";
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo IN (".$tipos_usuario_evangelista_sql.") LIMIT 1";
         $PSN2->query($sqlUsuario);
         if($PSN2->num_rows() == 0){
             $error_datos = 4;
@@ -856,9 +878,9 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                 <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
                 <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
                 <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
-                    <?=obtenerOpcionesEvangelista($usua_id, $tipo_usuario_evangelista); ?>
+                    <?=obtenerOpcionesEvangelista($usua_id, $tipos_usuario_evangelista); ?>
                 </select>
-                <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo.</small>
+                <small>Escriba para filtrar y seleccione un usuario tipo 162 o 163.</small>
             </div>
             <div class="col-sm-2">
                 <strong>Fecha del reporte:</strong>
@@ -1448,9 +1470,9 @@ if($idReporteActual > 0){
                         <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
                         <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
                         <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
-                            <?=obtenerOpcionesEvangelista($usua_id, $tipo_usuario_evangelista); ?>
+                            <?=obtenerOpcionesEvangelista($usua_id, $tipos_usuario_evangelista); ?>
                         </select>
-                        <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo.</small>
+                        <small>Escriba para filtrar y seleccione un usuario tipo 162 o 163.</small>
                     </div>
                     
                 </div>
