@@ -1905,12 +1905,12 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                         <div class="col-sm-3">
                             <input type="number" id="cantidadAddGEdit" class="form-control" min="1" placeholder="Ej: 5" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
                         </div>
-                        <div class="col-sm-2">
+                        <div class="col-sm-3">
                             <button id="generarVariasAddGEdit" class="btn btn-primary btn-block" type="button" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
                                 <i class="fa fa-list"></i> Generar
                             </button>
                         </div>
-                        <div class="col-sm-3"></div>
+                        <div class="col-sm-2"></div>
                     </div>
                     <div class="col-sm-12" style="margin-bottom: 18px;">
                         <div class="col-sm-6">
@@ -1993,6 +1993,11 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                         return datos.nombre !== '' && datos.identificacion !== '';
                     }
 
+                    function grupoVacio($grupo) {
+                        var datos = obtenerDatosGrupo($grupo);
+                        return datos.nombre === '' && datos.identificacion === '';
+                    }
+
                     function sincronizarTotal() {
                         var total = 0;
                         $('#tablaAddGEdit tbody.graduado-item').each(function () {
@@ -2050,26 +2055,25 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                         }
                     }
 
-                    function ajustarCantidad(cantidad) {
-                        var objetivo = parseInt(cantidad, 10);
-                        var actual = $('#tablaAddGEdit tbody.graduado-item').length;
+                    function agregarCantidad(cantidad) {
+                        var cantidadNueva = parseInt(cantidad, 10);
+                        var $tabla = $('#tablaAddGEdit');
+                        var $filas = $tabla.find('tbody.graduado-item');
 
-                        if (isNaN(objetivo) || objetivo < 1) {
+                        if (isNaN(cantidadNueva) || cantidadNueva < 1) {
                             alert('Ingrese una cantidad valida de registros.');
                             return;
                         }
 
-                        while (actual < objetivo) {
-                            $('#tablaAddGEdit').append(crearGrupo());
-                            actual++;
+                        if ($filas.length === 1 && grupoVacio($filas.eq(0))) {
+                            $filas.remove();
                         }
 
-                        while (actual > objetivo) {
-                            $('#tablaAddGEdit tbody.graduado-item:last').remove();
-                            actual--;
+                        for (var i = 0; i < cantidadNueva; i++) {
+                            $tabla.append(crearGrupo());
                         }
 
-                        $('#cantidadAddGEdit').val(actual);
+                        $('#cantidadAddGEdit').val(0);
                         sincronizarTotal();
                         guardarDatos();
                     }
@@ -2082,7 +2086,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
                     $('#generarVariasAddGEdit').on('click', function () {
                         if (!soloLectura) {
-                            ajustarCantidad($('#cantidadAddGEdit').val());
+                            agregarCantidad($('#cantidadAddGEdit').val());
                         }
                     });
 
@@ -3089,6 +3093,11 @@ else if($idReporteActual == 0){
                                 return datos.nombre !== '' && datos.identificacion !== '';
                             }
 
+                            function grupoVacio($grupo){
+                                var datos = obtenerDatosGrupo($grupo);
+                                return datos.nombre === '' && datos.identificacion === '';
+                            }
+
                             function sincronizarTotal(){
                                 var total = 0;
                                 $('#tablaAddG tbody.graduado-item').each(function(){
@@ -3158,26 +3167,25 @@ else if($idReporteActual == 0){
                                 }
                             }
 
-                            function ajustarCantidad(cantidad){
-                                var objetivo = parseInt(cantidad, 10);
-                                var actual = $('#tablaAddG tbody.graduado-item').length;
+                            function agregarCantidad(cantidad){
+                                var cantidadNueva = parseInt(cantidad, 10);
+                                var $tabla = $('#tablaAddG');
+                                var $filas = $tabla.find('tbody.graduado-item');
 
-                                if (isNaN(objetivo) || objetivo < 1) {
+                                if (isNaN(cantidadNueva) || cantidadNueva < 1) {
                                     alert('Ingrese una cantidad valida de registros.');
                                     return;
                                 }
 
-                                while (actual < objetivo) {
-                                    $('#tablaAddG').append(crearGrupo());
-                                    actual++;
+                                if ($filas.length === 1 && grupoVacio($filas.eq(0))) {
+                                    $filas.remove();
                                 }
 
-                                while (actual > objetivo) {
-                                    $('#tablaAddG tbody.graduado-item:last').remove();
-                                    actual--;
+                                for (var i = 0; i < cantidadNueva; i++) {
+                                    $tabla.append(crearGrupo());
                                 }
 
-                                $('#cantidadAddG').val(actual);
+                                $('#cantidadAddG').val(0);
                                 sincronizarTotal();
                                 guardarDatos();
                             }
@@ -3185,7 +3193,7 @@ else if($idReporteActual == 0){
                             renderizarGrupos(obtenerDatosGuardados());
 
                             $("#generarVariasAddG").on('click',function(){
-                                ajustarCantidad($('#cantidadAddG').val());
+                                agregarCantidad($('#cantidadAddG').val());
                             });
 
                             $("#adicionarAddG").on('click',function(){
@@ -3277,12 +3285,12 @@ else if($idReporteActual == 0){
                         <div class="col-sm-3">
                             <input type="number" id="cantidadAddG" class="form-control" min="1" placeholder="Ej: 5">
                         </div>
-                        <div class="col-sm-2">
+                        <div class="col-sm-3">
                             <button id="generarVariasAddG" class="btn btn-primary btn-block" type="button">
                                 <i class="fa fa-list"></i> Generar
                             </button>
                         </div>
-                        <div class="col-sm-3"></div>
+                        <div class="col-sm-2"></div>
                     </div>
                 </div>
                 <div class="col-sm-2"></div>
