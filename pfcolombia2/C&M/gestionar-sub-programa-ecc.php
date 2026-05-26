@@ -70,6 +70,40 @@ function obtenerValorLista($lista, $indice, $defecto = ''){
     return isset($lista[$indice]) ? $lista[$indice] : $defecto;
 }
 
+function obtenerPrimerValorFormulario($valor, $defecto = ''){
+    if (is_array($valor)) {
+        return isset($valor[0]) ? $valor[0] : $defecto;
+    }
+
+    if ($valor === null || $valor === '') {
+        return $defecto;
+    }
+
+    return $valor;
+}
+
+function obtenerPrimerArchivoFormulario($archivo){
+    $respuesta = array(
+        'name' => '',
+        'tmp_name' => ''
+    );
+
+    if (!is_array($archivo)) {
+        return $respuesta;
+    }
+
+    if (isset($archivo['name']) && is_array($archivo['name'])) {
+        $respuesta['name'] = isset($archivo['name'][0]) ? $archivo['name'][0] : '';
+        $respuesta['tmp_name'] = isset($archivo['tmp_name'][0]) ? $archivo['tmp_name'][0] : '';
+        return $respuesta;
+    }
+
+    $respuesta['name'] = isset($archivo['name']) ? $archivo['name'] : '';
+    $respuesta['tmp_name'] = isset($archivo['tmp_name']) ? $archivo['tmp_name'] : '';
+
+    return $respuesta;
+}
+
 
 
 /*
@@ -434,23 +468,37 @@ if(isset($_POST["funcion"])){
             
             
             if ($graduadosPeriodo>0) {
-                $act_bau_imgG = isset($_FILES["act_bau_imgG"]) ? $_FILES["act_bau_imgG"] : array('name' => array(), 'tmp_name' => array());
+                $act_bau_imgG = isset($_FILES["act_bau_imgG"]) ? $_FILES["act_bau_imgG"] : array();
                 $act_grad_nomG = isset($_REQUEST['act_grad_nomG']) ? $_REQUEST['act_grad_nomG'] : array();
                 $act_grad_tarG = isset($_REQUEST['act_grad_tarG']) ? $_REQUEST['act_grad_tarG'] : array();
-                $act_bau_fecG = isset($_REQUEST['act_bau_fecG']) ? $_REQUEST['act_bau_fecG'] : array();
-                $act_bau_curG = isset($_REQUEST['act_bau_curG']) ? $_REQUEST['act_bau_curG'] : array();
+                $fechaGraduadoBase = eliminarInvalidos(obtenerPrimerValorFormulario(isset($_REQUEST['act_bau_fecG']) ? $_REQUEST['act_bau_fecG'] : '', ''));
+                $cursoGraduadoBase = soloNumeros(obtenerPrimerValorFormulario(isset($_REQUEST['act_bau_curG']) ? $_REQUEST['act_bau_curG'] : 0, 0));
+                $archivoGraduadoBase = obtenerPrimerArchivoFormulario($act_bau_imgG);
 
-                $totalGraduados = max(sizeof($act_grad_nomG), sizeof($act_grad_tarG), sizeof($act_bau_fecG), sizeof($act_bau_curG));
+                $totalGraduados = max(sizeof($act_grad_nomG), sizeof($act_grad_tarG));
                 $valoresGraduados = array();
+                $rutaFotoGraduadoBase = '';
+                $nombreArchivoGraduadoBase = isset($archivoGraduadoBase['name']) ? $archivoGraduadoBase['name'] : '';
+
+                if (!empty($nombreArchivoGraduadoBase)) {
+                    $tp_arch = extension_archivo($nombreArchivoGraduadoBase);
+                    $rutaFotoGraduadoBase = "archivos/evi_".$ultimoId."_g.".$tp_arch;
+                    $extArchivo = $tp_arch;
+
+                    if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                        $rutaOr = $archivoGraduadoBase['tmp_name'];
+                        $rutaDe = $rutaFotoGraduadoBase;
+                        compressImage($rutaOr, $rutaDe, 80);
+                    }else{
+                        if(move_uploaded_file($archivoGraduadoBase['tmp_name'], $rutaFotoGraduadoBase)){
+                        }
+                    }
+                }
 
                 for ($i=0; $i < $totalGraduados; $i++) {
                     $nombreGraduado = normalizarTextoAdjunto(obtenerValorLista($act_grad_nomG, $i, ''));
                     $identificacionGraduado = normalizarTextoAdjunto(obtenerValorLista($act_grad_tarG, $i, ''));
-                    $fechaGraduado = eliminarInvalidos(obtenerValorLista($act_bau_fecG, $i, ''));
-                    $cursoGraduado = soloNumeros(obtenerValorLista($act_bau_curG, $i, 0));
-                    $nombreArchivo = isset($act_bau_imgG['name'][$i]) ? $act_bau_imgG['name'][$i] : '';
-
-                    if ($nombreGraduado == '' && $identificacionGraduado == '' && $fechaGraduado == '' && $cursoGraduado == 0 && $nombreArchivo == '') {
+                    if ($nombreGraduado == '' && $identificacionGraduado == '' && $fechaGraduadoBase == '' && $cursoGraduadoBase == 0 && $nombreArchivoGraduadoBase == '') {
                         continue;
                     }
 
@@ -458,23 +506,7 @@ if(isset($_POST["funcion"])){
                         continue;
                     }
 
-                    $rutaFotoGraduado = '';
-                    if (!empty($nombreArchivo)) {
-                        $tp_arch = extension_archivo($nombreArchivo);
-                        $rutaFotoGraduado = "archivos/evi_".$ultimoId."_g_".$i.".".$tp_arch;
-                        $extArchivo = $tp_arch;
-
-                        if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
-                            $rutaOr = $act_bau_imgG['tmp_name'][$i];
-                            $rutaDe = $rutaFotoGraduado;
-                            compressImage($rutaOr, $rutaDe, 80);
-                        }else{
-                            if(move_uploaded_file($act_bau_imgG['tmp_name'][$i], $rutaFotoGraduado)){
-                            }
-                        }
-                    }
-
-                    $valoresGraduados[] = "('".construirMetaGraduado($nombreGraduado, $identificacionGraduado)."','".addslashes($rutaFotoGraduado)."','".$fechaGraduado."',1,".$cursoGraduado.",".$ultimoId.")";
+                    $valoresGraduados[] = "('".construirMetaGraduado($nombreGraduado, $identificacionGraduado)."','".addslashes($rutaFotoGraduadoBase)."','".$fechaGraduadoBase."',1,".$cursoGraduadoBase.",".$ultimoId.")";
                 }
 
                 if (sizeof($valoresGraduados) > 0) {
@@ -812,24 +844,38 @@ if(isset($_POST["funcion"])){
             $PSN1->query("DELETE FROM tbl_adjuntos WHERE adj_id IN (".implode(',', $graduadosExistentesIds).")");
         }
 
-        $act_bau_imgG = isset($_FILES["act_bau_imgG"]) ? $_FILES["act_bau_imgG"] : array('name' => array(), 'tmp_name' => array());
-        $act_bau_imgGAn = isset($_REQUEST["act_bau_imgG_an"]) ? $_REQUEST["act_bau_imgG_an"] : array();
+        $act_bau_imgG = isset($_FILES["act_bau_imgG"]) ? $_FILES["act_bau_imgG"] : array();
+        $act_bau_imgGAn = isset($_REQUEST["act_bau_imgG_an"]) ? $_REQUEST["act_bau_imgG_an"] : '';
         $act_grad_nomG = isset($_REQUEST['act_grad_nomG']) ? $_REQUEST['act_grad_nomG'] : array();
         $act_grad_tarG = isset($_REQUEST['act_grad_tarG']) ? $_REQUEST['act_grad_tarG'] : array();
-        $act_bau_fecG = isset($_REQUEST['act_bau_fecG']) ? $_REQUEST['act_bau_fecG'] : array();
-        $act_bau_curG = isset($_REQUEST['act_bau_curG']) ? $_REQUEST['act_bau_curG'] : array();
+        $fechaGraduadoBase = eliminarInvalidos(obtenerPrimerValorFormulario(isset($_REQUEST['act_bau_fecG']) ? $_REQUEST['act_bau_fecG'] : '', ''));
+        $cursoGraduadoBase = soloNumeros(obtenerPrimerValorFormulario(isset($_REQUEST['act_bau_curG']) ? $_REQUEST['act_bau_curG'] : 0, 0));
+        $rutaFotoGraduadoBase = obtenerPrimerValorFormulario($act_bau_imgGAn, '');
+        $archivoGraduadoBase = obtenerPrimerArchivoFormulario($act_bau_imgG);
+        $nombreArchivoGraduadoBase = isset($archivoGraduadoBase['name']) ? $archivoGraduadoBase['name'] : '';
 
-        $totalGraduadosReg = max(sizeof($act_grad_nomG), sizeof($act_grad_tarG), sizeof($act_bau_fecG), sizeof($act_bau_curG));
+        $totalGraduadosReg = max(sizeof($act_grad_nomG), sizeof($act_grad_tarG));
         $valoresGraduados = array();
+
+        if (!empty($nombreArchivoGraduadoBase)) {
+            $tp_arch = extension_archivo($nombreArchivoGraduadoBase);
+            $rutaFotoGraduadoBase = "archivos/evi_".$idReporteActual."_g.".$tp_arch;
+            $extArchivo = $tp_arch;
+
+            if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                $rutaOr = $archivoGraduadoBase['tmp_name'];
+                $rutaDe = $rutaFotoGraduadoBase;
+                compressImage($rutaOr, $rutaDe, 80);
+            }else{
+                if(move_uploaded_file($archivoGraduadoBase['tmp_name'], $rutaFotoGraduadoBase)){
+                }
+            }
+        }
 
         for ($i=0; $i < $totalGraduadosReg; $i++) {
             $nombreGraduado = normalizarTextoAdjunto(obtenerValorLista($act_grad_nomG, $i, ''));
             $identificacionGraduado = normalizarTextoAdjunto(obtenerValorLista($act_grad_tarG, $i, ''));
-            $fechaGraduado = eliminarInvalidos(obtenerValorLista($act_bau_fecG, $i, ''));
-            $cursoGraduado = soloNumeros(obtenerValorLista($act_bau_curG, $i, 0));
-            $nombreArchivo = isset($act_bau_imgG['name'][$i]) ? $act_bau_imgG['name'][$i] : '';
-
-            if ($nombreGraduado == '' && $identificacionGraduado == '' && $fechaGraduado == '' && $cursoGraduado == 0 && $nombreArchivo == '' && obtenerValorLista($act_bau_imgGAn, $i, '') == '') {
+            if ($nombreGraduado == '' && $identificacionGraduado == '' && $fechaGraduadoBase == '' && $cursoGraduadoBase == 0 && $nombreArchivoGraduadoBase == '' && $rutaFotoGraduadoBase == '') {
                 continue;
             }
 
@@ -837,23 +883,7 @@ if(isset($_POST["funcion"])){
                 continue;
             }
 
-            $rutaFotoGraduado = obtenerValorLista($act_bau_imgGAn, $i, '');
-            if (!empty($nombreArchivo)) {
-                $tp_arch = extension_archivo($nombreArchivo);
-                $rutaFotoGraduado = "archivos/evi_".$idReporteActual."_g_".$i.".".$tp_arch;
-                $extArchivo = $tp_arch;
-
-                if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
-                    $rutaOr = $act_bau_imgG['tmp_name'][$i];
-                    $rutaDe = $rutaFotoGraduado;
-                    compressImage($rutaOr, $rutaDe, 80);
-                }else{
-                    if(move_uploaded_file($act_bau_imgG['tmp_name'][$i], $rutaFotoGraduado)){
-                    }
-                }
-            }
-
-            $valoresGraduados[] = "('".construirMetaGraduado($nombreGraduado, $identificacionGraduado)."','".addslashes($rutaFotoGraduado)."','".$fechaGraduado."',1,".$cursoGraduado.",".$idReporteActual.")";
+            $valoresGraduados[] = "('".construirMetaGraduado($nombreGraduado, $identificacionGraduado)."','".addslashes($rutaFotoGraduadoBase)."','".$fechaGraduadoBase."',1,".$cursoGraduadoBase.",".$idReporteActual.")";
         }
 
         if (sizeof($valoresGraduados) > 0) {
@@ -1828,17 +1858,57 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                 </div>
                 <div class="hr"><hr></div>
             </div>
+            <?php
+                $opcionesCursosGraduado = '';
+                $sql = "SELECT * FROM categorias AS C WHERE C.idSec = 88 ORDER BY C.descripcion ASC";
+                $PSN1->query($sql);
+                while($PSN1->next_record()){
+                    $opcionesCursosGraduado .= '<option value="'.$PSN1->f('id').'">'.$PSN1->f('descripcion').'</option>';
+                }
+
+                $graduadosEdicion = array();
+                $graduadoComunEdicion = array(
+                    'foto' => '',
+                    'fecha' => '',
+                    'curso' => ''
+                );
+                foreach ($graduadosAdjuntos as $adjuntoGraduado) {
+                    if ($graduadoComunEdicion['foto'] == '' && $graduadoComunEdicion['fecha'] == '' && $graduadoComunEdicion['curso'] == '') {
+                        $graduadoComunEdicion['foto'] = $adjuntoGraduado['adj_url'];
+                        $graduadoComunEdicion['fecha'] = $adjuntoGraduado['adj_fec'];
+                        $graduadoComunEdicion['curso'] = $adjuntoGraduado['adj_curso'];
+                    }
+
+                    $graduadosEdicion[] = array(
+                        'nombre' => $adjuntoGraduado['nombre_graduado'],
+                        'identificacion' => $adjuntoGraduado['identificacion_graduado']
+                    );
+                }
+            ?>
             <div class="form-group">
                 <div class="col-sm-12">
                     <div class="col-sm-12">
-                        <table id="tablaAddGEdit" class="table table-bordered registro-table"></table>
+                        <table id="tablaAddGEdit" class="table table-bordered registro-table">
+                            <tbody class="graduado-item fila-fijaAddGEdit">
+                                <tr>
+                                    <td style="width:45%;"><strong>Nombre completo del graduado:</strong><input name="act_grad_nomG[]" type="text" class="act_grad_nomG form-control" /></td>
+                                    <td style="width:45%;"><strong>Tarjeta dactilar / N&deg; identificacion:</strong><input name="act_grad_tarG[]" type="text" class="act_grad_tarG form-control" /></td>
+                                    <td class="registro-col--action text-center" style="width:10%; vertical-align:middle;"><button type="button" class="btn btn-danger btn-eliminar-fila-g" title="Eliminar" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>><i class="fa fa-times"></i></button></td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                     <div class="col-sm-12" style="margin-bottom: 15px;">
-                        <div class="col-sm-6">
+                        <div class="col-sm-4">
                             <label for="cantidadAddGEdit"><strong>Cuantos registros desea realizar?</strong></label>
                         </div>
                         <div class="col-sm-3">
                             <input type="number" id="cantidadAddGEdit" class="form-control" min="1" placeholder="Ej: 5" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
+                        </div>
+                        <div class="col-sm-2">
+                            <button id="generarVariasAddGEdit" class="btn btn-primary btn-block" type="button" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
+                                <i class="fa fa-list"></i> Generar
+                            </button>
                         </div>
                         <div class="col-sm-3"></div>
                     </div>
@@ -1860,63 +1930,49 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                             </button>
                         </div>
                     </div>
+                    <div class="col-sm-12">
+                        <table id="tablaComunGEdit" class="table table-bordered registro-table">
+                            <tbody>
+                                <tr>
+                                    <td style="width:34%;">
+                                        <strong>Foto:</strong>
+                                        <?php if (!empty($graduadoComunEdicion['foto'])) { ?>
+                                            <div class="graduado-foto-actual" style="margin-bottom:8px;"><a href="<?=$graduadoComunEdicion['foto']; ?>" target="_blank">Ver foto actual</a></div>
+                                        <?php } else { ?>
+                                            <div class="graduado-foto-actual" style="margin-bottom:8px;"></div>
+                                        <?php } ?>
+                                        <input type="hidden" name="act_bau_imgG_an" class="act_bau_imgG_an" value="<?=$graduadoComunEdicion['foto']; ?>" />
+                                        <input name="act_bau_imgG" type="file" class="act_bau_imgG form-control" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?> />
+                                    </td>
+                                    <td style="width:33%;">
+                                        <strong>Fecha:</strong>
+                                        <input name="act_bau_fecG" type="date" class="act_bau_fecG form-control" value="<?=$graduadoComunEdicion['fecha']; ?>" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?> />
+                                    </td>
+                                    <td style="width:33%;">
+                                        <strong>Curso de graduaci&oacute;n:</strong>
+                                        <select name="act_bau_curG" class="act_bau_curG form-control" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
+                                            <?=$opcionesCursosGraduado; ?>
+                                        </select>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            <?php
-                $opcionesCursosGraduado = '';
-                $sql = "SELECT * FROM categorias AS C WHERE C.idSec = 88 ORDER BY C.descripcion ASC";
-                $PSN1->query($sql);
-                while($PSN1->next_record()){
-                    $opcionesCursosGraduado .= '<option value="'.$PSN1->f('id').'">'.$PSN1->f('descripcion').'</option>';
-                }
-
-                $graduadosEdicion = array();
-                foreach ($graduadosAdjuntos as $adjuntoGraduado) {
-                    $graduadosEdicion[] = array(
-                        'nombre' => $adjuntoGraduado['nombre_graduado'],
-                        'identificacion' => $adjuntoGraduado['identificacion_graduado'],
-                        'foto' => $adjuntoGraduado['adj_url'],
-                        'fecha' => $adjuntoGraduado['adj_fec'],
-                        'curso' => $adjuntoGraduado['adj_curso']
-                    );
-                }
-            ?>
             <script>
                 $(function () {
                     var STORAGE_KEY = 'ecc_graduados_edicion_<?= $idReporteActual; ?>';
                     var storage = window.sessionStorage;
-                    var opcionesCursoGraduado = <?= json_encode($opcionesCursosGraduado); ?>;
                     var registrosIniciales = <?= json_encode($graduadosEdicion); ?>;
                     var soloLectura = <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'true' : 'false'; ?>;
+                    var $grupoBase = $('#tablaAddGEdit tbody.graduado-item:eq(0)').clone();
 
                     function crearGrupo(datos) {
                         datos = datos || {};
-                        var fotoActual = datos.foto ? '<div class="graduado-foto-actual" style="margin-bottom:8px;"><a href="' + datos.foto + '" target="_blank">Ver foto actual</a></div>' : '<div class="graduado-foto-actual" style="margin-bottom:8px;"></div>';
-                        var $grupo = $(
-                            '<tbody class="graduado-item">' +
-                                '<tr>' +
-                                    '<td style="width:45%;"><strong>Nombre completo del graduado:</strong><input name="act_grad_nomG[]" type="text" class="act_grad_nomG form-control" /></td>' +
-                                    '<td style="width:45%;"><strong>Tarjeta dactilar / N&deg; identificacion:</strong><input name="act_grad_tarG[]" type="text" class="act_grad_tarG form-control" /></td>' +
-                                    '<td class="registro-col--action text-center" style="width:10%; vertical-align:middle;"><button type="button" class="btn btn-danger btn-eliminar-fila-g" title="Eliminar"><i class="fa fa-times"></i></button></td>' +
-                                '</tr>' +
-                                '<tr>' +
-                                    '<td><strong>Foto:</strong>' + fotoActual + '<input type="hidden" name="act_bau_imgG_an[]" class="act_bau_imgG_an" /><input multiple name="act_bau_imgG[]" type="file" class="act_bau_imgG form-control" /></td>' +
-                                    '<td><strong>Fecha:</strong><input name="act_bau_fecG[]" type="date" class="act_bau_fecG form-control" /></td>' +
-                                    '<td><input name="act_bau_canG[]" type="hidden" class="act_bau_canG subtotalG form-control" value="1" /><strong>Curso de graduaci&oacute;n:</strong><select name="act_bau_curG[]" class="act_bau_curG form-control">' + opcionesCursoGraduado + '</select></td>' +
-                                '</tr>' +
-                            '</tbody>'
-                        );
-
+                        var $grupo = $grupoBase.clone();
                         $grupo.find('.act_grad_nomG').val(datos.nombre || '');
                         $grupo.find('.act_grad_tarG').val(datos.identificacion || '');
-                        $grupo.find('.act_bau_imgG_an').val(datos.foto || '');
-                        $grupo.find('.act_bau_fecG').val(datos.fecha || '');
-                        if (datos.curso) {
-                            $grupo.find('.act_bau_curG').val(datos.curso);
-                        } else {
-                            $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
-                        }
-                        $grupo.find('.act_bau_canG').val(1);
 
                         if (soloLectura) {
                             $grupo.find('input, select, button').prop('disabled', true);
@@ -1928,10 +1984,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                     function obtenerDatosGrupo($grupo) {
                         return {
                             nombre: $.trim($grupo.find('.act_grad_nomG').val()),
-                            identificacion: $.trim($grupo.find('.act_grad_tarG').val()),
-                            foto: $grupo.find('.act_bau_imgG_an').val() || '',
-                            fecha: $grupo.find('.act_bau_fecG').val() || '',
-                            curso: $grupo.find('.act_bau_curG').val() || ''
+                            identificacion: $.trim($grupo.find('.act_grad_tarG').val())
                         };
                     }
 
@@ -1943,7 +1996,6 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                     function sincronizarTotal() {
                         var total = 0;
                         $('#tablaAddGEdit tbody.graduado-item').each(function () {
-                            $(this).find('.act_bau_canG').val(1);
                             if (grupoCompleto($(this))) {
                                 total++;
                             }
@@ -1974,7 +2026,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                         $tabla.find('tbody.graduado-item').remove();
 
                         if (!datos || !datos.length) {
-                            datos = [{ nombre: '', identificacion: '', foto: '', fecha: '', curso: '' }];
+                            datos = [{ nombre: '', identificacion: '' }];
                         }
 
                         $.each(datos, function (_, item) {
@@ -2028,9 +2080,9 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                     }
                     renderizarGrupos(datosIniciales);
 
-                    $('#cantidadAddGEdit').on('change blur', function () {
+                    $('#generarVariasAddGEdit').on('click', function () {
                         if (!soloLectura) {
-                            ajustarCantidad($(this).val());
+                            ajustarCantidad($('#cantidadAddGEdit').val());
                         }
                     });
 
@@ -2045,7 +2097,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
                     $('#borrarTodoAddGEdit').on('click', function () {
                         if (!soloLectura) {
-                            renderizarGrupos([{ nombre: '', identificacion: '', foto: '', fecha: '', curso: '' }]);
+                            renderizarGrupos([{ nombre: '', identificacion: '' }]);
                             guardarDatos();
                         }
                     });
@@ -2057,10 +2109,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
                         var $grupo = $(this).closest('tbody.graduado-item');
                         if ($('#tablaAddGEdit tbody.graduado-item').length === 1) {
-                            $grupo.find('input[type="text"], input[type="date"], input[type="file"]').val('');
-                            $grupo.find('.act_bau_imgG_an').val('');
-                            $grupo.find('.graduado-foto-actual').empty();
-                            $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
+                            $grupo.find('input[type="text"]').val('');
                         } else {
                             $grupo.remove();
                         }
@@ -2070,10 +2119,12 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                         guardarDatos();
                     });
 
-                    $(document).on('keyup change blur', '#tablaAddGEdit .act_grad_nomG, #tablaAddGEdit .act_grad_tarG, #tablaAddGEdit .act_bau_fecG, #tablaAddGEdit .act_bau_curG', function () {
+                    $(document).on('keyup change blur', '#tablaAddGEdit .act_grad_nomG, #tablaAddGEdit .act_grad_tarG', function () {
                         sincronizarTotal();
                         guardarDatos();
                     });
+
+                    $('#tablaComunGEdit .act_bau_curG').val('<?= addslashes($graduadoComunEdicion['curso']); ?>');
                 });
             </script>
             <?php } ?>
@@ -3029,9 +3080,7 @@ else if($idReporteActual == 0){
                             function obtenerDatosGrupo($grupo){
                                 return {
                                     nombre: $.trim($grupo.find('.act_grad_nomG').val()),
-                                    identificacion: $.trim($grupo.find('.act_grad_tarG').val()),
-                                    fecha: $grupo.find('.act_bau_fecG').val() || '',
-                                    curso: $grupo.find('.act_bau_curG').val() || ''
+                                    identificacion: $.trim($grupo.find('.act_grad_tarG').val())
                                 };
                             }
 
@@ -3043,7 +3092,6 @@ else if($idReporteActual == 0){
                             function sincronizarTotal(){
                                 var total = 0;
                                 $('#tablaAddG tbody.graduado-item').each(function(){
-                                    $(this).find('.act_bau_canG').val(1);
                                     if (grupoCompleto($(this))) {
                                         total++;
                                     }
@@ -3071,22 +3119,12 @@ else if($idReporteActual == 0){
                             function aplicarDatosGrupo($grupo, datos){
                                 $grupo.find('.act_grad_nomG').val(datos.nombre || '');
                                 $grupo.find('.act_grad_tarG').val(datos.identificacion || '');
-                                $grupo.find('.act_bau_fecG').val(datos.fecha || '');
-                                if (datos.curso) {
-                                    $grupo.find('.act_bau_curG').val(datos.curso);
-                                } else {
-                                    $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
-                                }
-                                $grupo.find('.act_bau_canG').val(1);
                             }
 
                             function crearGrupo(datos){
                                 var $grupo = $grupoBase.clone();
                                 $grupo.removeClass('fila-fijaAddG');
-                                $grupo.find('input[type="text"], input[type="date"], input[type="file"]').val('');
-                                $grupo.find('.act_bau_imgG_an').val('');
-                                $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
-                                $grupo.find('.graduado-foto-actual').empty();
+                                $grupo.find('input[type="text"]').val('');
                                 aplicarDatosGrupo($grupo, datos || {});
                                 return $grupo;
                             }
@@ -3096,7 +3134,7 @@ else if($idReporteActual == 0){
                                 $tabla.find('tbody.graduado-item').remove();
 
                                 if (!datos || !datos.length) {
-                                    datos = [{ nombre: '', identificacion: '', fecha: '', curso: '' }];
+                                    datos = [{ nombre: '', identificacion: '' }];
                                 }
 
                                 $.each(datos, function(_, item){
@@ -3146,8 +3184,8 @@ else if($idReporteActual == 0){
 
                             renderizarGrupos(obtenerDatosGuardados());
 
-                            $("#cantidadAddG").on('change blur', function(){
-                                ajustarCantidad($(this).val());
+                            $("#generarVariasAddG").on('click',function(){
+                                ajustarCantidad($('#cantidadAddG').val());
                             });
 
                             $("#adicionarAddG").on('click',function(){
@@ -3158,17 +3196,14 @@ else if($idReporteActual == 0){
                             });
 
                             $("#borrarTodoAddG").on('click',function(){
-                                renderizarGrupos([{ nombre: '', identificacion: '', fecha: '', curso: '' }]);
+                                renderizarGrupos([{ nombre: '', identificacion: '' }]);
                                 guardarDatos();
                             });
 
                             $(document).on("click",".eliminarAddG",function(){
                                 var $grupo = $(this).closest('tbody.graduado-item');
                                 if ($('#tablaAddG tbody.graduado-item').length === 1) {
-                                    $grupo.find('input[type="text"], input[type="date"], input[type="file"]').val('');
-                                    $grupo.find('.act_bau_imgG_an').val('');
-                                    $grupo.find('.graduado-foto-actual').empty();
-                                    $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
+                                    $grupo.find('input[type="text"]').val('');
                                 } else {
                                     $grupo.remove();
                                 }
@@ -3178,7 +3213,7 @@ else if($idReporteActual == 0){
                                 guardarDatos();
                             });
 
-                            $(document).on("keyup change blur", "#tablaAddG .act_grad_nomG, #tablaAddG .act_grad_tarG, #tablaAddG .act_bau_fecG, #tablaAddG .act_bau_curG", function(){
+                            $(document).on("keyup change blur", "#tablaAddG .act_grad_nomG, #tablaAddG .act_grad_tarG", function(){
                                 sincronizarTotal();
                                 guardarDatos();
                             });
@@ -3200,21 +3235,21 @@ else if($idReporteActual == 0){
                                 <button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button>
                             </td>
                         </tr>
-                        <tr>
+                        <tr style="display:none;">
                             <td>
                                 <strong>Foto:</strong>
                                 <div class="graduado-foto-actual" style="margin-bottom: 8px;"></div>
-                                <input type="hidden" name="act_bau_imgG_an[]" class="act_bau_imgG_an" value="" />
-                                <input multiple name="act_bau_imgG[]" type="file" id="act_bau_imgG" class="form-control" />
+                                <input type="hidden" class="act_bau_imgG_an" value="" />
+                                <input multiple type="file" class="form-control" />
                             </td>
                             <td>
                                 <strong>Fecha:</strong>
-                                <input name="act_bau_fecG[]" type="date" id="act_bau_fecG" class="act_bau_fecG form-control" />
+                                <input type="date" class="act_bau_fecG form-control" />
                             </td>
                             <td>
-                                <input name="act_bau_canG[]" type="hidden" id="act_bau_canG" value="1" class="act_bau_canG subtotalG form-control" />
+                                <input type="hidden" value="1" class="act_bau_canG subtotalG form-control" />
                                 <strong style="white-space: nowrap;">Curso de graduación:</strong>
-                                <select name="act_bau_curG[]" id="act_bau_curG" class="act_bau_curG form-control">
+                                <select class="act_bau_curG form-control">
                                     <?php
                                         $sql = "SELECT * ";
                                         $sql.=" FROM categorias AS C";
@@ -3236,11 +3271,16 @@ else if($idReporteActual == 0){
                         </tbody>
                     </table>
                     <div class="col-sm-12" style="margin-bottom: 15px;">
-                        <div class="col-sm-6">
+                        <div class="col-sm-4">
                             <label for="cantidadAddG"><strong>Cuantos registros desea realizar?</strong></label>
                         </div>
                         <div class="col-sm-3">
                             <input type="number" id="cantidadAddG" class="form-control" min="1" placeholder="Ej: 5">
+                        </div>
+                        <div class="col-sm-2">
+                            <button id="generarVariasAddG" class="btn btn-primary btn-block" type="button">
+                                <i class="fa fa-list"></i> Generar
+                            </button>
                         </div>
                         <div class="col-sm-3"></div>
                     </div>
@@ -3266,6 +3306,47 @@ else if($idReporteActual == 0){
                             <button id="borrarTodoAddG" class="btn btn-danger" type="button"><i class="fa fa-trash"></i> Borrar todo</button>
                         </center>
                     </div>
+                </div>
+                <div class="col-sm-2"></div>
+            </div>
+            <div class="form-group">
+                <div class="col-sm-2"></div>
+                <div class="col-sm-8">
+                    <table id="tablaComunG" class="table table-bordered registro-table">
+                        <tbody>
+                            <tr>
+                                <td style="width:34%;">
+                                    <strong>Foto:</strong>
+                                    <input type="hidden" name="act_bau_imgG_an" class="act_bau_imgG_an" value="" />
+                                    <input name="act_bau_imgG" type="file" class="form-control" />
+                                </td>
+                                <td style="width:33%;">
+                                    <strong>Fecha:</strong>
+                                    <input name="act_bau_fecG" type="date" class="act_bau_fecG form-control" />
+                                </td>
+                                <td style="width:33%;">
+                                    <strong style="white-space: nowrap;">Curso de graduaci&oacute;n:</strong>
+                                    <select name="act_bau_curG" class="act_bau_curG form-control">
+                                        <?php
+                                            $sql = "SELECT * ";
+                                            $sql.=" FROM categorias AS C";
+                                            $sql.=" WHERE C.idSec = 88 ";
+                                            $sql.=" ORDER BY C.descripcion ASC";
+                                            $PSN1->query($sql);
+                                            $numero_cat=$PSN1->num_rows();
+                                            if($numero_cat > 0){
+                                                while($PSN1->next_record()){
+                                                    ?><option value="<?=$PSN1->f('id'); ?>">
+                                                        <?=$PSN1->f('descripcion'); ?></option>
+                                                    <?php
+                                                }
+                                            }
+                                        ?>
+                                    </select>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
                 <div class="col-sm-2"></div>
             </div>
