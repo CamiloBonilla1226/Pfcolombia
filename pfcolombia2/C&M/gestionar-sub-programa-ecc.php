@@ -1830,18 +1830,17 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
             </div>
             <div class="form-group">
                 <div class="col-sm-12">
+                    <div class="col-sm-12">
+                        <table id="tablaAddGEdit" class="table table-bordered registro-table"></table>
+                    </div>
                     <div class="col-sm-12" style="margin-bottom: 15px;">
                         <div class="col-sm-6">
                             <label for="cantidadAddGEdit"><strong>Cuantos registros desea realizar?</strong></label>
                         </div>
                         <div class="col-sm-3">
-                            <input type="number" id="cantidadAddGEdit" class="form-control" min="1" placeholder="Ej: 5">
+                            <input type="number" id="cantidadAddGEdit" class="form-control" min="1" placeholder="Ej: 5" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
                         </div>
-                        <div class="col-sm-3">
-                            <button id="generarVariasAddGEdit" class="btn btn-primary btn-block" type="button" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
-                                <i class="fa fa-list"></i> Generar
-                            </button>
-                        </div>
+                        <div class="col-sm-3"></div>
                     </div>
                     <div class="col-sm-12" style="margin-bottom: 18px;">
                         <div class="col-sm-6">
@@ -1860,11 +1859,6 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                                 <i class="fa fa-trash"></i> Borrar todo
                             </button>
                         </div>
-                    </div>
-                    <div class="col-sm-12">
-                        <table id="tablaAddGEdit" class="table table-bordered">
-                            <tbody></tbody>
-                        </table>
                     </div>
                 </div>
             </div>
@@ -1895,54 +1889,62 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                     var registrosIniciales = <?= json_encode($graduadosEdicion); ?>;
                     var soloLectura = <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'true' : 'false'; ?>;
 
-                    function crearFila(datos) {
+                    function crearGrupo(datos) {
                         datos = datos || {};
                         var fotoActual = datos.foto ? '<div class="graduado-foto-actual" style="margin-bottom:8px;"><a href="' + datos.foto + '" target="_blank">Ver foto actual</a></div>' : '<div class="graduado-foto-actual" style="margin-bottom:8px;"></div>';
-                        var $fila = $(
-                            '<tr>' +
-                                '<td style="width:22%;"><strong>Nombre completo del graduado:</strong><input name="act_grad_nomG[]" type="text" class="act_grad_nomG form-control" /></td>' +
-                                '<td style="width:18%;"><strong>Tarjeta dactilar / N&deg; identificacion:</strong><input name="act_grad_tarG[]" type="text" class="act_grad_tarG form-control" /></td>' +
-                                '<td style="width:20%;"><strong>Foto:</strong>' + fotoActual + '<input type="hidden" name="act_bau_imgG_an[]" class="act_bau_imgG_an" /><input multiple name="act_bau_imgG[]" type="file" class="act_bau_imgG form-control" /></td>' +
-                                '<td style="width:15%;"><strong>Fecha:</strong><input name="act_bau_fecG[]" type="date" class="act_bau_fecG form-control" /></td>' +
-                                '<td style="width:17%;"><strong>Curso:</strong><select name="act_bau_curG[]" class="act_bau_curG form-control">' + opcionesCursoGraduado + '</select></td>' +
-                                '<td style="width:8%;"><button type="button" class="btn btn-danger btn-eliminar-fila-g" title="Eliminar" style="margin-top:22px;"><i class="fa fa-times"></i></button></td>' +
-                            '</tr>'
+                        var $grupo = $(
+                            '<tbody class="graduado-item">' +
+                                '<tr>' +
+                                    '<td style="width:45%;"><strong>Nombre completo del graduado:</strong><input name="act_grad_nomG[]" type="text" class="act_grad_nomG form-control" /></td>' +
+                                    '<td style="width:45%;"><strong>Tarjeta dactilar / N&deg; identificacion:</strong><input name="act_grad_tarG[]" type="text" class="act_grad_tarG form-control" /></td>' +
+                                    '<td class="registro-col--action text-center" style="width:10%; vertical-align:middle;"><button type="button" class="btn btn-danger btn-eliminar-fila-g" title="Eliminar"><i class="fa fa-times"></i></button></td>' +
+                                '</tr>' +
+                                '<tr>' +
+                                    '<td><strong>Foto:</strong>' + fotoActual + '<input type="hidden" name="act_bau_imgG_an[]" class="act_bau_imgG_an" /><input multiple name="act_bau_imgG[]" type="file" class="act_bau_imgG form-control" /></td>' +
+                                    '<td><strong>Fecha:</strong><input name="act_bau_fecG[]" type="date" class="act_bau_fecG form-control" /></td>' +
+                                    '<td><input name="act_bau_canG[]" type="hidden" class="act_bau_canG subtotalG form-control" value="1" /><strong>Curso de graduaci&oacute;n:</strong><select name="act_bau_curG[]" class="act_bau_curG form-control">' + opcionesCursoGraduado + '</select></td>' +
+                                '</tr>' +
+                            '</tbody>'
                         );
 
-                        $fila.find('.act_grad_nomG').val(datos.nombre || '');
-                        $fila.find('.act_grad_tarG').val(datos.identificacion || '');
-                        $fila.find('.act_bau_imgG_an').val(datos.foto || '');
-                        $fila.find('.act_bau_fecG').val(datos.fecha || '');
+                        $grupo.find('.act_grad_nomG').val(datos.nombre || '');
+                        $grupo.find('.act_grad_tarG').val(datos.identificacion || '');
+                        $grupo.find('.act_bau_imgG_an').val(datos.foto || '');
+                        $grupo.find('.act_bau_fecG').val(datos.fecha || '');
                         if (datos.curso) {
-                            $fila.find('.act_bau_curG').val(datos.curso);
+                            $grupo.find('.act_bau_curG').val(datos.curso);
+                        } else {
+                            $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
                         }
+                        $grupo.find('.act_bau_canG').val(1);
 
                         if (soloLectura) {
-                            $fila.find('input, select, button').prop('disabled', true);
+                            $grupo.find('input, select, button').prop('disabled', true);
                         }
 
-                        return $fila;
+                        return $grupo;
                     }
 
-                    function obtenerDatosFila($fila) {
+                    function obtenerDatosGrupo($grupo) {
                         return {
-                            nombre: $.trim($fila.find('.act_grad_nomG').val()),
-                            identificacion: $.trim($fila.find('.act_grad_tarG').val()),
-                            foto: $fila.find('.act_bau_imgG_an').val() || '',
-                            fecha: $fila.find('.act_bau_fecG').val() || '',
-                            curso: $fila.find('.act_bau_curG').val() || ''
+                            nombre: $.trim($grupo.find('.act_grad_nomG').val()),
+                            identificacion: $.trim($grupo.find('.act_grad_tarG').val()),
+                            foto: $grupo.find('.act_bau_imgG_an').val() || '',
+                            fecha: $grupo.find('.act_bau_fecG').val() || '',
+                            curso: $grupo.find('.act_bau_curG').val() || ''
                         };
                     }
 
-                    function filaCompleta($fila) {
-                        var datos = obtenerDatosFila($fila);
+                    function grupoCompleto($grupo) {
+                        var datos = obtenerDatosGrupo($grupo);
                         return datos.nombre !== '' && datos.identificacion !== '';
                     }
 
                     function sincronizarTotal() {
                         var total = 0;
-                        $('#tablaAddGEdit tbody tr').each(function () {
-                            if (filaCompleta($(this))) {
+                        $('#tablaAddGEdit tbody.graduado-item').each(function () {
+                            $(this).find('.act_bau_canG').val(1);
+                            if (grupoCompleto($(this))) {
                                 total++;
                             }
                         });
@@ -1960,25 +1962,26 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                         }
 
                         var datos = [];
-                        $('#tablaAddGEdit tbody tr').each(function () {
-                            datos.push(obtenerDatosFila($(this)));
+                        $('#tablaAddGEdit tbody.graduado-item').each(function () {
+                            datos.push(obtenerDatosGrupo($(this)));
                         });
 
                         storage.setItem(STORAGE_KEY, JSON.stringify(datos));
                     }
 
-                    function renderizarFilas(datos) {
-                        var $tbody = $('#tablaAddGEdit tbody');
-                        $tbody.empty();
+                    function renderizarGrupos(datos) {
+                        var $tabla = $('#tablaAddGEdit');
+                        $tabla.find('tbody.graduado-item').remove();
 
                         if (!datos || !datos.length) {
                             datos = [{ nombre: '', identificacion: '', foto: '', fecha: '', curso: '' }];
                         }
 
                         $.each(datos, function (_, item) {
-                            $tbody.append(crearFila(item));
+                            $tabla.append(crearGrupo(item));
                         });
 
+                        $('#cantidadAddGEdit').val($('#tablaAddGEdit tbody.graduado-item').length);
                         sincronizarTotal();
                     }
 
@@ -1996,9 +1999,8 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                     }
 
                     function ajustarCantidad(cantidad) {
-                        var $tbody = $('#tablaAddGEdit tbody');
-                        var actual = $tbody.find('tr').length;
                         var objetivo = parseInt(cantidad, 10);
+                        var actual = $('#tablaAddGEdit tbody.graduado-item').length;
 
                         if (isNaN(objetivo) || objetivo < 1) {
                             alert('Ingrese una cantidad valida de registros.');
@@ -2006,15 +2008,16 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                         }
 
                         while (actual < objetivo) {
-                            $tbody.append(crearFila());
+                            $('#tablaAddGEdit').append(crearGrupo());
                             actual++;
                         }
 
                         while (actual > objetivo) {
-                            $tbody.find('tr:last').remove();
+                            $('#tablaAddGEdit tbody.graduado-item:last').remove();
                             actual--;
                         }
 
+                        $('#cantidadAddGEdit').val(actual);
                         sincronizarTotal();
                         guardarDatos();
                     }
@@ -2023,17 +2026,18 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                     if (!datosIniciales || !datosIniciales.length) {
                         datosIniciales = registrosIniciales;
                     }
-                    renderizarFilas(datosIniciales);
+                    renderizarGrupos(datosIniciales);
 
-                    $('#generarVariasAddGEdit').on('click', function () {
+                    $('#cantidadAddGEdit').on('change blur', function () {
                         if (!soloLectura) {
-                            ajustarCantidad($('#cantidadAddGEdit').val());
+                            ajustarCantidad($(this).val());
                         }
                     });
 
                     $('#adicionarAddGEdit').on('click', function () {
                         if (!soloLectura) {
-                            $('#tablaAddGEdit tbody').append(crearFila());
+                            $('#tablaAddGEdit').append(crearGrupo());
+                            $('#cantidadAddGEdit').val($('#tablaAddGEdit tbody.graduado-item').length);
                             sincronizarTotal();
                             guardarDatos();
                         }
@@ -2041,7 +2045,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
                     $('#borrarTodoAddGEdit').on('click', function () {
                         if (!soloLectura) {
-                            renderizarFilas([{ nombre: '', identificacion: '', foto: '', fecha: '', curso: '' }]);
+                            renderizarGrupos([{ nombre: '', identificacion: '', foto: '', fecha: '', curso: '' }]);
                             guardarDatos();
                         }
                     });
@@ -2051,15 +2055,17 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
                             return;
                         }
 
-                        if ($('#tablaAddGEdit tbody tr').length === 1) {
-                            $(this).closest('tr').find('input[type="text"], input[type="date"], input[type="file"]').val('');
-                            $(this).closest('tr').find('.act_bau_imgG_an').val('');
-                            $(this).closest('tr').find('.graduado-foto-actual').empty();
-                            $(this).closest('tr').find('.act_bau_curG').prop('selectedIndex', 0);
+                        var $grupo = $(this).closest('tbody.graduado-item');
+                        if ($('#tablaAddGEdit tbody.graduado-item').length === 1) {
+                            $grupo.find('input[type="text"], input[type="date"], input[type="file"]').val('');
+                            $grupo.find('.act_bau_imgG_an').val('');
+                            $grupo.find('.graduado-foto-actual').empty();
+                            $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
                         } else {
-                            $(this).closest('tr').remove();
+                            $grupo.remove();
                         }
 
+                        $('#cantidadAddGEdit').val($('#tablaAddGEdit tbody.graduado-item').length);
                         sincronizarTotal();
                         guardarDatos();
                     });
@@ -3018,27 +3024,27 @@ else if($idReporteActual == 0){
                      $(function(){
                             var storage = window.sessionStorage;
                             var STORAGE_KEY = 'ecc_graduados_nuevo';
-                            var $filaBase = $('#tablaAddG tbody tr:eq(0)').clone();
+                            var $grupoBase = $('#tablaAddG tbody.graduado-item:eq(0)').clone();
 
-                            function obtenerDatosFila($fila){
+                            function obtenerDatosGrupo($grupo){
                                 return {
-                                    nombre: $.trim($fila.find('.act_grad_nomG').val()),
-                                    identificacion: $.trim($fila.find('.act_grad_tarG').val()),
-                                    fecha: $fila.find('.act_bau_fecG').val() || '',
-                                    curso: $fila.find('.act_bau_curG').val() || ''
+                                    nombre: $.trim($grupo.find('.act_grad_nomG').val()),
+                                    identificacion: $.trim($grupo.find('.act_grad_tarG').val()),
+                                    fecha: $grupo.find('.act_bau_fecG').val() || '',
+                                    curso: $grupo.find('.act_bau_curG').val() || ''
                                 };
                             }
 
-                            function filaCompleta($fila){
-                                var datos = obtenerDatosFila($fila);
+                            function grupoCompleto($grupo){
+                                var datos = obtenerDatosGrupo($grupo);
                                 return datos.nombre !== '' && datos.identificacion !== '';
                             }
 
                             function sincronizarTotal(){
                                 var total = 0;
-                                $('#tablaAddG tbody tr').each(function(){
+                                $('#tablaAddG tbody.graduado-item').each(function(){
                                     $(this).find('.act_bau_canG').val(1);
-                                    if (filaCompleta($(this))) {
+                                    if (grupoCompleto($(this))) {
                                         total++;
                                     }
                                 });
@@ -3056,45 +3062,48 @@ else if($idReporteActual == 0){
                                 }
 
                                 var datos = [];
-                                $('#tablaAddG tbody tr').each(function(){
-                                    datos.push(obtenerDatosFila($(this)));
+                                $('#tablaAddG tbody.graduado-item').each(function(){
+                                    datos.push(obtenerDatosGrupo($(this)));
                                 });
                                 storage.setItem(STORAGE_KEY, JSON.stringify(datos));
                             }
 
-                            function aplicarDatosFila($fila, datos){
-                                $fila.find('.act_grad_nomG').val(datos.nombre || '');
-                                $fila.find('.act_grad_tarG').val(datos.identificacion || '');
-                                $fila.find('.act_bau_fecG').val(datos.fecha || '');
+                            function aplicarDatosGrupo($grupo, datos){
+                                $grupo.find('.act_grad_nomG').val(datos.nombre || '');
+                                $grupo.find('.act_grad_tarG').val(datos.identificacion || '');
+                                $grupo.find('.act_bau_fecG').val(datos.fecha || '');
                                 if (datos.curso) {
-                                    $fila.find('.act_bau_curG').val(datos.curso);
+                                    $grupo.find('.act_bau_curG').val(datos.curso);
+                                } else {
+                                    $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
                                 }
-                                $fila.find('.act_bau_canG').val(1);
+                                $grupo.find('.act_bau_canG').val(1);
                             }
 
-                            function crearFila(datos){
-                                var $fila = $filaBase.clone();
-                                $fila.removeClass('fila-fijaAddG');
-                                $fila.find('input[type="text"], input[type="date"], input[type="file"]').val('');
-                                $fila.find('.act_bau_imgG_an').val('');
-                                $fila.find('.act_bau_curG').prop('selectedIndex', 0);
-                                $fila.find('.graduado-foto-actual').empty();
-                                aplicarDatosFila($fila, datos || {});
-                                return $fila;
+                            function crearGrupo(datos){
+                                var $grupo = $grupoBase.clone();
+                                $grupo.removeClass('fila-fijaAddG');
+                                $grupo.find('input[type="text"], input[type="date"], input[type="file"]').val('');
+                                $grupo.find('.act_bau_imgG_an').val('');
+                                $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
+                                $grupo.find('.graduado-foto-actual').empty();
+                                aplicarDatosGrupo($grupo, datos || {});
+                                return $grupo;
                             }
 
-                            function renderizarFilas(datos){
-                                var $tbody = $('#tablaAddG tbody');
-                                $tbody.empty();
+                            function renderizarGrupos(datos){
+                                var $tabla = $('#tablaAddG');
+                                $tabla.find('tbody.graduado-item').remove();
 
                                 if (!datos || !datos.length) {
                                     datos = [{ nombre: '', identificacion: '', fecha: '', curso: '' }];
                                 }
 
                                 $.each(datos, function(_, item){
-                                    $tbody.append(crearFila(item));
+                                    $tabla.append(crearGrupo(item));
                                 });
 
+                                $('#cantidadAddG').val($('#tablaAddG tbody.graduado-item').length);
                                 sincronizarTotal();
                             }
 
@@ -3112,9 +3121,8 @@ else if($idReporteActual == 0){
                             }
 
                             function ajustarCantidad(cantidad){
-                                var $tbody = $('#tablaAddG tbody');
-                                var actual = $tbody.find('tr').length;
                                 var objetivo = parseInt(cantidad, 10);
+                                var actual = $('#tablaAddG tbody.graduado-item').length;
 
                                 if (isNaN(objetivo) || objetivo < 1) {
                                     alert('Ingrese una cantidad valida de registros.');
@@ -3122,44 +3130,50 @@ else if($idReporteActual == 0){
                                 }
 
                                 while (actual < objetivo) {
-                                    $tbody.append(crearFila());
+                                    $('#tablaAddG').append(crearGrupo());
                                     actual++;
                                 }
 
                                 while (actual > objetivo) {
-                                    $tbody.find('tr:last').remove();
+                                    $('#tablaAddG tbody.graduado-item:last').remove();
                                     actual--;
                                 }
 
+                                $('#cantidadAddG').val(actual);
                                 sincronizarTotal();
                                 guardarDatos();
                             }
 
-                            renderizarFilas(obtenerDatosGuardados());
+                            renderizarGrupos(obtenerDatosGuardados());
 
-                            $("#generarVariasAddG").on('click',function(){
-                                ajustarCantidad($('#cantidadAddG').val());
+                            $("#cantidadAddG").on('change blur', function(){
+                                ajustarCantidad($(this).val());
                             });
 
                             $("#adicionarAddG").on('click',function(){
-                                $("#tablaAddG tbody").append(crearFila());
+                                $("#tablaAddG").append(crearGrupo());
+                                $('#cantidadAddG').val($('#tablaAddG tbody.graduado-item').length);
                                 sincronizarTotal();
                                 guardarDatos();
                             });
 
                             $("#borrarTodoAddG").on('click',function(){
-                                renderizarFilas([{ nombre: '', identificacion: '', fecha: '', curso: '' }]);
+                                renderizarGrupos([{ nombre: '', identificacion: '', fecha: '', curso: '' }]);
                                 guardarDatos();
                             });
 
                             $(document).on("click",".eliminarAddG",function(){
-                                if ($('#tablaAddG tbody tr').length === 1) {
-                                    $(this).closest('tr').find('input[type="text"], input[type="date"], input[type="file"]').val('');
-                                    $(this).closest('tr').find('.act_bau_curG').prop('selectedIndex', 0);
+                                var $grupo = $(this).closest('tbody.graduado-item');
+                                if ($('#tablaAddG tbody.graduado-item').length === 1) {
+                                    $grupo.find('input[type="text"], input[type="date"], input[type="file"]').val('');
+                                    $grupo.find('.act_bau_imgG_an').val('');
+                                    $grupo.find('.graduado-foto-actual').empty();
+                                    $grupo.find('.act_bau_curG').prop('selectedIndex', 0);
                                 } else {
-                                    $(this).closest('tr').remove();
+                                    $grupo.remove();
                                 }
 
+                                $('#cantidadAddG').val($('#tablaAddG tbody.graduado-item').length);
                                 sincronizarTotal();
                                 guardarDatos();
                             });
@@ -3171,44 +3185,34 @@ else if($idReporteActual == 0){
                         });
                     </script>
             
-                    <div class="col-sm-12" style="margin-bottom: 15px;">
-                        <div class="col-sm-6">
-                            <label for="cantidadAddG"><strong>Cuantos registros desea realizar?</strong></label>
-                        </div>
-                        <div class="col-sm-3">
-                            <input type="number" id="cantidadAddG" class="form-control" min="1" placeholder="Ej: 5">
-                        </div>
-                        <div class="col-sm-3">
-                            <button id="generarVariasAddG" class="btn btn-primary btn-block" type="button">
-                                <i class="fa fa-list"></i> Generar
-                            </button>
-                        </div>
-                    </div>
-            <table id="tablaAddG">
-                        <tbody>
-                        <tr class="fila-fijaAddG">
-                            <td class="col-sm-3">
+            <table id="tablaAddG" class="table table-bordered registro-table">
+                        <tbody class="graduado-item fila-fijaAddG">
+                        <tr>
+                            <td style="width:45%;">
                                 <strong>Nombre completo del graduado:</strong>
                                 <input name="act_grad_nomG[]" type="text" class="act_grad_nomG form-control" />
                             </td>
-                            <td class="col-sm-3">
+                            <td style="width:45%;">
                                 <strong>Tarjeta dactilar / N° identificacion:</strong>
                                 <input name="act_grad_tarG[]" type="text" class="act_grad_tarG form-control" />
                             </td>
-                            <td class="col-sm-6">
+                            <td class="eliminarAddG registro-col--action text-center" style="width:10%; vertical-align:middle;">
+                                <button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
                                 <strong>Foto:</strong>
                                 <div class="graduado-foto-actual" style="margin-bottom: 8px;"></div>
                                 <input type="hidden" name="act_bau_imgG_an[]" class="act_bau_imgG_an" value="" />
                                 <input multiple name="act_bau_imgG[]" type="file" id="act_bau_imgG" class="form-control" />
                             </td>
-                            <td class="col-sm-3">
+                            <td>
                                 <strong>Fecha:</strong>
                                 <input name="act_bau_fecG[]" type="date" id="act_bau_fecG" class="act_bau_fecG form-control" />
                             </td>
-                            <td class="col-sm-3" style="display:none;">
+                            <td>
                                 <input name="act_bau_canG[]" type="hidden" id="act_bau_canG" value="1" class="act_bau_canG subtotalG form-control" />
-                            </td>
-                            <td class="col-sm-4">
                                 <strong style="white-space: nowrap;">Curso de graduación:</strong>
                                 <select name="act_bau_curG[]" id="act_bau_curG" class="act_bau_curG form-control">
                                     <?php
@@ -3228,10 +3232,18 @@ else if($idReporteActual == 0){
                                         ?>
                                 </select>
                             </td>
-                            <td class="eliminarAddG"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
                         </tr>
                         </tbody>
                     </table>
+                    <div class="col-sm-12" style="margin-bottom: 15px;">
+                        <div class="col-sm-6">
+                            <label for="cantidadAddG"><strong>Cuantos registros desea realizar?</strong></label>
+                        </div>
+                        <div class="col-sm-3">
+                            <input type="number" id="cantidadAddG" class="form-control" min="1" placeholder="Ej: 5">
+                        </div>
+                        <div class="col-sm-3"></div>
+                    </div>
                 </div>
                 <div class="col-sm-2"></div>
             </div>
