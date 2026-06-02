@@ -1799,14 +1799,6 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
             <div class="col-sm-1"></div>
 
-            <div class="col-sm-3">
-
-                <strong>Lider del Grupo/Iglesia:</strong>
-
-                <input name="plantador" type="text" id="plantador" maxlength="250" value="<?=$plantador; ?>" class="form-control" required  />
-
-            </div>
-
             <div class="col-sm-2">
 
                 <strong>Fecha del reporte:</strong>
@@ -2943,7 +2935,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 
                                 <strong>Foto:</strong>
 
-                                <input name="act_bau_img[]" type="file" id="act_bau_img" class="act_bau_img form-control" accept="image/jpeg,image/png,image/gif" required />
+                                <input name="act_bau_img[]" type="file" id="act_bau_img" class="act_bau_img form-control" accept="image/jpeg,image/png,image/gif" />
 
                             </td>
 
@@ -3783,7 +3775,7 @@ else if($idReporteActual == 0){
 
                 <strong>Pastor/Plantador/Entrenador:</strong>
 
-                <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
+                <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" placeholder="Separe varios nombres con coma" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
 
                 <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
 
@@ -3793,7 +3785,7 @@ else if($idReporteActual == 0){
 
                 </select>
 
-                <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo.</small>
+                <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo. Para varios nombres, sepárelos con coma.</small>
 
             </div>
 
@@ -3939,11 +3931,6 @@ else if($idReporteActual == 0){
         <div class="form-group">
             <div class="col-sm-1"></div>
             
-            <div class="col-sm-3">
-                <strong>Lider del Grupo/Iglesia:</strong>
-                <input name="plantador" type="text" id="plantador" maxlength="250" value="<?=$plantador; ?>" class="form-control" required />
-            </div>
-
             <div id="ubicacion"></div>
 
             <!--<div class="col-sm-3">
@@ -3976,7 +3963,7 @@ else if($idReporteActual == 0){
 
                     <strong>Pastor/Plantador/Entrenador:</strong>
 
-                    <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
+                    <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" placeholder="Separe varios nombres con coma" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
 
                     <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
 
@@ -3986,7 +3973,7 @@ else if($idReporteActual == 0){
 
                     </select>
 
-                    <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo.</small>
+                    <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo. Para varios nombres, sepárelos con coma.</small>
 
                 </div>
 
@@ -4003,14 +3990,6 @@ else if($idReporteActual == 0){
             <div class="form-group">
 
                 <div class="col-sm-1"></div>
-
-                <div class="col-sm-3">
-
-                    <strong>Lider del Grupo/Iglesia:</strong>
-
-                    <input name="plantador" type="text" id="plantador" maxlength="250" value="<?=$plantador; ?>" class="form-control" required />
-
-                </div>
 
                 <div class="col-sm-2">
 
@@ -4794,7 +4773,7 @@ else if($idReporteActual == 0){
 
                                 <strong>Foto:</strong>
 
-                                <input name="act_bau_img[]" type="file" id="act_bau_img" class="act_bau_img form-control" accept="image/jpeg,image/png,image/gif" required />
+                                <input name="act_bau_img[]" type="file" id="act_bau_img" class="act_bau_img form-control" accept="image/jpeg,image/png,image/gif" />
 
                             </td>
 
@@ -6142,6 +6121,12 @@ else{
 
                 input.addEventListener('blur', function(){
                     window.setTimeout(function(){
+                        if(input.value.indexOf(',') !== -1){
+                            if(hidden.value === ''){
+                                hidden.value = '<?=$usua_id; ?>';
+                            }
+                            return;
+                        }
                         resolverCoincidenciaExacta(input.value);
                     }, 150);
                 });
@@ -6176,13 +6161,16 @@ else{
 
                 if(form){
                     form.addEventListener('submit', function(e){
-                        if(hidden.value !== ''){
+                        if(hidden.value !== '' || input.value.indexOf(',') !== -1){
+                            if(hidden.value === '' && input.value.indexOf(',') !== -1){
+                                hidden.value = '<?=$usua_id; ?>';
+                            }
                             return;
                         }
 
                         if(!resolverCoincidenciaExacta(input.value)){
                             e.preventDefault();
-                            alert('Debe seleccionar un usuario registrado de la lista.');
+                            alert('Debe seleccionar un usuario registrado de la lista o ingresar varios nombres separados por coma.');
                             input.focus();
                         }
                     });
