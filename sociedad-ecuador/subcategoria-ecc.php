@@ -3775,17 +3775,25 @@ else if($idReporteActual == 0){
 
                 <strong>Pastor/Plantador/Entrenador:</strong>
 
-                <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" placeholder="Separe varios nombres con coma" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
-
-                <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
-
+                <div id="usua_tags_container" style="display:flex;flex-wrap:wrap;gap:5px;min-height:36px;border:1px solid #ccc;border-radius:4px;padding:6px 8px;background:#fff;cursor:text;" onclick="document.getElementById('usua_nombre').focus()">
+                    <?php
+                    $usua_ids_arr = array_filter(array_map('trim', explode(',', $usua_id)));
+                    $usua_nombres_arr = array_filter(array_map('trim', explode(',', $nombre_evangelista)));
+                    for($ti=0; $ti<count($usua_ids_arr); $ti++){
+                        $tid = trim($usua_ids_arr[$ti]);
+                        $tnombre = isset($usua_nombres_arr[$ti]) ? htmlspecialchars(trim($usua_nombres_arr[$ti]), ENT_QUOTES, 'UTF-8') : '';
+                        if($tid != ''){
+                            echo '<span class="usua-tag" data-id="'.$tid.'" style="display:inline-flex;align-items:center;background:#337ab7;color:#fff;border-radius:3px;padding:2px 8px;font-size:13px;">'.$tnombre.' <button type="button" onclick="removeUsuaTag(this)" style="background:none;border:none;color:#fff;margin-left:5px;cursor:pointer;font-size:14px;line-height:1;">&times;</button></span>';
+                        }
+                    }
+                    ?>
+                    <input type="text" id="usua_nombre" autocomplete="off" style="border:none;outline:none;flex:1;min-width:150px;font-size:14px;" placeholder="Escriba para buscar..." />
+                </div>
+                <input type="hidden" name="usua_id" id="usua_id" value="<?=htmlspecialchars($usua_id, ENT_QUOTES, 'UTF-8'); ?>" />
                 <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
-
-                    <?=obtenerOpcionesUsuarioEcc($usua_id, $tipo_usuario_ecc); ?>
-
+                    <?=obtenerOpcionesUsuarioEcc(0, $tipo_usuario_ecc); ?>
                 </select>
-
-                <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo. Para varios nombres, sepárelos con coma.</small>
+                <small>Escriba para filtrar, seleccione para agregar. Puede agregar varios usuarios.</small>
 
             </div>
 
@@ -3963,17 +3971,25 @@ else if($idReporteActual == 0){
 
                     <strong>Pastor/Plantador/Entrenador:</strong>
 
-                    <input type="text" name="usua_nombre" id="usua_nombre" class="form-control" placeholder="Separe varios nombres con coma" value="<?=htmlspecialchars($nombre_evangelista, ENT_QUOTES, 'UTF-8'); ?>" autocomplete="off" required />
-
-                    <input type="hidden" name="usua_id" id="usua_id" value="<?=$usua_id; ?>" />
-
+                    <div id="usua_tags_container" style="display:flex;flex-wrap:wrap;gap:5px;min-height:36px;border:1px solid #ccc;border-radius:4px;padding:6px 8px;background:#fff;cursor:text;" onclick="document.getElementById('usua_nombre').focus()">
+                        <?php
+                        $usua_ids_arr = array_filter(array_map('trim', explode(',', $usua_id)));
+                        $usua_nombres_arr = array_filter(array_map('trim', explode(',', $nombre_evangelista)));
+                        for($ti=0; $ti<count($usua_ids_arr); $ti++){
+                            $tid = trim($usua_ids_arr[$ti]);
+                            $tnombre = isset($usua_nombres_arr[$ti]) ? htmlspecialchars(trim($usua_nombres_arr[$ti]), ENT_QUOTES, 'UTF-8') : '';
+                            if($tid != ''){
+                                echo '<span class="usua-tag" data-id="'.$tid.'" style="display:inline-flex;align-items:center;background:#337ab7;color:#fff;border-radius:3px;padding:2px 8px;font-size:13px;">'.$tnombre.' <button type="button" onclick="removeUsuaTag(this)" style="background:none;border:none;color:#fff;margin-left:5px;cursor:pointer;font-size:14px;line-height:1;">&times;</button></span>';
+                            }
+                        }
+                        ?>
+                        <input type="text" id="usua_nombre" autocomplete="off" style="border:none;outline:none;flex:1;min-width:150px;font-size:14px;" placeholder="Escriba para buscar..." />
+                    </div>
+                    <input type="hidden" name="usua_id" id="usua_id" value="<?=htmlspecialchars($usua_id, ENT_QUOTES, 'UTF-8'); ?>" />
                     <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
-
-                        <?=obtenerOpcionesUsuarioEcc($usua_id, $tipo_usuario_ecc); ?>
-
+                        <?=obtenerOpcionesUsuarioEcc(0, $tipo_usuario_ecc); ?>
                     </select>
-
-                    <small>Escriba para filtrar y seleccione un usuario tipo Ecuador Capacitador C.C para Cristo. Para varios nombres, sepárelos con coma.</small>
+                    <small>Escriba para filtrar, seleccione para agregar. Puede agregar varios usuarios.</small>
 
                 </div>
 
@@ -6028,6 +6044,39 @@ else{
 
 <script type="text/javascript">
 
+            function removeUsuaTag(btn){
+                var tag = btn.parentNode;
+                var removedId = tag.getAttribute('data-id');
+                tag.parentNode.removeChild(tag);
+                actualizarHiddenUsua();
+            }
+
+            function actualizarHiddenUsua(){
+                var hidden = document.getElementById('usua_id');
+                var tags = document.querySelectorAll('#usua_tags_container .usua-tag');
+                var ids = [];
+                for(var i = 0; i < tags.length; i++){
+                    ids.push(tags[i].getAttribute('data-id'));
+                }
+                hidden.value = ids.join(',');
+            }
+
+            function agregarUsuaTag(id, nombre){
+                var existente = document.querySelector('#usua_tags_container .usua-tag[data-id="'+id+'"]');
+                if(existente){ return; }
+
+                var container = document.getElementById('usua_tags_container');
+                var input = document.getElementById('usua_nombre');
+                var tag = document.createElement('span');
+                tag.className = 'usua-tag';
+                tag.setAttribute('data-id', id);
+                tag.style.cssText = 'display:inline-flex;align-items:center;background:#337ab7;color:#fff;border-radius:3px;padding:2px 8px;font-size:13px;';
+                tag.innerHTML = nombre + ' <button type="button" onclick="removeUsuaTag(this)" style="background:none;border:none;color:#fff;margin-left:5px;cursor:pointer;font-size:14px;line-height:1;">&times;</button>';
+                container.insertBefore(tag, input);
+                input.value = '';
+                actualizarHiddenUsua();
+            }
+
             function inicializarBuscadorUsuarioEcc(){
                 var input = document.getElementById('usua_nombre');
                 var hidden = document.getElementById('usua_id');
@@ -6047,7 +6096,8 @@ else{
                 }
 
                 function normalizarTexto(texto){
-                    return (texto || '').toLowerCase().trim();
+                    return (texto || '').toLowerCase().trim()
+                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
                 }
 
                 function mostrarSelector(){
@@ -6056,6 +6106,7 @@ else{
 
                 function ocultarSelector(){
                     selector.style.display = 'none';
+                    input.value = '';
                 }
 
                 function renderizarOpciones(filtro){
@@ -6083,94 +6134,59 @@ else{
                         var option = document.createElement('option');
                         option.value = coincidencias[k].value;
                         option.text = coincidencias[k].text;
-                        if(coincidencias[k].value === hidden.value){
-                            option.selected = true;
-                        }
                         selector.appendChild(option);
                     }
 
                     mostrarSelector();
                 }
 
-                function resolverCoincidenciaExacta(texto){
-                    var textoNormalizado = normalizarTexto(texto);
-                    for(var j = 0; j < opcionesOriginales.length; j++){
-                        if(normalizarTexto(opcionesOriginales[j].text) === textoNormalizado){
-                            hidden.value = opcionesOriginales[j].value;
-                            input.value = opcionesOriginales[j].text;
-                            return true;
-                        }
-                    }
-
-                    hidden.value = '';
-                    return false;
-                }
-
                 input.addEventListener('input', function(){
-                    hidden.value = '';
-                    renderizarOpciones(this.value);
+                    if(this.value.length > 0){
+                        renderizarOpciones(this.value);
+                    } else {
+                        ocultarSelector();
+                    }
                 });
 
                 input.addEventListener('focus', function(){
-                    renderizarOpciones(this.value);
+                    if(this.value.length > 0){
+                        renderizarOpciones(this.value);
+                    }
                 });
 
                 input.addEventListener('click', function(){
-                    renderizarOpciones(this.value);
-                });
-
-                input.addEventListener('blur', function(){
-                    window.setTimeout(function(){
-                        if(input.value.indexOf(',') !== -1){
-                            if(hidden.value === ''){
-                                hidden.value = '<?=$usua_id; ?>';
-                            }
-                            return;
-                        }
-                        resolverCoincidenciaExacta(input.value);
-                    }, 150);
+                    if(this.value.length > 0){
+                        renderizarOpciones(this.value);
+                    }
                 });
 
                 selector.addEventListener('change', function(){
-                    if(this.value === ''){
-                        hidden.value = '';
-                        return;
-                    }
-
-                    hidden.value = this.value;
-                    input.value = this.options[this.selectedIndex].text;
-                    renderizarOpciones(input.value);
+                    if(this.value === ''){ return; }
+                    var nombre = this.options[this.selectedIndex].text;
+                    agregarUsuaTag(this.value, nombre);
                     ocultarSelector();
                 });
 
                 selector.addEventListener('click', function(){
-                    if(this.value === ''){
-                        return;
-                    }
-
-                    hidden.value = this.value;
-                    input.value = this.options[this.selectedIndex].text;
+                    if(this.value === ''){ return; }
+                    var nombre = this.options[this.selectedIndex].text;
+                    agregarUsuaTag(this.value, nombre);
                     ocultarSelector();
                 });
 
                 document.addEventListener('click', function(e){
-                    if(e.target !== input && e.target !== selector){
+                    var container = document.getElementById('usua_tags_container');
+                    if(e.target !== input && e.target !== selector && !container.contains(e.target)){
                         ocultarSelector();
                     }
                 });
 
                 if(form){
                     form.addEventListener('submit', function(e){
-                        if(hidden.value !== '' || input.value.indexOf(',') !== -1){
-                            if(hidden.value === '' && input.value.indexOf(',') !== -1){
-                                hidden.value = '<?=$usua_id; ?>';
-                            }
-                            return;
-                        }
-
-                        if(!resolverCoincidenciaExacta(input.value)){
+                        var tags = document.querySelectorAll('#usua_tags_container .usua-tag');
+                        if(tags.length === 0){
                             e.preventDefault();
-                            alert('Debe seleccionar un usuario registrado de la lista o ingresar varios nombres separados por coma.');
+                            alert('Debe seleccionar al menos un Pastor/Plantador/Entrenador de la lista.');
                             input.focus();
                         }
                     });
