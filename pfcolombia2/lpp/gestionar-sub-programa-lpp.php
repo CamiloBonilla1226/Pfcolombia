@@ -4733,3 +4733,196 @@ else{
         })
     }
 </script>
+
+<!-- ============================================================
+     MEJORAS DE RESILIENCIA DEL FORMULARIO LPP
+     1. Autoguardado en localStorage (cada 30 seg y en cada cambio)
+     2. Keepalive de sesión (ping cada 10 min para evitar timeout)
+     3. Detección de pérdida de conexión con aviso visual
+     ============================================================ -->
+<style>
+    #lpp-status-bar {
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        z-index: 9999;
+        padding: 8px 16px;
+        font-size: 13px;
+        font-weight: bold;
+        text-align: center;
+        display: none;
+        transition: background 0.3s;
+    }
+    #lpp-status-bar.guardado   { background:#28a745; color:#fff; display:block; }
+    #lpp-status-bar.offline    { background:#dc3545; color:#fff; display:block; }
+    #lpp-status-bar.restaurado { background:#17a2b8; color:#fff; display:block; }
+    #lpp-status-bar.guardando  { background:#ffc107; color:#333; display:block; }
+    #lpp-recuperar-banner {
+        display:none; background:#fff3cd; border:1px solid #ffc107;
+        padding:10px 16px; margin:10px 0; border-radius:4px;
+        font-size:13px;
+    }
+</style>
+
+<div id="lpp-status-bar"></div>
+<div id="lpp-recuperar-banner">
+    ⚠️ Se encontraron datos guardados anteriormente sin enviar.
+    <button type="button" class="btn btn-sm btn-warning" onclick="lppRestaurarDatos()">Restaurar datos</button>
+    <button type="button" class="btn btn-sm btn-default" onclick="lppDescartarDatos()">Descartar</button>
+</div>
+
+<script type="text/javascript">
+(function(){
+    /* ---- Configuración ---- */
+    var FORM_ID        = 'form1';
+    var STORAGE_KEY    = 'lpp_autosave_' + (window.location.search || 'nuevo');
+    var SAVE_INTERVAL  = 30000;   // 30 segundos
+    var KEEPALIVE_INTERVAL = 600000; // 10 minutos
+    var statusBar      = document.getElementById('lpp-status-bar');
+    var recuperarBanner= document.getElementById('lpp-recuperar-banner');
+    var saveTimer, hideTimer;
+    var formularioEnviado = false;
+
+    /* ---- Utilidades de UI ---- */
+    function mostrarEstado(msg, clase, duracion) {
+        clearTimeout(hideTimer);
+        statusBar.textContent = msg;
+        statusBar.className   = clase;
+        if (duracion) {
+            hideTimer = setTimeout(function(){ statusBar.style.display='none'; }, duracion);
+        }
+    }
+
+    /* ---- Serializar / deserializar formulario ---- */
+    function obtenerDatosFormulario() {
+        var form = document.getElementById(FORM_ID);
+        if (!form) return null;
+        var datos = {};
+        var elementos = form.querySelectorAll('input, select, textarea');
+        for (var i = 0; i < elementos.length; i++) {
+            var el = elementos[i];
+            if (!el.name || el.type === 'file' || el.type === 'submit' || el.type === 'button') continue;
+            if (el.type === 'checkbox' || el.type === 'radio') {
+                if (el.checked) datos[el.name] = el.value;
+            } else {
+                datos[el.name] = el.value;
+            }
+        }
+        return datos;
+    }
+
+    function restaurarEnFormulario(datos) {
+        var form = document.getElementById(FORM_ID);
+        if (!form) return;
+        var elementos = form.querySelectorAll('input, select, textarea');
+        for (var i = 0; i < elementos.length; i++) {
+            var el = elementos[i];
+            if (!el.name || el.type === 'file' || el.type === 'submit' || el.type === 'button') continue;
+            if (datos.hasOwnProperty(el.name)) {
+                if (el.type === 'checkbox' || el.type === 'radio') {
+                    el.checked = (el.value === datos[el.name]);
+                } else {
+                    el.value = datos[el.name];
+                }
+            }
+        }
+        /* Disparar eventos de change para recalcular totales */
+        $('#asistencia_muj').trigger('change');
+        $('#rep_carcel').trigger('change');
+        $('#departamento').trigger('change');
+    }
+
+    /* ---- Autoguardado ---- */
+    function lppGuardar() {
+        try {
+            var datos = obtenerDatosFormulario();
+            if (!datos) return;
+            mostrarEstado('💾 Guardando borrador...', 'guardando');
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ ts: Date.now(), datos: datos }));
+            mostrarEstado('✔ Borrador guardado automáticamente', 'guardado', 3000);
+        } catch(e) { /* localStorage puede no estar disponible */ }
+    }
+
+    window.lppRestaurarDatos = function() {
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            var obj = JSON.parse(raw);
+            restaurarEnFormulario(obj.datos);
+            recuperarBanner.style.display = 'none';
+            mostrarEstado('✔ Datos restaurados correctamente', 'restaurado', 4000);
+        } catch(e) {}
+    };
+
+    window.lppDescartarDatos = function() {
+        try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+        recuperarBanner.style.display = 'none';
+    };
+
+    /* ---- Keepalive de sesión ---- */
+    function keepAlive() {
+        $.ajax({
+            type: 'POST',
+            url: window.location.href,
+            data: { funcion: 'keepalive_ping' },
+            error: function() { /* silencioso */ }
+        });
+    }
+
+    /* ---- Detección online / offline ---- */
+    function onOffline() {
+        mostrarEstado('⚠ Sin conexión — los datos están guardados localmente y no se perderán', 'offline');
+        lppGuardar(); // guardar inmediatamente al perder conexión
+    }
+    function onOnline() {
+        mostrarEstado('✔ Conexión restaurada', 'restaurado', 4000);
+    }
+
+    /* ---- Inicialización ---- */
+    $(document).ready(function(){
+
+        /* Verificar si hay datos guardados */
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                var obj = JSON.parse(raw);
+                var mins = Math.round((Date.now() - obj.ts) / 60000);
+                recuperarBanner.style.display = 'block';
+                recuperarBanner.querySelector('button').textContent = 'Restaurar datos (guardado hace ' + mins + ' min)';
+                /* Insertar el banner antes del formulario */
+                var form = document.getElementById(FORM_ID);
+                if (form) form.parentNode.insertBefore(recuperarBanner, form);
+            }
+        } catch(e) {}
+
+        /* Escuchar cambios en el formulario → guardar con debounce */
+        $('#' + FORM_ID).on('change input', function(){
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(lppGuardar, 2000); // 2 seg después del último cambio
+        });
+
+        /* Autoguardado periódico */
+        setInterval(lppGuardar, SAVE_INTERVAL);
+
+        /* Keepalive de sesión */
+        setInterval(keepAlive, KEEPALIVE_INTERVAL);
+
+        /* Eventos de red */
+        window.addEventListener('offline', onOffline);
+        window.addEventListener('online',  onOnline);
+
+        /* Al enviar el formulario con éxito, limpiar el borrador */
+        $('#' + FORM_ID).on('submit', function(){
+            formularioEnviado = true;
+            try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+        });
+
+        /* Avisar si el usuario intenta cerrar/recargar con datos sin guardar */
+        window.addEventListener('beforeunload', function(e){
+            if (!formularioEnviado) {
+                lppGuardar(); // último guardado de emergencia
+            }
+        });
+    });
+
+})();
+</script>
