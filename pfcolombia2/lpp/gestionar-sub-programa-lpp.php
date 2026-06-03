@@ -4773,14 +4773,26 @@ else{
 <script type="text/javascript">
 (function(){
     /* ---- Configuración ---- */
-    var FORM_ID        = 'form1';
-    var STORAGE_KEY    = 'lpp_autosave_' + (window.location.search || 'nuevo');
-    var SAVE_INTERVAL  = 30000;   // 30 segundos
-    var KEEPALIVE_INTERVAL = 600000; // 10 minutos
-    var statusBar      = document.getElementById('lpp-status-bar');
-    var recuperarBanner= document.getElementById('lpp-recuperar-banner');
+    var FORM_ID             = 'form1';
+    var STORAGE_KEY         = 'lpp_autosave_' + (window.location.search || 'nuevo');
+    var SAVE_INTERVAL       = 30000;    // 30 segundos
+    var KEEPALIVE_INTERVAL  = 600000;   // 10 minutos
+    var statusBar           = document.getElementById('lpp-status-bar');
+    var recuperarBanner     = document.getElementById('lpp-recuperar-banner');
     var saveTimer, hideTimer;
-    var formularioEnviado = false;
+    var formularioEnviado   = false;
+
+    /* ============================================================
+       TABLAS DINÁMICAS
+       tablaAdd  → graduados      (act_grad_nom / act_grad_tar)
+       tablaAdd2 → bautizados     (act_vin_nom  / act_vin_tar)
+       tablaAdd3 → decisiones     (act_vex_nom  / act_vex_tar)
+    ============================================================ */
+    var TABLAS = [
+        { tablaId: 'tablaAdd',  claseNom: 'act_grad_nom', claseTar: 'act_grad_tar' },
+        { tablaId: 'tablaAdd2', claseNom: 'act_vin_nom',  claseTar: 'act_vin_tar'  },
+        { tablaId: 'tablaAdd3', claseNom: 'act_vex_nom',  claseTar: 'act_vex_tar'  }
+    ];
 
     /* ---- Utilidades de UI ---- */
     function mostrarEstado(msg, clase, duracion) {
@@ -4788,11 +4800,11 @@ else{
         statusBar.textContent = msg;
         statusBar.className   = clase;
         if (duracion) {
-            hideTimer = setTimeout(function(){ statusBar.style.display='none'; }, duracion);
+            hideTimer = setTimeout(function(){ statusBar.style.display = 'none'; }, duracion);
         }
     }
 
-    /* ---- Serializar / deserializar formulario ---- */
+    /* ---- Serializar campos normales del formulario ---- */
     function obtenerDatosFormulario() {
         var form = document.getElementById(FORM_ID);
         if (!form) return null;
@@ -4800,7 +4812,11 @@ else{
         var elementos = form.querySelectorAll('input, select, textarea');
         for (var i = 0; i < elementos.length; i++) {
             var el = elementos[i];
+            /* Saltar archivos, botones y campos de tablas dinámicas (se guardan aparte) */
             if (!el.name || el.type === 'file' || el.type === 'submit' || el.type === 'button') continue;
+            if (el.classList.contains('act_grad_nom') || el.classList.contains('act_grad_tar') ||
+                el.classList.contains('act_vin_nom')  || el.classList.contains('act_vin_tar')  ||
+                el.classList.contains('act_vex_nom')  || el.classList.contains('act_vex_tar')) continue;
             if (el.type === 'checkbox' || el.type === 'radio') {
                 if (el.checked) datos[el.name] = el.value;
             } else {
@@ -4810,7 +4826,29 @@ else{
         return datos;
     }
 
-    function restaurarEnFormulario(datos) {
+    /* ---- Serializar tablas dinámicas ---- */
+    function obtenerDatosTablas() {
+        var resultado = {};
+        for (var t = 0; t < TABLAS.length; t++) {
+            var cfg   = TABLAS[t];
+            var tabla = document.getElementById(cfg.tablaId);
+            if (!tabla) continue;
+            var filas = [];
+            var inputsNom = tabla.querySelectorAll('input.' + cfg.claseNom);
+            var inputsTar = tabla.querySelectorAll('input.' + cfg.claseTar);
+            for (var i = 0; i < inputsNom.length; i++) {
+                filas.push({
+                    nom: inputsNom[i] ? inputsNom[i].value : '',
+                    tar: inputsTar[i] ? inputsTar[i].value : ''
+                });
+            }
+            resultado[cfg.tablaId] = filas;
+        }
+        return resultado;
+    }
+
+    /* ---- Restaurar campos normales ---- */
+    function restaurarCamposNormales(datos) {
         var form = document.getElementById(FORM_ID);
         if (!form) return;
         var elementos = form.querySelectorAll('input, select, textarea');
@@ -4825,32 +4863,90 @@ else{
                 }
             }
         }
-        /* Disparar eventos de change para recalcular totales */
+        /* Recalcular totales y selectores dependientes */
         $('#asistencia_muj').trigger('change');
         $('#rep_carcel').trigger('change');
         $('#departamento').trigger('change');
     }
 
-    /* ---- Autoguardado ---- */
+    /* ---- Restaurar una tabla dinámica ---- */
+    function restaurarTabla(cfg, filas) {
+        var tabla = document.getElementById(cfg.tablaId);
+        if (!tabla || !filas || filas.length === 0) return;
+
+        /* Obtener la fila plantilla (primera fila) */
+        var filaPlantilla = tabla.querySelector('tr');
+        if (!filaPlantilla) return;
+
+        /* Eliminar todas las filas excepto la primera */
+        var todasFilas = tabla.querySelectorAll('tr');
+        for (var i = todasFilas.length - 1; i >= 1; i--) {
+            todasFilas[i].parentNode.removeChild(todasFilas[i]);
+        }
+
+        /* Rellenar la primera fila con el primer registro */
+        var primerNom = tabla.querySelector('input.' + cfg.claseNom);
+        var primerTar = tabla.querySelector('input.' + cfg.claseTar);
+        if (primerNom) primerNom.value = filas[0].nom || '';
+        if (primerTar) primerTar.value = filas[0].tar || '';
+
+        /* Clonar filas para el resto de registros */
+        for (var j = 1; j < filas.length; j++) {
+            var nuevaFila = filaPlantilla.cloneNode(true);
+            nuevaFila.classList.remove('fila-fijaAdd', 'fila-fijaAdd2', 'fila-fijaAdd3');
+            var inputNom = nuevaFila.querySelector('input.' + cfg.claseNom);
+            var inputTar = nuevaFila.querySelector('input.' + cfg.claseTar);
+            if (inputNom) inputNom.value = filas[j].nom || '';
+            if (inputTar) inputTar.value = filas[j].tar || '';
+
+            /* Agregar la fila al tbody si existe, o directamente a la tabla */
+            var tbody = tabla.querySelector('tbody');
+            if (tbody) tbody.appendChild(nuevaFila);
+            else tabla.appendChild(nuevaFila);
+        }
+    }
+
+    /* ---- Autoguardado completo ---- */
     function lppGuardar() {
         try {
-            var datos = obtenerDatosFormulario();
+            var datos  = obtenerDatosFormulario();
+            var tablas = obtenerDatosTablas();
             if (!datos) return;
             mostrarEstado('💾 Guardando borrador...', 'guardando');
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ ts: Date.now(), datos: datos }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ts: Date.now(),
+                datos: datos,
+                tablas: tablas
+            }));
             mostrarEstado('✔ Borrador guardado automáticamente', 'guardado', 3000);
         } catch(e) { /* localStorage puede no estar disponible */ }
     }
 
+    /* ---- Restaurar todo ---- */
     window.lppRestaurarDatos = function() {
         try {
             var raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return;
             var obj = JSON.parse(raw);
-            restaurarEnFormulario(obj.datos);
+
+            /* 1. Restaurar campos normales */
+            if (obj.datos) restaurarCamposNormales(obj.datos);
+
+            /* 2. Restaurar tablas dinámicas */
+            if (obj.tablas) {
+                for (var t = 0; t < TABLAS.length; t++) {
+                    var cfg = TABLAS[t];
+                    if (obj.tablas[cfg.tablaId]) {
+                        restaurarTabla(cfg, obj.tablas[cfg.tablaId]);
+                    }
+                }
+            }
+
             recuperarBanner.style.display = 'none';
-            mostrarEstado('✔ Datos restaurados correctamente', 'restaurado', 4000);
-        } catch(e) {}
+            mostrarEstado('✔ Datos restaurados correctamente (incluye graduados, bautizados y decisiones)', 'restaurado', 5000);
+        } catch(e) {
+            mostrarEstado('⚠ Error al restaurar los datos', 'offline', 4000);
+        }
     };
 
     window.lppDescartarDatos = function() {
@@ -4871,7 +4967,7 @@ else{
     /* ---- Detección online / offline ---- */
     function onOffline() {
         mostrarEstado('⚠ Sin conexión — los datos están guardados localmente y no se perderán', 'offline');
-        lppGuardar(); // guardar inmediatamente al perder conexión
+        lppGuardar();
     }
     function onOnline() {
         mostrarEstado('✔ Conexión restaurada', 'restaurado', 4000);
@@ -4884,20 +4980,25 @@ else{
         try {
             var raw = localStorage.getItem(STORAGE_KEY);
             if (raw) {
-                var obj = JSON.parse(raw);
+                var obj  = JSON.parse(raw);
                 var mins = Math.round((Date.now() - obj.ts) / 60000);
                 recuperarBanner.style.display = 'block';
-                recuperarBanner.querySelector('button').textContent = 'Restaurar datos (guardado hace ' + mins + ' min)';
-                /* Insertar el banner antes del formulario */
+                recuperarBanner.querySelector('button').textContent =
+                    'Restaurar datos (guardado hace ' + mins + ' min)';
                 var form = document.getElementById(FORM_ID);
                 if (form) form.parentNode.insertBefore(recuperarBanner, form);
             }
         } catch(e) {}
 
-        /* Escuchar cambios en el formulario → guardar con debounce */
+        /* Escuchar cambios en el formulario y en las tablas dinámicas */
         $('#' + FORM_ID).on('change input', function(){
             clearTimeout(saveTimer);
-            saveTimer = setTimeout(lppGuardar, 2000); // 2 seg después del último cambio
+            saveTimer = setTimeout(lppGuardar, 2000);
+        });
+        /* Delegación de eventos para inputs dentro de las tablas dinámicas */
+        $(document).on('input change', '#tablaAdd input, #tablaAdd2 input, #tablaAdd3 input', function(){
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(lppGuardar, 2000);
         });
 
         /* Autoguardado periódico */
@@ -4910,17 +5011,15 @@ else{
         window.addEventListener('offline', onOffline);
         window.addEventListener('online',  onOnline);
 
-        /* Al enviar el formulario con éxito, limpiar el borrador */
+        /* Al enviar, limpiar el borrador */
         $('#' + FORM_ID).on('submit', function(){
             formularioEnviado = true;
             try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
         });
 
-        /* Avisar si el usuario intenta cerrar/recargar con datos sin guardar */
-        window.addEventListener('beforeunload', function(e){
-            if (!formularioEnviado) {
-                lppGuardar(); // último guardado de emergencia
-            }
+        /* Último guardado de emergencia al cerrar/recargar */
+        window.addEventListener('beforeunload', function(){
+            if (!formularioEnviado) lppGuardar();
         });
     });
 
