@@ -419,23 +419,28 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
     }
     //$total_paginas = ceil($total_registros / $registros); 
 
-    $sql = "SELECT C.descripcion AS regional, sat_reportes.*, U.nombre as nombreUsuario, sat_grupos.nombre as nombreGrupo, tbl_adjuntos.adj_url 
+    $sql = "SELECT C.descripcion AS regional, sat_reportes.*, U.nombre as nombreUsuario, sat_grupos.nombre as nombreGrupo, adj.adj_url, adj.adj_nom
     FROM sat_reportes ";
     $sql .= " LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario 
 LEFT JOIN sat_grupos ON sat_grupos.id = sat_reportes.idGrupoMadre
-LEFT JOIN tbl_adjuntos ON sat_reportes.id = tbl_adjuntos.adj_rep_fk 
+LEFT JOIN (
+    SELECT adj_rep_fk, adj_url, adj_nom
+    FROM tbl_adjuntos
+    GROUP BY adj_rep_fk
+) AS adj ON sat_reportes.id = adj.adj_rep_fk
 LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
 LEFT JOIN categorias AS C ON C.id = UE.empresa_pd
 LEFT JOIN categorias AS CA ON CA.id = C.idSec";
     //
-    $sql.=" WHERE 1 ".$sqlFiltro." AND sat_reportes.rep_tip IN (308, 317, 327) GROUP BY sat_reportes.id ORDER BY fechaReporte DESC";
+    $sql.=" WHERE 1 ".$sqlFiltro." AND sat_reportes.rep_tip IN (308, 317, 327) ORDER BY fechaReporte DESC";
     $sql.= " LIMIT ".$inicio.", ".$registros;
   
     //
     
     $PSN1->query($sql);
     //echo $sql;
-    $total_registros=$PSN1->num_rows();
+    // CORRECCIÓN: $total_registros ya fue calculado correctamente con COUNT() arriba.
+    // No se sobreescribe con num_rows() que solo devuelve los registros de la página actual (máx $registros).
     $total_paginas = ceil($total_registros / $registros);
 
     ?><div class="container">
