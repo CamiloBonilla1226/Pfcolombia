@@ -383,13 +383,21 @@ if(isset($_POST["funcion"])){
         /*
         *   PESTAÑA GENERAL
         */
-        $usua_id = soloNumeros($_REQUEST["usua_id"]);
-        if($usua_id == ""){
-            $usua_id = soloNumeros($_SESSION["id"]);
+        $raw_usua_id = isset($_REQUEST["usua_id"]) ? $_REQUEST["usua_id"] : "";
+        $usua_ids_arr = array_filter(array_map('trim', explode(',', $raw_usua_id)), 'strlen');
+        $usua_ids_clean = array();
+        foreach($usua_ids_arr as $idItem){
+            if(preg_match('/^[0-9]+$/', $idItem)){
+                $usua_ids_clean[] = $idItem;
+            }
         }
-        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo IN (".$tipos_usuario_registro_sql.") LIMIT 1";
+        if(empty($usua_ids_clean)){
+            $usua_ids_clean = array(soloNumeros($_SESSION["id"]));
+        }
+        $usua_id = implode(',', $usua_ids_clean);
+        $sqlUsuario = "SELECT COUNT(id) AS total FROM usuario WHERE id IN ('".implode("','", $usua_ids_clean)."') AND tipo IN (".$tipos_usuario_registro_sql.")";
         $PSN2->query($sqlUsuario);
-        if($PSN2->num_rows() == 0){
+        if($PSN2->num_rows() == 0 || ($PSN2->next_record() && $PSN2->f('total') != count($usua_ids_clean))){
             $error_datos = 4;
         }
 
@@ -706,13 +714,21 @@ if(isset($_POST["funcion"])){
     else if($_POST["funcion"] == "actualizar"){
        // die("Actualizar");
         //
-        $usua_id = soloNumeros($_REQUEST["usua_id"]);
-        if($usua_id == ""){
-            $usua_id = soloNumeros($_SESSION["id"]);
+        $raw_usua_id = isset($_REQUEST["usua_id"]) ? $_REQUEST["usua_id"] : "";
+        $usua_ids_arr = array_filter(array_map('trim', explode(',', $raw_usua_id)), 'strlen');
+        $usua_ids_clean = array();
+        foreach($usua_ids_arr as $idItem){
+            if(preg_match('/^[0-9]+$/', $idItem)){
+                $usua_ids_clean[] = $idItem;
+            }
         }
-        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo IN (".$tipos_usuario_registro_sql.") LIMIT 1";
+        if(empty($usua_ids_clean)){
+            $usua_ids_clean = array(soloNumeros($_SESSION["id"]));
+        }
+        $usua_id = implode(',', $usua_ids_clean);
+        $sqlUsuario = "SELECT COUNT(id) AS total FROM usuario WHERE id IN ('".implode("','", $usua_ids_clean)."') AND tipo IN (".$tipos_usuario_registro_sql.")";
         $PSN2->query($sqlUsuario);
-        if($PSN2->num_rows() == 0){
+        if($PSN2->num_rows() == 0 || ($PSN2->next_record() && $PSN2->f('total') != count($usua_ids_clean))){
             $error_datos = 4;
         }
 
