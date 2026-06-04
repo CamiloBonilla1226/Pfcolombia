@@ -37,6 +37,8 @@ $PSN2 = new DBbase_Sql;
 $usua_id = isset($_SESSION["id"]) ? soloNumeros($_SESSION["id"]) : 0;
 $nombre_evangelista = isset($_SESSION["nombre"]) ? $_SESSION["nombre"] : "";
 $tipo_usuario_ecc = 163;
+$tipos_usuario_registro = array(0, 2, 162, 163);
+$tipos_usuario_registro_sql = implode(',', $tipos_usuario_registro);
 
 function obtenerOpcionesUsuarioGestionEcc($idSeleccionado, $tipoUsuarioEcc) {
     $PSNUsuarios = new DBbase_Sql;
@@ -385,7 +387,7 @@ if(isset($_POST["funcion"])){
         if($usua_id == ""){
             $usua_id = soloNumeros($_SESSION["id"]);
         }
-        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_ecc."' LIMIT 1";
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo IN (".$tipos_usuario_registro_sql.") LIMIT 1";
         $PSN2->query($sqlUsuario);
         if($PSN2->num_rows() == 0){
             $error_datos = 4;
@@ -708,7 +710,7 @@ if(isset($_POST["funcion"])){
         if($usua_id == ""){
             $usua_id = soloNumeros($_SESSION["id"]);
         }
-        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_ecc."' LIMIT 1";
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo IN (".$tipos_usuario_registro_sql.") LIMIT 1";
         $PSN2->query($sqlUsuario);
         if($PSN2->num_rows() == 0){
             $error_datos = 4;
