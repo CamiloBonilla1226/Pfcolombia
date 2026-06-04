@@ -36,17 +36,67 @@ $idUsuarioActual = soloNumeros($_SESSION["id"]);
 $msg_sistema = "";
 
 // -- ELIMINAR documento del sistema --
-if($idUsuarioActual == 1 && isset($_GET["del_sistema"]) && soloNumeros($_GET["del_sistema"]) != ""){
-    $idDel = soloNumeros($_GET["del_sistema"]);
+if($idUsuarioActual == 1 && isset($_POST["del_sistema"]) && soloNumeros($_POST["del_sistema"]) != ""){
+    $idDel = soloNumeros($_POST["del_sistema"]);
     $PSN->query("SELECT archivo FROM sistema_documentos WHERE id = '".$idDel."'");
     if($PSN->num_rows() > 0 && $PSN->next_record()){
         $archivoEliminar = $PSN->f("archivo");
-        if($archivoEliminar != "" && file_exists("archivos/sistema/".$archivoEliminar)){
-            unlink("archivos/sistema/".$archivoEliminar);
+        if($archivoEliminar != ""){
+            if(file_exists("archivos/sistema/".$archivoEliminar)){
+                unlink("archivos/sistema/".$archivoEliminar);
+            } else if(file_exists("archivos/usuarios/".$archivoEliminar)){
+                unlink("archivos/usuarios/".$archivoEliminar);
+            }
         }
     }
     $PSN->query("DELETE FROM sistema_documentos WHERE id = '".$idDel."'");
     $msg_sistema = "ok_delete";
+}
+
+// -- SUBIR documento del sistema (endpoint AJAX) --
+if($idUsuarioActual == 1 && isset($_POST["subir_sistema_ajax"])){
+    @ini_set('upload_max_filesize', '500M');
+    @ini_set('post_max_size',       '500M');
+    @ini_set('max_execution_time',  '600');
+    @ini_set('max_input_time',      '600');
+
+    header('Content-Type: application/json');
+    $respuesta = array("ok" => false, "msg" => "");
+
+    $descripcionDoc = htmlspecialchars(trim($_POST["descripcion_sistema"]));
+    if($descripcionDoc == ""){
+        $respuesta["msg"] = "err_desc";
+    } else if(!isset($_FILES["archivo_sistema"]) || $_FILES["archivo_sistema"]["error"] != 0){
+        $respuesta["msg"] = "err_file";
+        $respuesta["php_error"] = $_FILES["archivo_sistema"]["error"] ?? -1;
+    } else {
+        $extPermitidas  = array("pdf","doc","docx","xls","xlsx","mp4","avi","mov","webm");
+        $nombreOriginal = $_FILES["archivo_sistema"]["name"];
+        $extension      = strtolower(pathinfo($nombreOriginal, PATHINFO_EXTENSION));
+        if(!in_array($extension, $extPermitidas)){
+            $respuesta["msg"] = "err_ext";
+        } else {
+            if(!is_dir("archivos/sistema/")) mkdir("archivos/sistema/", 0755, true);
+            $nombreGuardar = time()."_".preg_replace('/[^a-zA-Z0-9._\-]/', '_', $nombreOriginal);
+            $rutaDest      = "archivos/sistema/".$nombreGuardar;
+            if(move_uploaded_file($_FILES["archivo_sistema"]["tmp_name"], $rutaDest)){
+                $PSN->query("INSERT INTO sistema_documentos (descripcion, archivo, extension, idUsuarioSubio, fecha)
+                             VALUES (
+                                 '".addslashes($descripcionDoc)."',
+                                 '".addslashes($nombreGuardar)."',
+                                 '".addslashes($extension)."',
+                                 '".$idUsuarioActual."',
+                                 NOW()
+                             )");
+                $respuesta["ok"]  = true;
+                $respuesta["msg"] = "ok_upload";
+            } else {
+                $respuesta["msg"] = "err_move";
+            }
+        }
+    }
+    echo json_encode($respuesta);
+    exit;
 }
 
 // -- SUBIR documento del sistema --
@@ -277,21 +327,43 @@ function iconoPorExtension($ext){
                     <strong><i class="fas fa-upload"></i> Subir nuevo documento del sistema</strong>
                 </div>
                 <div class="panel-body">
-                    <form method="POST" enctype="multipart/form-data">
+                    <form id="form-subir-sistema" enctype="multipart/form-data">
                         <div class="form-group">
                             <label>Descripción <span class="text-danger">*</span></label>
-                            <input type="text" name="descripcion_sistema" class="form-control"
-                                   placeholder="Ej: Manual de capacitadores 2024" maxlength="200" required>
+                            <input type="text" name="descripcion_sistema" id="descripcion_sistema"
+                                   class="form-control" placeholder="Ej: Manual de capacitadores 2024"
+                                   maxlength="200" required>
                         </div>
                         <div class="form-group">
                             <label>Archivo <span class="text-danger">*</span></label>
-                            <input type="file" name="archivo_sistema" class="form-control"
+                            <input type="file" name="archivo_sistema" id="archivo_sistema"
+                                   class="form-control"
                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.mp4,.avi,.mov,.webm" required>
                             <small class="text-muted">
-                                Formatos permitidos: PDF &nbsp;|&nbsp; Word (.doc, .docx) &nbsp;|&nbsp; Excel (.xls, .xlsx) &nbsp;|&nbsp; Video (.mp4, .avi, .mov, .webm)
+                                Formatos permitidos: PDF &nbsp;|&nbsp; Word (.doc, .docx) &nbsp;|&nbsp;
+                                Excel (.xls, .xlsx) &nbsp;|&nbsp; Video (.mp4, .avi, .mov, .webm)
                             </small>
                         </div>
-                        <button type="submit" name="subir_sistema" class="btn btn-primary">
+
+                        <!-- Barra de progreso (oculta hasta que empieza la subida) -->
+                        <div id="bloque-progreso" style="display:none; margin-bottom:12px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                <small id="progreso-label" class="text-muted">Subiendo archivo...</small>
+                                <small id="progreso-pct" class="text-muted">0%</small>
+                            </div>
+                            <div class="progress" style="margin-bottom:4px;">
+                                <div id="barra-progreso" class="progress-bar progress-bar-striped active"
+                                     role="progressbar" style="width:0%; min-width:18px; transition:width 0.2s;">
+                                    &nbsp;
+                                </div>
+                            </div>
+                            <small id="progreso-detalle" class="text-muted"></small>
+                        </div>
+
+                        <!-- Mensajes de resultado inline -->
+                        <div id="msg-subida" style="margin-bottom:10px;"></div>
+
+                        <button type="submit" id="btn-subir" class="btn btn-primary">
                             <i class="fas fa-upload"></i> Subir documento
                         </button>
                     </form>
@@ -300,41 +372,121 @@ function iconoPorExtension($ext){
         </div>
         <div class="col-sm-2"></div>
     </div>
+
+    <script>
+    (function(){
+        var form     = document.getElementById('form-subir-sistema');
+        var btnSubir = document.getElementById('btn-subir');
+        var bloqueP  = document.getElementById('bloque-progreso');
+        var barra    = document.getElementById('barra-progreso');
+        var pct      = document.getElementById('progreso-pct');
+        var label    = document.getElementById('progreso-label');
+        var detalle  = document.getElementById('progreso-detalle');
+        var msgDiv   = document.getElementById('msg-subida');
+
+        function formatBytes(bytes){
+            if(bytes < 1024*1024) return (bytes/1024).toFixed(1)+' KB';
+            return (bytes/(1024*1024)).toFixed(1)+' MB';
+        }
+
+        function mostrarMsg(tipo, texto){
+            var icono = tipo === 'success'
+                ? '<i class="fas fa-check-circle"></i>'
+                : '<i class="fas fa-exclamation-circle"></i>';
+            msgDiv.innerHTML = '<div class="alert alert-'+tipo+'">'+icono+' '+texto+'</div>';
+        }
+
+        form.addEventListener('submit', function(e){
+            e.preventDefault();
+
+            var desc    = document.getElementById('descripcion_sistema').value.trim();
+            var fileInp = document.getElementById('archivo_sistema');
+
+            if(desc === ''){
+                mostrarMsg('danger', 'Debe ingresar una descripción para el documento.');
+                return;
+            }
+            if(!fileInp.files || fileInp.files.length === 0){
+                mostrarMsg('danger', 'Debe seleccionar un archivo.');
+                return;
+            }
+
+            var fd = new FormData();
+            fd.append('subir_sistema_ajax', '1');
+            fd.append('descripcion_sistema', desc);
+            fd.append('archivo_sistema', fileInp.files[0]);
+
+            var xhr = new XMLHttpRequest();
+            var tamanio = fileInp.files[0].size;
+
+            // -- Mostrar barra y deshabilitar botón --
+            bloqueP.style.display = 'block';
+            msgDiv.innerHTML      = '';
+            btnSubir.disabled     = true;
+            btnSubir.innerHTML    = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
+            barra.style.width     = '0%';
+            pct.textContent       = '0%';
+            label.textContent     = 'Subiendo archivo...';
+            detalle.textContent   = '';
+
+            xhr.upload.addEventListener('progress', function(ev){
+                if(ev.lengthComputable){
+                    var porc = Math.round((ev.loaded / ev.total) * 100);
+                    barra.style.width = porc + '%';
+                    pct.textContent   = porc + '%';
+                    detalle.textContent = formatBytes(ev.loaded) + ' de ' + formatBytes(ev.total);
+                    if(porc === 100){
+                        label.textContent     = 'Procesando en el servidor...';
+                        barra.classList.add('progress-bar-striped', 'active');
+                    }
+                }
+            });
+
+            xhr.addEventListener('load', function(){
+                btnSubir.disabled  = false;
+                btnSubir.innerHTML = '<i class="fas fa-upload"></i> Subir documento';
+                bloqueP.style.display = 'none';
+
+                var mensajes = {
+                    ok_upload : ['success', 'Documento subido correctamente.'],
+                    err_desc  : ['danger',  'Debe ingresar una descripción para el documento.'],
+                    err_file  : ['danger',  'Debe seleccionar un archivo válido.'],
+                    err_ext   : ['danger',  'Tipo de archivo no permitido. Use PDF, Word, Excel o video (mp4, avi, mov, webm).'],
+                    err_move  : ['danger',  'Error al guardar el archivo en el servidor. Verifique los permisos de la carpeta.']
+                };
+
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    var info = mensajes[resp.msg] || ['danger', 'Respuesta inesperada del servidor.'];
+                    mostrarMsg(info[0], info[1]);
+                    if(resp.ok){
+                        form.reset();
+                        // Recargar la tabla de documentos tras 1.5s
+                        setTimeout(function(){ location.reload(); }, 1500);
+                    }
+                } catch(err){
+                    mostrarMsg('danger', 'Error al procesar la respuesta del servidor.');
+                }
+            });
+
+            xhr.addEventListener('error', function(){
+                btnSubir.disabled  = false;
+                btnSubir.innerHTML = '<i class="fas fa-upload"></i> Subir documento';
+                bloqueP.style.display = 'none';
+                mostrarMsg('danger', 'Error de red al subir el archivo. Intente nuevamente.');
+            });
+
+            xhr.open('POST', '', true);
+            xhr.send(fd);
+        });
+    })();
+    </script>
     <?php } ?>
 
     <div class="row">
         <div class="col-sm-2"></div>
         <div class="col-sm-8">
             <table class="table table-striped table-hover">
-                <!-- Documentos fijos hardcodeados (se mantienen igual) -->
-                <tr>
-                    <td>
-                        <a href='archivos/usuarios/Manual_de_Uso-Sistema-de-gestion-integral-CCC.pdf' target="_blank">
-                            <i class="fas fa-file-pdf" style="color:#c0392b;"></i>
-                            Manual de usuario - Sistema de gestion integral - CCC
-                        </a>
-                    </td>
-                    <?php if($idUsuarioActual == 1){ ?><td style="width:50px;"></td><?php } ?>
-                </tr>
-                <tr>
-                    <td>
-                        <a href='archivos/usuarios/Video No 2 Reportes de Facilitadores.mp4' target="_blank">
-                            <i class="fas fa-file-video" style="color:#8e44ad;"></i>
-                            Video reporte facilitadores
-                        </a>
-                    </td>
-                    <?php if($idUsuarioActual == 1){ ?><td style="width:50px;"></td><?php } ?>
-                </tr>
-                <tr>
-                    <td>
-                        <a href='archivos/usuarios/Video No 1 Reporte Cada Comunidad Capacitadores.mp4' target="_blank">
-                            <i class="fas fa-file-video" style="color:#8e44ad;"></i>
-                            Video reporte capacitadores
-                        </a>
-                    </td>
-                    <?php if($idUsuarioActual == 1){ ?><td style="width:50px;"></td><?php } ?>
-                </tr>
-
                 <?php
                 // Documentos subidos dinámicamente desde la plataforma
                 $PSN->query("SELECT * FROM sistema_documentos ORDER BY fecha DESC");
@@ -353,11 +505,12 @@ function iconoPorExtension($ext){
                             </td>
                             <?php if($idUsuarioActual == 1){ ?>
                             <td style="width:50px; text-align:center;">
-                                <a href='?del_sistema=<?=$sdId; ?>'
-                                   onclick="return confirm('¿Eliminar este documento del sistema?');"
-                                   class="btn btn-danger btn-xs" title="Eliminar">
-                                    <i class="fas fa-trash"></i>
-                                </a>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar este documento del sistema?');">
+                                    <input type="hidden" name="del_sistema" value="<?=$sdId; ?>">
+                                    <button type="submit" class="btn btn-danger btn-xs" title="Eliminar">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
                             </td>
                             <?php } ?>
                         </tr>

@@ -55,11 +55,61 @@ $mimeTypes = array(
 $mime = isset($mimeTypes[$extension]) ? $mimeTypes[$extension] : "application/octet-stream";
 
 // PDF y videos: abrir en el navegador. Resto: forzar descarga
+$esVideo     = in_array($extension, array("mp4","avi","mov","webm"));
 $disposicion = in_array($extension, array("pdf","mp4","avi","mov","webm")) ? "inline" : "attachment";
 
-header("Content-Type: " . $mime);
-header("Content-Length: " . filesize($ruta));
-header('Content-Disposition: ' . $disposicion . '; filename="' . $archivo . '"');
-header("Cache-Control: private, max-age=0, must-revalidate");
+$tamano = filesize($ruta);
+
+// ── Soporte de Range requests (necesario para streaming de video) ──
+if($esVideo && isset($_SERVER["HTTP_RANGE"])){
+    // Parsear el header: bytes=inicio-fin
+    if(!preg_match('/bytes=(\d*)-(\d*)/i', $_SERVER["HTTP_RANGE"], $m)){
+        http_response_code(416); // Range Not Satisfiable
+        header("Content-Range: bytes */" . $tamano);
+        exit;
+    }
+
+    $inicio = ($m[1] !== "") ? (int)$m[1] : 0;
+    $fin    = ($m[2] !== "") ? (int)$m[2] : $tamano - 1;
+
+    if($fin >= $tamano) $fin = $tamano - 1;
+
+    if($inicio > $fin || $inicio < 0){
+        http_response_code(416);
+        header("Content-Range: bytes */" . $tamano);
+        exit;
+    }
+
+    $longitud = $fin - $inicio + 1;
+
+    http_response_code(206); // Partial Content
+    header("Content-Type: "     . $mime);
+    header("Content-Length: "   . $longitud);
+    header("Content-Range: bytes " . $inicio . "-" . $fin . "/" . $tamano);
+    header("Content-Disposition: " . $disposicion . '; filename="' . $archivo . '"');
+    header("Accept-Ranges: bytes");
+    header("Cache-Control: private, max-age=3600");
+
+    $fp = fopen($ruta, "rb");
+    fseek($fp, $inicio);
+    $restante = $longitud;
+    while(!feof($fp) && $restante > 0 && !connection_aborted()){
+        $chunk = min(8192, $restante);
+        echo fread($fp, $chunk);
+        $restante -= $chunk;
+        flush();
+    }
+    fclose($fp);
+    exit;
+}
+
+// ── Respuesta normal (sin Range) ──
+header("Content-Type: "        . $mime);
+header("Content-Length: "      . $tamano);
+header("Content-Disposition: " . $disposicion . '; filename="' . $archivo . '"');
+header("Cache-Control: private, max-age=3600");
+if($esVideo){
+    header("Accept-Ranges: bytes"); // Le dice al navegador que puede pedir rangos
+}
 readfile($ruta);
 exit;
