@@ -37,8 +37,6 @@ $PSN2 = new DBbase_Sql;
 $usua_id = isset($_SESSION["id"]) ? soloNumeros($_SESSION["id"]) : 0;
 $nombre_evangelista = isset($_SESSION["nombre"]) ? $_SESSION["nombre"] : "";
 $tipo_usuario_ecc = 163;
-$tipos_usuario_registro = array(0, 2, 162, 163);
-$tipos_usuario_registro_sql = implode(',', $tipos_usuario_registro);
 
 function obtenerOpcionesUsuarioGestionEcc($idSeleccionado, $tipoUsuarioEcc) {
     $PSNUsuarios = new DBbase_Sql;
@@ -383,21 +381,13 @@ if(isset($_POST["funcion"])){
         /*
         *   PESTAÑA GENERAL
         */
-        $raw_usua_id = isset($_REQUEST["usua_id"]) ? $_REQUEST["usua_id"] : "";
-        $usua_ids_arr = array_filter(array_map('trim', explode(',', $raw_usua_id)), 'strlen');
-        $usua_ids_clean = array();
-        foreach($usua_ids_arr as $idItem){
-            if(preg_match('/^[0-9]+$/', $idItem)){
-                $usua_ids_clean[] = $idItem;
-            }
+        $usua_id = soloNumeros($_REQUEST["usua_id"]);
+        if($usua_id == ""){
+            $usua_id = soloNumeros($_SESSION["id"]);
         }
-        if(empty($usua_ids_clean)){
-            $usua_ids_clean = array(soloNumeros($_SESSION["id"]));
-        }
-        $usua_id = implode(',', $usua_ids_clean);
-        $sqlUsuario = "SELECT COUNT(id) AS total FROM usuario WHERE id IN ('".implode("','", $usua_ids_clean)."') AND tipo IN (".$tipos_usuario_registro_sql.")";
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_ecc."' LIMIT 1";
         $PSN2->query($sqlUsuario);
-        if($PSN2->num_rows() == 0 || ($PSN2->next_record() && $PSN2->f('total') != count($usua_ids_clean))){
+        if($PSN2->num_rows() == 0){
             $error_datos = 4;
         }
 
@@ -714,21 +704,13 @@ if(isset($_POST["funcion"])){
     else if($_POST["funcion"] == "actualizar"){
        // die("Actualizar");
         //
-        $raw_usua_id = isset($_REQUEST["usua_id"]) ? $_REQUEST["usua_id"] : "";
-        $usua_ids_arr = array_filter(array_map('trim', explode(',', $raw_usua_id)), 'strlen');
-        $usua_ids_clean = array();
-        foreach($usua_ids_arr as $idItem){
-            if(preg_match('/^[0-9]+$/', $idItem)){
-                $usua_ids_clean[] = $idItem;
-            }
+        $usua_id = soloNumeros($_REQUEST["usua_id"]);
+        if($usua_id == ""){
+            $usua_id = soloNumeros($_SESSION["id"]);
         }
-        if(empty($usua_ids_clean)){
-            $usua_ids_clean = array(soloNumeros($_SESSION["id"]));
-        }
-        $usua_id = implode(',', $usua_ids_clean);
-        $sqlUsuario = "SELECT COUNT(id) AS total FROM usuario WHERE id IN ('".implode("','", $usua_ids_clean)."') AND tipo IN (".$tipos_usuario_registro_sql.")";
+        $sqlUsuario = "SELECT id FROM usuario WHERE id = '".$usua_id."' AND tipo = '".$tipo_usuario_ecc."' LIMIT 1";
         $PSN2->query($sqlUsuario);
-        if($PSN2->num_rows() == 0 || ($PSN2->next_record() && $PSN2->f('total') != count($usua_ids_clean))){
+        if($PSN2->num_rows() == 0){
             $error_datos = 4;
         }
 
@@ -1204,7 +1186,7 @@ if($idReporteActual > 0){
                 <select id="usua_selector" class="form-control" size="6" style="margin-top: 4px; display: none;">
                     <?=obtenerOpcionesUsuarioGestionEcc(0, $tipo_usuario_ecc); ?>
                 </select>
-                <small>Escriba para filtrar, seleccione para agregar. Puede agregar varios usuarios.</small>
+                <small>Escriba para filtrar y seleccione un usuario.</small>
             </div>
             <div class="col-sm-6"></div>
         </div>
@@ -2091,7 +2073,7 @@ else if($idReporteActual == 0){
                 <select id="usua_selector" class="form-control" size="6" style="margin-top: 4px; display: none;">
                     <?=obtenerOpcionesUsuarioGestionEcc(0, $tipo_usuario_ecc); ?>
                 </select>
-                <small>Escriba para filtrar, seleccione para agregar. Puede agregar varios usuarios.</small>
+                <small>Escriba para filtrar y seleccione un usuario.</small>
             </div>
             <div class="col-sm-6"></div>
         </div>
@@ -4060,12 +4042,15 @@ alert(Mensaje);
             }
 
             function agregarUsuaTag(id, nombre){
-                // Evitar duplicados
-                var existente = document.querySelector('#usua_tags_container .usua-tag[data-id="'+id+'"]');
-                if(existente){ return; }
-
                 var container = document.getElementById('usua_tags_container');
                 var input = document.getElementById('usua_nombre');
+
+                // Eliminar cualquier tag existente (solo se permite uno)
+                var tagsExistentes = container.querySelectorAll('.usua-tag');
+                for(var i = 0; i < tagsExistentes.length; i++){
+                    tagsExistentes[i].parentNode.removeChild(tagsExistentes[i]);
+                }
+
                 var tag = document.createElement('span');
                 tag.className = 'usua-tag';
                 tag.setAttribute('data-id', id);

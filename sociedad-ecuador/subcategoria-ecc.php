@@ -3793,7 +3793,7 @@ else if($idReporteActual == 0){
                 <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
                     <?=obtenerOpcionesUsuarioEcc(0, $tipo_usuario_ecc); ?>
                 </select>
-                <small>Escriba para filtrar, seleccione para agregar. Puede agregar varios usuarios.</small>
+                <small>Escriba para filtrar y seleccione un usuario.</small>
 
             </div>
 
@@ -3989,7 +3989,7 @@ else if($idReporteActual == 0){
                     <select id="usua_selector" class="form-control" size="6" style="margin-top: 8px; display: none;">
                         <?=obtenerOpcionesUsuarioEcc(0, $tipo_usuario_ecc); ?>
                     </select>
-                    <small>Escriba para filtrar, seleccione para agregar. Puede agregar varios usuarios.</small>
+                    <small>Escriba para filtrar y seleccione un usuario.</small>
 
                 </div>
 
@@ -6062,8 +6062,13 @@ else{
             }
 
             function agregarUsuaTag(id, nombre){
-                var existente = document.querySelector('#usua_tags_container .usua-tag[data-id="'+id+'"]');
-                if(existente){ return; }
+                var container = document.getElementById('usua_tags_container');
+
+                // Eliminar cualquier tag existente (solo se permite uno)
+                var tagsExistentes = container.querySelectorAll('.usua-tag');
+                for(var i = 0; i < tagsExistentes.length; i++){
+                    tagsExistentes[i].parentNode.removeChild(tagsExistentes[i]);
+                }
 
                 var container = document.getElementById('usua_tags_container');
                 var input = document.getElementById('usua_nombre');

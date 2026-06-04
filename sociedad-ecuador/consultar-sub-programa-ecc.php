@@ -349,7 +349,7 @@ else{
     */
     $sql = "SELECT count(DISTINCT sat_reportes.id) as conteo ";
     $sql .= " FROM sat_reportes ";
-    $sql .= " LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario
+    $sql .= " LEFT JOIN usuario AS U ON FIND_IN_SET(U.id, sat_reportes.idUsuario)
     LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
 LEFT JOIN categorias AS C ON C.id = UE.empresa_pd 
 LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
@@ -421,7 +421,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
 
     $sql = "SELECT C.descripcion AS regional, sat_reportes.*, U.nombre as nombreUsuario, sat_grupos.nombre as nombreGrupo, adj.adj_url, adj.adj_nom
     FROM sat_reportes ";
-    $sql .= " LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario 
+    $sql .= " LEFT JOIN usuario AS U ON FIND_IN_SET(U.id, sat_reportes.idUsuario)
 LEFT JOIN sat_grupos ON sat_grupos.id = sat_reportes.idGrupoMadre
 LEFT JOIN (
     SELECT adj_rep_fk, adj_url, adj_nom
@@ -439,8 +439,7 @@ LEFT JOIN categorias AS CA ON CA.id = C.idSec";
     
     $PSN1->query($sql);
     //echo $sql;
-    // CORRECCIÓN: $total_registros ya fue calculado correctamente con COUNT() arriba.
-    // No se sobreescribe con num_rows() que solo devuelve los registros de la página actual (máx $registros).
+    // CORRECCIÓN: $total_registros ya fue calculado con COUNT() arriba. No se sobreescribe.
     $total_paginas = ceil($total_registros / $registros);
 
     ?><div class="container">
