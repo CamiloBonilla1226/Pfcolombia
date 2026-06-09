@@ -60,6 +60,8 @@ if($idUsuarioActual == 1 && isset($_POST["subir_sistema_ajax"])){
     @ini_set('max_execution_time',  '600');
     @ini_set('max_input_time',      '600');
 
+    // Limpiar cualquier output que el layout padre haya acumulado
+    while(ob_get_level()) ob_end_clean();
     header('Content-Type: application/json');
     $respuesta = array("ok" => false, "msg" => "");
 
@@ -456,7 +458,12 @@ function iconoPorExtension($ext){
                 };
 
                 try {
-                    var resp = JSON.parse(xhr.responseText);
+                    // Extraer solo el JSON aunque el servidor devuelva HTML extra alrededor
+                    var raw  = xhr.responseText;
+                    var ini  = raw.indexOf('{');
+                    var fin  = raw.lastIndexOf('}');
+                    var json = (ini !== -1 && fin !== -1) ? raw.substring(ini, fin + 1) : raw;
+                    var resp = JSON.parse(json);
                     var info = mensajes[resp.msg] || ['danger', 'Respuesta inesperada del servidor.'];
                     mostrarMsg(info[0], info[1]);
                     if(resp.ok){
@@ -523,78 +530,6 @@ function iconoPorExtension($ext){
         <div class="col-sm-2"></div>
     </div><br>
 
-    <!-- ======================================================== -->
-    <!--  DOCUMENTOS DEL USUARIO                                   -->
-    <!-- ======================================================== -->
-    <div class="cont-tit">
-        <div class="hr"><hr></div>
-        <div class="tit-cen">
-            <h3 class="text-center">DOCUMENTOS</h3>
-            <h5>DEL USUARIO</h5>
-        </div>
-        <div class="hr"><hr></div>
-    </div>
-    <div class="row">
-        <div class="col-sm-2"></div>
-        <div class="col-sm-8">
-            <table class="table table-striped table-hover">
-                <?php
-                if($documento_identificacion != ""){?>
-                    <tr>
-                        <td>
-                            <a href='descarga_usuario.php?&archivo=<?=$documento_identificacion; ?>' target="_blank">Documento de Identificación</a>
-                        </td>              
-                    </tr><?php
-                }
-                if($documento_rut != ""){?>
-                    <tr>
-                        <td>
-                            <a href='descarga_usuario.php?&archivo=<?=$documento_rut; ?>' target="_blank">RUT</a>
-                        </td>
-                    </tr><?php
-                }
-                if($documento_constitucion != ""){?>
-                    <tr>
-                        <td>
-                            <a href='descarga_usuario.php?&archivo=<?=$documento_constitucion; ?>' target="_blank">Constitución</a>
-                        </td>
-                    </tr>
-                <?php }
-                if($documento_contrato != ""){?>
-                    <tr>
-                        <td>
-                            <a href='descarga_usuario.php?&archivo=<?=$documento_contrato; ?>' target="_blank">Contrato</a>
-                        </td>
-                    </tr>
-                <?php }
-
-                /*  DOCUMENTOS ADICIONALES  */
-                $PSN1->query("SELECT * FROM usuario_documentos_add WHERE idUsuario = '".$idUsuarioActual."' ORDER BY descripcion asc");
-                $numero = $PSN1->num_rows();
-                if($numero > 0){
-                    while($PSN1->next_record()){?>
-                        <tr>
-                            <td>
-                                <a href='descarga_usuario.php?&archivo=<?=$PSN1->f('archivo'); ?>' target="_blank">
-                                    <i class="fas fa-file-pdf"></i> <?=$PSN1->f('descripcion'); ?>
-                                </a>
-                            </td>
-                        </tr>
-                    <?php }
-                }else{?> 
-                    <tr>
-                        <td>
-                            <div>
-                                <i class="far fa-file-alt"></i> No se encontraron archivos cargados en el sistema  
-                            </div>
-                        </td>
-                    </tr>
-                <?php }
-                ?>            
-            </table>
-        </div>
-        <div class="col-sm-2"></div>
-    </div>
 
 <?php } ?>
 </div>
