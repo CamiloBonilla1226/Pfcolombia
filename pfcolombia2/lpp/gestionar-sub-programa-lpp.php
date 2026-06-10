@@ -12,31 +12,9 @@ $temp_letrero = 'LA PEREGRINACIÓN DEL PRISIONERO (LPP)';
 $empresa_pd = isset($_SESSION['empresa_pd']) ? $_SESSION['empresa_pd'] : '';
 
 /* ============================================================
-   AJAX — info de la cárcel (departamento, municipio, dirección)
+   AJAX — info de la cárcel se maneja via datos_carcel_ubicacion.php
+   (archivo ya existente en el sistema)
    ============================================================ */
-if (isset($_POST['accion']) && $_POST['accion'] === 'info_carcel') {
-    $id_carcel = (int)$_POST['id_carcel'];
-    $sql = "SELECT
-                ru.reub_dir        AS direccion,
-                m.municipio        AS municipio,
-                d.departamento     AS departamento
-            FROM tbl_regional_ubicacion AS ru
-            LEFT JOIN dane_municipios    AS m ON m.id_municipio    = ru.reub_mun_fk
-            LEFT JOIN dane_departamentos AS d ON d.id_departamento = m.departamento_id
-            WHERE ru.reub_id = " . $id_carcel;
-    $PSN->query($sql);
-    if ($PSN->num_rows() > 0 && $PSN->next_record()) {
-        echo json_encode([
-            'ok'           => true,
-            'departamento' => $PSN->f('departamento'),
-            'municipio'    => $PSN->f('municipio'),
-            'direccion'    => $PSN->f('direccion'),
-        ]);
-    } else {
-        echo json_encode(['ok' => false]);
-    }
-    exit;
-}
 
 /* ============================================================
    PROCESAMIENTO
@@ -187,35 +165,30 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         border-color: #d0dbe5;
     }
 
-    /* Bloque ubicación (se muestra al elegir cárcel) */
-    .bloque-ubicacion {
-        display: none;
-        margin-top: 14px;
-        padding: 14px 16px;
-        background: #f8fafc;
-        border: 1px solid #d0dbe5;
-        border-radius: 10px;
+    /* Bloque ubicación inyectado por datos_carcel_ubicacion.php */
+    #ubicacion {
+        margin-top: 12px;
     }
-    .bloque-ubicacion .fila-ubi {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
+    #ubicacion table {
+        width: 100%;
+        border-collapse: collapse;
     }
-    .bloque-ubicacion .campo-ubi {
-        flex: 1;
-        min-width: 140px;
-    }
-    .bloque-ubicacion strong {
-        font-size: 11px;
-        letter-spacing: .05em;
-        color: #5a6a78;
-        margin-bottom: 4px;
-    }
-    .bloque-ubicacion .form-control {
-        height: 38px;
+    #ubicacion td,
+    #ubicacion th {
+        padding: 8px 12px;
         font-size: 13px;
-        background: #ffffff;
+        color: #2d3f50;
+        border-bottom: 1px solid #e8ecf0;
     }
+    #ubicacion th {
+        font-weight: 700;
+        color: #1e2d3a;
+        background: #f0f4f8;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    #ubicacion tr:last-child td { border-bottom: none; }
 
     /* Separador entre filas dentro de una sección */
     .report-form .fila-form {
@@ -352,23 +325,10 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                         ?>
                     </select>
 
-                    <!-- Se despliega al seleccionar una cárcel -->
-                    <div class="bloque-ubicacion" id="bloque-ubicacion">
-                        <div class="fila-ubi">
-                            <div class="campo-ubi">
-                                <strong>Departamento</strong>
-                                <input type="text" id="txt-departamento" class="form-control" readonly />
-                            </div>
-                            <div class="campo-ubi">
-                                <strong>Municipio</strong>
-                                <input type="text" id="txt-municipio" class="form-control" readonly />
-                            </div>
-                            <div class="campo-ubi">
-                                <strong>Dirección</strong>
-                                <input type="text" id="txt-direccion" class="form-control" readonly />
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Se despliega al seleccionar una cárcel —
+                         datos_carcel_ubicacion.php inyecta aquí
+                         departamento, municipio y dirección -->
+                    <div id="ubicacion"></div>
                 </div>
 
             </div><!-- /fila 2 -->
@@ -438,34 +398,24 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 $(document).ready(function () {
 
     /* ----------------------------------------------------------
-       1. Cárcel → departamento, municipio, dirección
+       1. Cárcel → inyecta departamento, municipio y dirección
+          usando datos_carcel_ubicacion.php igual que el sistema original
     ---------------------------------------------------------- */
-    $('#carcel_id').on('change', function () {
-        var id = $(this).val();
-
-        if (!id) {
-            $('#bloque-ubicacion').hide();
-            $('#txt-departamento, #txt-municipio, #txt-direccion').val('');
-            return;
-        }
-
+    function recargaLista() {
         $.ajax({
-            type    : 'POST',
-            url     : window.location.href,
-            data    : { accion: 'info_carcel', id_carcel: id },
-            dataType: 'json',
-            success : function (data) {
-                if (data.ok) {
-                    $('#txt-departamento').val(data.departamento || '');
-                    $('#txt-municipio').val(data.municipio      || '');
-                    $('#txt-direccion').val(data.direccion      || '');
-                    $('#bloque-ubicacion').show();
-                } else {
-                    $('#bloque-ubicacion').hide();
-                    $('#txt-departamento, #txt-municipio, #txt-direccion').val('');
-                }
+            type   : 'POST',
+            url    : 'datos_carcel_ubicacion.php',
+            data   : 'id_carcel=' + $('#carcel_id').val(),
+            success: function (r) {
+                $('#ubicacion').html(r);
             }
         });
+    }
+
+    /* Disparar al cargar y al cambiar */
+    recargaLista();
+    $('#carcel_id').on('change', function () {
+        recargaLista();
     });
 
     /* ----------------------------------------------------------
