@@ -9,45 +9,28 @@ $PSN = new DBbase_Sql;
 $webArchivo   = 'lpp';
 $temp_letrero = 'LA PEREGRINACIÓN DEL PRISIONERO (LPP)';
 
-if (!function_exists('requestValue')) {
-    function requestValue($key, $default = '') {
-        return isset($_REQUEST[$key]) ? $_REQUEST[$key] : $default;
-    }
-}
-
-/* ============================================================
-   empresa_pd viene directo de sesión (igual que el sistema original)
-   ============================================================ */
 $empresa_pd = isset($_SESSION['empresa_pd']) ? $_SESSION['empresa_pd'] : '';
 
 /* ============================================================
-   PETICIÓN AJAX — info de la cárcel seleccionada
+   AJAX — info de la cárcel (departamento, municipio, dirección)
    ============================================================ */
 if (isset($_POST['accion']) && $_POST['accion'] === 'info_carcel') {
     $id_carcel = (int)$_POST['id_carcel'];
-
     $sql = "SELECT
-                ru.reub_nom        AS nombre,
                 ru.reub_dir        AS direccion,
-                ru.reub_mun_fk     AS id_municipio,
                 m.municipio        AS municipio,
-                m.departamento_id  AS id_departamento,
                 d.departamento     AS departamento
             FROM tbl_regional_ubicacion AS ru
             LEFT JOIN dane_municipios    AS m ON m.id_municipio    = ru.reub_mun_fk
             LEFT JOIN dane_departamentos AS d ON d.id_departamento = m.departamento_id
             WHERE ru.reub_id = " . $id_carcel;
-
     $PSN->query($sql);
-
     if ($PSN->num_rows() > 0 && $PSN->next_record()) {
         echo json_encode([
-            'ok'             => true,
-            'departamento'   => $PSN->f('departamento'),
-            'id_departamento'=> $PSN->f('id_departamento'),
-            'municipio'      => $PSN->f('municipio'),
-            'id_municipio'   => $PSN->f('id_municipio'),
-            'direccion'      => $PSN->f('direccion'),
+            'ok'           => true,
+            'departamento' => $PSN->f('departamento'),
+            'municipio'    => $PSN->f('municipio'),
+            'direccion'    => $PSN->f('direccion'),
         ]);
     } else {
         echo json_encode(['ok' => false]);
@@ -56,7 +39,7 @@ if (isset($_POST['accion']) && $_POST['accion'] === 'info_carcel') {
 }
 
 /* ============================================================
-   PROCESAMIENTO DEL FORMULARIO
+   PROCESAMIENTO
    ============================================================ */
 $varExito    = 0;
 $error_datos = 0;
@@ -64,11 +47,10 @@ $texto_error = '';
 
 if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 
-    $fecha_reporte     = eliminarInvalidos($_POST['fecha_reporte']);
-    $periodo_trimestre = soloNumeros($_POST['periodo_trimestre']);
-    $carcel_id         = soloNumeros($_POST['carcel_id']);
-    $pabellon          = soloNumeros($_POST['pabellon']);
-
+    $fecha_reporte         = eliminarInvalidos($_POST['fecha_reporte']);
+    $periodo_trimestre     = soloNumeros($_POST['periodo_trimestre']);
+    $carcel_id             = soloNumeros($_POST['carcel_id']);
+    $pabellon              = soloNumeros($_POST['pabellon']);
     $poblacion_total       = soloNumeros($_POST['poblacion_total']);
     $prisioneros_invitados = soloNumeros($_POST['prisioneros_invitados']);
     $prisioneros_iniciaron = soloNumeros($_POST['prisioneros_iniciaron']);
@@ -81,29 +63,21 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 
     if ($error_datos == 0) {
         $sql = "INSERT INTO reporte_lpp (
-                    usuario_id,
-                    carcel_id,
-                    programa_id,
-                    fecha_reporte,
-                    periodo_trimestre,
-                    pabellon,
-                    poblacion_total,
-                    prisioneros_invitados,
-                    prisioneros_iniciaron,
-                    cursos_activos
+                    usuario_id, carcel_id, programa_id, fecha_reporte,
+                    periodo_trimestre, pabellon, poblacion_total,
+                    prisioneros_invitados, prisioneros_iniciaron, cursos_activos
                 ) VALUES (
-                    " . (int)$_SESSION['id'] . ",
-                    " . (int)$carcel_id . ",
+                    ".(int)$_SESSION['id'].",
+                    ".(int)$carcel_id.",
                     307,
-                    '" . $fecha_reporte . "',
-                    " . (int)$periodo_trimestre . ",
-                    " . (int)$pabellon . ",
-                    " . (int)$poblacion_total . ",
-                    " . (int)$prisioneros_invitados . ",
-                    " . (int)$prisioneros_iniciaron . ",
-                    " . (int)$cursos_activos . "
+                    '".$fecha_reporte."',
+                    ".(int)$periodo_trimestre.",
+                    ".(int)$pabellon.",
+                    ".(int)$poblacion_total.",
+                    ".(int)$prisioneros_invitados.",
+                    ".(int)$prisioneros_iniciaron.",
+                    ".(int)$cursos_activos."
                 )";
-
         $PSN->query($sql);
         $ultimoId = $PSN->ultimoId();
         $varExito = 1;
@@ -117,19 +91,16 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         padding: 0 18px 24px;
     }
     .report-shell .alert {
-        background: #ffffff;
-        color: #1f2933;
-        border: 1px solid #d9dee3;
-        border-left: 4px solid #2d3338;
         border-radius: 12px;
         padding: 18px 22px;
         margin-bottom: 18px;
-        box-shadow: 0 8px 24px rgba(15,23,42,.06);
         font-weight: 700;
+        border-left-width: 4px;
+        border-left-style: solid;
     }
-    .report-shell .alert-info    { border-left-color: #243746; }
-    .report-shell .alert-success { border-left-color: #56685a; }
-    .report-shell .alert-danger  { border-left-color: #7a4340; }
+    .report-shell .alert-info    { border-left-color: #243746; background:#f0f4f8; color:#1e2d3a; }
+    .report-shell .alert-success { border-left-color: #56685a; background:#f0f5f1; color:#1e2d3a; }
+    .report-shell .alert-danger  { border-left-color: #7a4340; background:#fdf3f3; color:#5a1f1e; }
 
     .report-form {
         background: #f5f5f3;
@@ -142,106 +113,119 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         background: #ffffff;
         border: 1px solid #e1e4e8;
         border-radius: 14px;
-        padding: 24px 22px 18px;
+        padding: 24px 22px 20px;
         margin-bottom: 18px;
         box-shadow: 0 8px 22px rgba(15,23,42,.04);
     }
 
+    /* Título de sección */
     .cont-tit {
         display: flex;
         align-items: center;
         gap: 16px;
-        margin-bottom: 24px;
+        margin-bottom: 22px;
     }
     .cont-tit .hr { flex: 1; }
     .cont-tit hr  { margin: 0; border: 0; border-top: 1px solid #d7dce1; }
     .cont-tit .tit-cen {
-        padding: 14px 22px 12px;
+        padding: 12px 22px 10px;
         border-radius: 12px;
         background: #f8f9fa;
         border: 1px solid #d9dee3;
         text-align: center;
+        white-space: nowrap;
     }
     .cont-tit h3 {
         margin: 0;
         color: #1e2d3a;
-        font-family: Georgia, "Times New Roman", serif;
-        font-size: 22px;
+        font-family: Georgia, serif;
+        font-size: 20px;
         font-weight: 700;
     }
     .cont-tit h5 {
-        margin: 5px 0 0;
+        margin: 4px 0 0;
         color: #52606d;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
         letter-spacing: .08em;
         text-transform: uppercase;
     }
 
+    /* Labels y controles */
     .report-form strong {
         display: block;
-        margin-bottom: 7px;
+        margin-bottom: 6px;
         color: #24313d;
-        font-size: 12.5px;
+        font-size: 12px;
         font-weight: 700;
-        letter-spacing: .04em;
-        line-height: 1.45;
+        letter-spacing: .03em;
+        line-height: 1.4;
     }
     .report-form .form-control,
-    .report-form select {
-        padding: 11px 14px;
-        border-radius: 10px;
+    .report-form select.form-control {
+        padding: 10px 13px;
+        border-radius: 9px;
         border: 1px solid #cfd5db;
         background: #ffffff;
         color: #1f2933;
-        min-height: 46px;
-        height: auto;
+        height: 44px;
         width: 100%;
         box-shadow: none;
-        transition: border-color .18s, box-shadow .18s;
+        transition: border-color .16s, box-shadow .16s;
+        font-size: 13px;
     }
     .report-form .form-control:focus,
-    .report-form select:focus {
+    .report-form select.form-control:focus {
         border-color: #334e68;
         box-shadow: 0 0 0 3px rgba(51,78,104,.10);
         outline: none;
     }
     .report-form .form-control[readonly] {
-        background: #f4f5f6;
-        color: #5f6b76;
-        cursor: not-allowed;
-    }
-
-    /* Info cárcel */
-    #info-carcel {
-        display: none;
-        margin-top: 10px;
-        padding: 12px 14px;
         background: #f0f4f8;
-        border: 1px solid #cfd8e3;
+        color: #4a5568;
+        cursor: default;
+        border-color: #d0dbe5;
+    }
+
+    /* Bloque ubicación (se muestra al elegir cárcel) */
+    .bloque-ubicacion {
+        display: none;
+        margin-top: 14px;
+        padding: 14px 16px;
+        background: #f8fafc;
+        border: 1px solid #d0dbe5;
         border-radius: 10px;
+    }
+    .bloque-ubicacion .fila-ubi {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .bloque-ubicacion .campo-ubi {
+        flex: 1;
+        min-width: 140px;
+    }
+    .bloque-ubicacion strong {
+        font-size: 11px;
+        letter-spacing: .05em;
+        color: #5a6a78;
+        margin-bottom: 4px;
+    }
+    .bloque-ubicacion .form-control {
+        height: 38px;
         font-size: 13px;
-        color: #2d3f50;
-        line-height: 1.8;
-    }
-    #info-carcel b {
-        color: #1e2d3a;
+        background: #ffffff;
     }
 
-    .report-form .btn {
-        border-radius: 10px;
-        padding: 11px 22px;
-        font-weight: 700;
-        letter-spacing: .03em;
-        border: 1px solid transparent;
-        box-shadow: 0 8px 18px rgba(15,23,42,.08);
-        cursor: pointer;
-        transition: box-shadow .18s, filter .18s;
+    /* Separador entre filas dentro de una sección */
+    .report-form .fila-form {
+        margin-bottom: 16px;
     }
-    .report-form .btn:hover { box-shadow: 0 12px 22px rgba(15,23,42,.12); filter: brightness(1.02); }
-    .report-form .btn-success { background: #1f3547; color: #fff; }
-    .report-form .btn-info    { background: #4b5b68; color: #fff; }
+    .report-form .fila-form:last-child {
+        margin-bottom: 0;
+    }
 
+    /* Botones */
     .cont-btn {
         display: flex;
         flex-wrap: wrap;
@@ -249,11 +233,26 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         gap: 12px;
         margin-top: 10px;
     }
+    .report-form .btn {
+        border-radius: 10px;
+        padding: 11px 26px;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: .03em;
+        border: 1px solid transparent;
+        box-shadow: 0 6px 16px rgba(15,23,42,.10);
+        cursor: pointer;
+        transition: box-shadow .16s, filter .16s;
+    }
+    .report-form .btn:hover { box-shadow: 0 10px 22px rgba(15,23,42,.14); filter: brightness(1.04); }
+    .report-form .btn-success { background: #1f3547; color: #fff; }
+    .report-form .btn-info    { background: #4b5b68; color: #fff; }
 
     @media (max-width: 767px) {
-        .cont-tit { flex-direction: column; gap: 10px; }
-        .cont-tit .tit-cen { width: 100%; }
+        .cont-tit { flex-direction: column; gap: 8px; }
+        .cont-tit .tit-cen { width: 100%; white-space: normal; }
         .report-form .btn { width: 100%; }
+        .bloque-ubicacion .campo-ubi { min-width: 100%; }
     }
 </style>
 
@@ -275,7 +274,9 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 
     <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="report-form">
 
-        <!-- SECCIÓN 1 — INFORMACIÓN GENERAL -->
+        <!-- ================================================
+             SECCIÓN 1 — INFORMACIÓN GENERAL
+             ================================================ -->
         <div class="seccion">
             <div class="cont-tit">
                 <div class="hr"><hr></div>
@@ -286,13 +287,12 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="hr"><hr></div>
             </div>
 
-            <div class="form-group row">
+            <!-- Fila 1: Fecha · Período · Coordinador · Patios -->
+            <div class="form-group row fila-form">
 
                 <div class="col-sm-2">
                     <strong>Fecha del registro:</strong>
-                    <input type="date"
-                           name="fecha_reporte"
-                           id="fecha_reporte"
+                    <input type="date" name="fecha_reporte" id="fecha_reporte"
                            class="form-control"
                            value="<?= date('Y-m-d') ?>"
                            max="<?= date('Y-m-d') ?>"
@@ -310,7 +310,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     </select>
                 </div>
 
-                <div class="col-sm-3">
+                <div class="col-sm-5">
                     <strong>Coordinador de prisión:</strong>
                     <select name="usuario_id" id="usuario_id" class="form-control" required>
                         <option value="<?= (int)$_SESSION['id'] ?>"><?= htmlspecialchars($_SESSION['nombre']) ?></option>
@@ -318,6 +318,17 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 </div>
 
                 <div class="col-sm-3">
+                    <strong>N° de patios y/o pabellón:</strong>
+                    <input type="number" name="pabellon" id="pabellon"
+                           class="form-control" min="1" value="" required />
+                </div>
+
+            </div><!-- /fila 1 -->
+
+            <!-- Fila 2: Cárcel (select + bloque de ubicación debajo) -->
+            <div class="form-group row fila-form">
+
+                <div class="col-sm-12">
                     <strong>Cárcel ubicación:</strong>
                     <select name="carcel_id" id="carcel_id" class="form-control" required>
                         <option value="">Sin especificar</option>
@@ -331,7 +342,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                             $PSN->query($sql_c);
                             if ($PSN->num_rows() > 0) {
                                 while ($PSN->next_record()) {
-                                    echo '<option value="' . $PSN->f('reub_id') . '">' . $PSN->f('reub_nom') . '</option>';
+                                    echo '<option value="' . $PSN->f('reub_id') . '">'
+                                       . $PSN->f('reub_nom') . '</option>';
                                 }
                             }
                         } else {
@@ -339,43 +351,33 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                         }
                         ?>
                     </select>
+
+                    <!-- Se despliega al seleccionar una cárcel -->
+                    <div class="bloque-ubicacion" id="bloque-ubicacion">
+                        <div class="fila-ubi">
+                            <div class="campo-ubi">
+                                <strong>Departamento</strong>
+                                <input type="text" id="txt-departamento" class="form-control" readonly />
+                            </div>
+                            <div class="campo-ubi">
+                                <strong>Municipio</strong>
+                                <input type="text" id="txt-municipio" class="form-control" readonly />
+                            </div>
+                            <div class="campo-ubi">
+                                <strong>Dirección</strong>
+                                <input type="text" id="txt-direccion" class="form-control" readonly />
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="col-sm-2">
-                    <strong>N° de patios y/o pabellón:</strong>
-                    <input type="number"
-                           name="pabellon"
-                           id="pabellon"
-                           class="form-control"
-                           min="1"
-                           value=""
-                           required />
-                </div>
+            </div><!-- /fila 2 -->
 
-            </div><!-- /.form-group fila 1 -->
-
-            <!-- Fila 2: Departamento, Municipio, Dirección — solo lectura, se llenan al elegir cárcel -->
-            <div class="form-group row" id="fila-ubicacion" style="display:none;">
-
-                <div class="col-sm-4">
-                    <strong>Departamento:</strong>
-                    <input type="text" id="txt-departamento" class="form-control" readonly />
-                </div>
-
-                <div class="col-sm-4">
-                    <strong>Municipio:</strong>
-                    <input type="text" id="txt-municipio" class="form-control" readonly />
-                </div>
-
-                <div class="col-sm-4">
-                    <strong>Dirección:</strong>
-                    <input type="text" id="txt-direccion" class="form-control" readonly />
-                </div>
-
-            </div>
         </div><!-- /seccion 1 -->
 
-        <!-- SECCIÓN 2 — INFORMACIÓN DE LA PRISIÓN -->
+        <!-- ================================================
+             SECCIÓN 2 — INFORMACIÓN DE LA PRISIÓN
+             ================================================ -->
         <div class="seccion">
             <div class="cont-tit">
                 <div class="hr"><hr></div>
@@ -386,63 +388,43 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="hr"><hr></div>
             </div>
 
-            <div class="form-group row">
+            <div class="form-group row fila-form">
 
                 <div class="col-sm-3">
-                    <strong>Total población que hay en la prisión:</strong>
-                    <input type="number"
-                           name="poblacion_total"
-                           id="poblacion_total"
-                           class="form-control"
-                           min="1"
-                           value=""
-                           required />
+                    <strong>Total población en la prisión:</strong>
+                    <input type="number" name="poblacion_total" id="poblacion_total"
+                           class="form-control" min="1" value="" required />
                 </div>
 
                 <div class="col-sm-3">
-                    <strong>Número de prisioneros invitados:</strong>
-                    <input type="number"
-                           name="prisioneros_invitados"
-                           id="prisioneros_invitados"
-                           class="form-control"
-                           min="1"
-                           value=""
-                           required />
+                    <strong>Prisioneros invitados:</strong>
+                    <input type="number" name="prisioneros_invitados" id="prisioneros_invitados"
+                           class="form-control" min="1" value="" required />
                 </div>
 
                 <div class="col-sm-3">
-                    <strong>Número de prisioneros que iniciaron el curso:</strong>
-                    <input type="number"
-                           name="prisioneros_iniciaron"
-                           id="prisioneros_iniciaron"
-                           class="form-control"
-                           min="1"
-                           value=""
-                           required />
+                    <strong>Prisioneros que iniciaron el curso:</strong>
+                    <input type="number" name="prisioneros_iniciaron" id="prisioneros_iniciaron"
+                           class="form-control" min="1" value="" required />
                 </div>
 
                 <div class="col-sm-3">
-                    <strong>Número de cursos activos de LPP:</strong>
-                    <input type="number"
-                           name="cursos_activos"
-                           id="cursos_activos"
-                           class="form-control"
-                           readonly />
+                    <strong>Cursos activos de LPP:</strong>
+                    <input type="number" name="cursos_activos" id="cursos_activos"
+                           class="form-control" readonly />
                 </div>
 
             </div>
+
         </div><!-- /seccion 2 -->
 
+        <!-- Botones -->
         <div class="cont-btn">
             <input type="button"
                    onclick="window.location.href='index.php?doc=consultar-reporte-lpp'"
-                   class="btn btn-info"
-                   value="Cancelar" />
-            <input type="submit"
-                   name="button"
-                   value="Continuar"
-                   class="btn btn-success"
-                   id="btn-guardar" />
+                   class="btn btn-info" value="Cancelar" />
+            <input type="submit" name="button" value="Continuar"
+                   class="btn btn-success" id="btn-guardar" />
         </div>
 
         <input type="hidden" name="funcion" value="insertar" />
@@ -456,38 +438,14 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 $(document).ready(function () {
 
     /* ----------------------------------------------------------
-       1. Cárcel — exactamente igual que el original:
-          recargaLista() llama a datos_carcel_ubicacion.php
-          e inyecta el resultado en div#ubicacion
+       1. Cárcel → departamento, municipio, dirección
     ---------------------------------------------------------- */
-    function recargaLista() {
-        $.ajax({
-            type   : 'POST',
-            url    : 'datos_carcel_ubicacion.php',
-            data   : 'id_carcel=' + $('#carcel_id').val(),
-            success: function (r) {
-                $('#ubicacion').html(r);
-                /* Extraer la dirección del HTML devuelto y ponerla
-                   en el campo dirección (si el endpoint la incluye) */
-            }
-        });
-    }
-
-    /* ----------------------------------------------------------
-       2. Al cambiar la cárcel: consultar departamento, municipio
-          y dirección via AJAX y mostrarlos en inputs readonly
-    ---------------------------------------------------------- */
-    recargaLista();
-
     $('#carcel_id').on('change', function () {
-        recargaLista();
-
         var id = $(this).val();
+
         if (!id) {
-            $('#fila-ubicacion').hide();
-            $('#txt-departamento').val('');
-            $('#txt-municipio').val('');
-            $('#txt-direccion').val('');
+            $('#bloque-ubicacion').hide();
+            $('#txt-departamento, #txt-municipio, #txt-direccion').val('');
             return;
         }
 
@@ -501,37 +459,33 @@ $(document).ready(function () {
                     $('#txt-departamento').val(data.departamento || '');
                     $('#txt-municipio').val(data.municipio      || '');
                     $('#txt-direccion').val(data.direccion      || '');
-                    $('#fila-ubicacion').show();
+                    $('#bloque-ubicacion').show();
                 } else {
-                    $('#fila-ubicacion').hide();
+                    $('#bloque-ubicacion').hide();
+                    $('#txt-departamento, #txt-municipio, #txt-direccion').val('');
                 }
             }
         });
     });
 
     /* ----------------------------------------------------------
-       3. Cursos activos — misma lógica del original
+       2. Cursos activos — ceil(iniciaron / 12), mínimo 1
     ---------------------------------------------------------- */
     $('#prisioneros_iniciaron').on('input change', function () {
         var iniciaron = parseInt($(this).val(), 10);
         var cursos    = '';
         if (!isNaN(iniciaron) && iniciaron > 0) {
-            var resul = iniciaron / 12;
-            var mod   = resul % 2;
-            resul = (mod !== 0) ? Math.trunc(resul) + 1 : resul;
-            if (iniciaron <= 12) resul = 1;
-            cursos = resul;
+            cursos = iniciaron <= 12 ? 1 : Math.trunc(iniciaron / 12) + (iniciaron % 12 !== 0 ? 1 : 0);
         }
         $('#cursos_activos').val(cursos);
     });
 
     /* ----------------------------------------------------------
-       4. Validación antes de enviar
+       3. Validación antes de enviar
     ---------------------------------------------------------- */
     $('#form1').on('submit', function (e) {
 
-        var carcel = $('#carcel_id').val();
-        if (!carcel) {
+        if (!$('#carcel_id').val()) {
             e.preventDefault();
             alert('Por favor seleccione una cárcel.');
             $('#carcel_id').focus();
