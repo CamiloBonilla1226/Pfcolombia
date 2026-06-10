@@ -731,7 +731,98 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     }
     #panel-errores ul li:last-child { margin-bottom: 0; }
     #panel-errores ul li:hover { color: #c0392b; }
+
+    /* -- Modal de confirmacion -- */
+    #modal-confirmar {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 9000;
+        background: rgba(15,23,42,.45);
+        align-items: center;
+        justify-content: center;
+    }
+    #modal-confirmar.activo { display: flex; }
+    .modal-caja {
+        background: #fff;
+        border-radius: 16px;
+        padding: 32px 28px 26px;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 24px 60px rgba(15,23,42,.22);
+        text-align: center;
+    }
+    .modal-caja p {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1e2d3a;
+        margin: 0 0 22px;
+        line-height: 1.5;
+    }
+    .modal-botones {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+    }
+    .modal-botones button {
+        border-radius: 10px;
+        padding: 10px 28px;
+        font-weight: 700;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: filter .14s;
+    }
+    .modal-botones button:hover { filter: brightness(1.06); }
+    #modal-btn-si  { background: #1f3547; color: #fff; }
+    #modal-btn-no  { background: #f0f4f8; color: #1e2d3a; border-color: #cfd5db; }
+
+    /* -- Overlay de carga -- */
+    #overlay-carga {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 9100;
+        background: rgba(15,23,42,.55);
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 18px;
+    }
+    #overlay-carga.activo { display: flex; }
+    .carga-spinner {
+        width: 52px;
+        height: 52px;
+        border: 5px solid rgba(255,255,255,.25);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: girar .7s linear infinite;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    .carga-texto {
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: .04em;
+    }
 </style>
+
+<!-- Modal de confirmacion -->
+<div id="modal-confirmar">
+    <div class="modal-caja">
+        <p>¿Está seguro de que desea guardar este reporte?</p>
+        <div class="modal-botones">
+            <button id="modal-btn-si">Sí, guardar</button>
+            <button id="modal-btn-no">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Overlay de carga -->
+<div id="overlay-carga">
+    <div class="carga-spinner"></div>
+    <span class="carga-texto">Guardando reporte…</span>
+</div>
 
 <div class="container report-shell">
 
@@ -1784,12 +1875,23 @@ $(document).ready(function () {
             return false;
         }
 
-        if (confirm('¿Está seguro de que desea guardar este reporte?')) {
-            $('#btn-guardar').prop('disabled', true);
-            return true;
-        }
-
+        /* Sin errores: mostrar modal de confirmacion (no bloquea el hilo) */
         e.preventDefault();
+        $('#modal-confirmar').addClass('activo');
+        $('#modal-btn-si').off('click').on('click', function () {
+            $('#modal-confirmar').removeClass('activo');
+            /* Mostrar overlay de carga de inmediato */
+            $('#overlay-carga').addClass('activo');
+            $('#btn-guardar').prop('disabled', true);
+            /* Enviar el formulario en el proximo tick para que el overlay se pinte antes */
+            setTimeout(function () {
+                document.getElementById('form1').submit();
+            }, 30);
+        });
+        $('#modal-btn-no').off('click').on('click', function () {
+            $('#modal-confirmar').removeClass('activo');
+            $('#btn-guardar').prop('disabled', false);
+        });
         return false;
     });
 
