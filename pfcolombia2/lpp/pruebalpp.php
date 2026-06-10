@@ -1,1836 +1,3650 @@
 <?php
-/**
- * gestionar-sub-programa-lpp.php
- * Gestión de reportes del programa LA PEREGRINACIÓN DEL PRISIONERO (LPP)
- *
- * CORRECCIONES APLICADAS:
- * 1. SQL Injection: todas las queries usan PDO con prepared statements vía
- *    un wrapper $PSN1->querySeguro() (o parámetros escapados con cast explícito).
- *    Para las queries que usan el objeto legacy $PSN1->query(), se asegura que
- *    TODOS los valores interpolados pasen por (int) o por htmlspecialchars/
- *    strip_tags antes de entrar al SQL.
- * 2. normalizarAdjuntos(): reemplaza addslashes por htmlspecialchars.
- * 3. guardarAdjuntos(): los IDs se castean a (int).
- * 4. Subida de archivos: se valida MIME real con finfo_file() además de la extensión.
- * 5. Función sumar() en JS: corregida (eliminadas referencias a variables inexistentes
- *    bautizados, var_suma, bautizadosPeriodo; los valores se leen del DOM).
- * 6. Bloque insertar: inicializadas $plantador, $bautizadosPeriodo, $mapeo_anho,
- *    $preparandose antes del INSERT.
- * 7. DELETE usa (int) explícito en el id.
- * 8. Consultas SELECT usan (int) en todos los ids interpolados.
- * 9. Eliminado código muerto comentado que confundía la lectura.
- * 10. $error_datos se inicializa antes del bloque if(isset($_POST['funcion'])).
- */
-
 $PSN1 = new DBbase_Sql;
-$PSN  = new DBbase_Sql;
-$webArchivo   = "preoperacional";
+$PSN = new DBbase_Sql;
+$webArchivo = "preoperacional";
 $temp_letrero = "LA PEREGRINACIÓN DEL PRISIONERO (LPP)";
 
-// ---------------------------------------------------------------------------
-// FUNCIONES AUXILIARES
-// ---------------------------------------------------------------------------
 
-/**
- * Comprime y guarda una imagen con calidad reducida.
- * CORRECCIÓN: se valida el MIME real con finfo antes de procesar.
- */
+// Compress image
 function compressImage($source, $destination, $quality) {
-    // Validar MIME real
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime  = $finfo->file($source);
-    $allowedMimes = ['image/jpeg', 'image/gif', 'image/png'];
-    if (!in_array($mime, $allowedMimes, true)) {
-        return false;
-    }
-
-    $info = getimagesize($source);
-    if ($info === false) {
-        return false;
-    }
-
-    switch ($info['mime']) {
-        case 'image/jpeg':
-            $image = imagecreatefromjpeg($source);
-            break;
-        case 'image/gif':
-            $image = imagecreatefromgif($source);
-            break;
-        case 'image/png':
-            $image = imagecreatefrompng($source);
-            break;
-        default:
-            return false;
-    }
-
-    if ($image === false) {
-        return false;
-    }
-
-    imagejpeg($image, $destination, $quality);
-    imagedestroy($image);
-    return true;
+  $info = getimagesize($source);
+  if($info['mime'] == 'image/jpeg'){
+        $image = imagecreatefromjpeg($source);
+  }
+  elseif ($info['mime'] == 'image/gif'){
+        $image = imagecreatefromgif($source);
+  }
+  elseif ($info['mime'] == 'image/png') {
+        $image = imagecreatefrompng($source);
+  }
+  imagejpeg($image, $destination, $quality);
 }
 
-/**
- * Devuelve el valor de $_POST con fallback seguro (NO mezcla GET/cookies).
- * CORRECCIÓN: usar $_POST en vez de $_REQUEST para datos de formulario.
- */
-function postValue($key, $default = '') {
-    return isset($_POST[$key]) ? $_POST[$key] : $default;
-}
-
-/**
- * Igual que postValue pero para $_REQUEST cuando se necesita (query string + POST).
- */
 function requestValue($key, $default = '') {
     return isset($_REQUEST[$key]) ? $_REQUEST[$key] : $default;
 }
 
-/**
- * Normaliza adjuntos (graduados / voluntarios).
- * CORRECCIÓN: reemplaza addslashes() por htmlspecialchars() que es más seguro.
- */
 function normalizarAdjuntos($nombres, $documentos) {
-    $adjuntos = [];
+    $adjuntos = array();
 
     if (!is_array($nombres) || !is_array($documentos)) {
         return $adjuntos;
     }
 
-    $total = min(count($nombres), count($documentos));
+    $total = min(sizeof($nombres), sizeof($documentos));
 
     for ($i = 0; $i < $total; $i++) {
-        $nombre    = htmlspecialchars(eliminarInvalidos(trim((string) $nombres[$i])),   ENT_QUOTES, 'UTF-8');
-        $documento = htmlspecialchars(eliminarInvalidos(trim((string) $documentos[$i])), ENT_QUOTES, 'UTF-8');
+        $nombre = addslashes(eliminarInvalidos(trim((string) $nombres[$i])));
+        $documento = addslashes(eliminarInvalidos(trim((string) $documentos[$i])));
 
         if ($nombre === '' || $documento === '') {
             continue;
         }
 
-        $adjuntos[] = [
-            'nombre'    => $nombre,
+        $adjuntos[] = array(
+            'nombre' => $nombre,
             'documento' => $documento,
-        ];
+        );
     }
 
     return $adjuntos;
 }
 
-/**
- * Guarda adjuntos en tbl_adjuntos.
- * CORRECCIÓN: $reporteId y $tipo se castean a int para evitar inyección.
- */
 function guardarAdjuntos($db, $reporteId, $tipo, $adjuntos, $reemplazar = false) {
-    $reporteId = (int) $reporteId;
-    $tipo      = (int) $tipo;
-
     if ($reemplazar) {
-        $db->query("DELETE FROM tbl_adjuntos WHERE adj_rep_fk = $reporteId AND adj_tip = $tipo");
+        $db->query("DELETE FROM tbl_adjuntos WHERE adj_rep_fk = ".$reporteId." AND adj_tip = ".$tipo);
     }
 
-    if (!is_array($adjuntos) || count($adjuntos) === 0) {
+    if (!is_array($adjuntos) || sizeof($adjuntos) === 0) {
         return true;
     }
 
-    $valores = [];
+    $valores = array();
     foreach ($adjuntos as $adjunto) {
-        // Los valores ya vienen escapados con htmlspecialchars desde normalizarAdjuntos
-        $nom = $adjunto['nombre'];
-        $doc = $adjunto['documento'];
-        $fec = date('Y-m-d');
-        $valores[] = "('$nom','$doc','$fec',NULL,$tipo,$reporteId)";
+        $valores[] = "('".$adjunto['nombre']."','".$adjunto['documento']."','".date('Y-m-d')."',NULL,".$tipo.",".$reporteId.")";
     }
 
-    $sql = "INSERT INTO tbl_adjuntos (adj_nom, adj_url, adj_fec, adj_can, adj_tip, adj_rep_fk) VALUES "
-         . implode(',', $valores);
-
+    $sql = "INSERT INTO tbl_adjuntos (adj_nom,adj_url,adj_fec,adj_can,adj_tip,adj_rep_fk) VALUES ".implode(',', $valores);
     return $db->query($sql);
 }
 
-/**
- * Valida y mueve un archivo subido.
- * CORRECCIÓN: valida MIME real, extensión permitida y nombre seguro.
- * Retorna la extensión limpia o '' si no hay archivo / no es válido.
- */
-function procesarArchivoSubido($fileKey, $destinoBase) {
-    if (empty($_FILES[$fileKey]['name']) || $_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
-        return '';
-    }
 
-    $nombre   = $_FILES[$fileKey]['name'];
-    $tmpName  = $_FILES[$fileKey]['tmp_name'];
-    $ext      = strtolower(pathinfo($nombre, PATHINFO_EXTENSION));
 
-    $extPermitidas  = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx'];
-    $mimesPermitidos = [
-        'image/jpeg', 'image/png', 'image/gif',
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ];
-
-    if (!in_array($ext, $extPermitidas, true)) {
-        return '';
-    }
-
-    // CORRECCIÓN: validar MIME real con finfo
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime  = $finfo->file($tmpName);
-    if (!in_array($mime, $mimesPermitidos, true)) {
-        return '';
-    }
-
-    return $ext;
-}
-
-// ---------------------------------------------------------------------------
-// GENERACIÓN ACTUAL
-// ---------------------------------------------------------------------------
+/*
+*   VERIFICAMOS CON QUE GENERACIÓN NOS ESTAMOS ENFRENTANDO ACTUALMENTE.
+*/
 $preguntarGeneracion = 0;
-if (isset($_REQUEST['generacion']) && $_REQUEST['generacion'] !== '') {
-    $generacionActual = eliminarInvalidos($_REQUEST['generacion']);
-} else {
-    $generacionActual = 'LPP';
+if(isset($_REQUEST["generacion"]) && $_REQUEST["generacion"] != ""){
+    $generacionActual = eliminarInvalidos($_REQUEST["generacion"]);
+}else{
+    $generacionActual = "LPP";
 }
 
-// ---------------------------------------------------------------------------
-// ID DEL REPORTE (modo edición o nuevo)
-// ---------------------------------------------------------------------------
-// CORRECCIÓN: soloNumeros() ya sanitiza, pero añadimos (int) para certeza
-if (isset($_REQUEST['id']) && $_REQUEST['id'] !== '') {
-    $idReporteActual = (int) soloNumeros($_REQUEST['id']);
 
-    // Actualizar mapeo_fecha para perfiles 162 / 163
-    if ($_SESSION['perfil'] == 162 || $_SESSION['perfil'] == 163) {
-        $hoy = date('Y-m-d');
-        $sql = "UPDATE sat_reportes SET mapeo_fecha = '$hoy' WHERE id = $idReporteActual";
+/*
+*   Comprobamos si viene en modo de actualización o de insersión.
+*/
+if(isset($_REQUEST["id"]) && $_REQUEST["id"] != ""){
+    $idReporteActual = soloNumeros($_REQUEST["id"]);
+    if ($_SESSION["perfil"] == 162 || $_SESSION["perfil"] == 163) {
+        $sql = "UPDATE  sat_reportes SET 
+                    mapeo_fecha = '".date('Y-m-d')."'";
+    
+        $sql .= "WHERE id = '".$idReporteActual."'";
         $PSN1->query($sql);
-    }
-} else {
+    }  
+}else{
     $idReporteActual = 0;
 }
 
-// ---------------------------------------------------------------------------
-// INICIALIZACIÓN DE VARIABLES DE ESTADO
-// CORRECCIÓN: $error_datos inicializado antes del bloque POST
-// ---------------------------------------------------------------------------
-$error_datos      = 0;
-$varExitoREP      = 0;
-$varExitoREP_UPD  = 0;
-$texto_error      = '';
-$ultimoId         = 0;
-$antId            = 0;
-$sigId            = 0;
 
-// Inicializar variables de datos para evitar "undefined variable"
-// CORRECCIÓN: variables que faltaban en el bloque insertar
-$plantador         = '';
-$bautizadosPeriodo = 0;
-$mapeo_anho        = (int) date('Y');
-$preparandose      = 0;
-$rep_entr          = 0;
-$rep_ndis          = 0;
-$inactivo          = 0;
-$regional          = '';
-$coordinador       = '';
-$id_coordinador    = 0;
-$fechaReporte      = date('Y-m-d');
-$fechaInicio       = '';
-$sitioReunion      = 0;
-$grupoMadre_txt    = '';
-$nombreGrupo_txt   = '';
-$capacitacion_txt  = '';
-$pabellon          = '';
-$direccion         = '';
-$municipio         = 0;
-$departamento      = 0;
-$idGrupoMadre      = 0;
-$generacionNumero  = 0;
-$asistencia_hom    = 0;
-$asistencia_muj    = 0;
-$asistencia_jov    = 0;
-$asistencia_nin    = 0;
-$asistencia_total  = 0;
-$bautizados        = 0;
-$discipulado       = 0;
-$desiciones        = 0;
-$iglesias_reconocidas = 0;
-$mapeo_fecha       = '';
-$mapeo_cuarto      = 0;
-$mapeo_comprometido = 0;
-$mapeo_oracion     = 0;
-$mapeo_companerismo = 0;
-$mapeo_adoracion   = 0;
-$mapeo_biblia      = 0;
-$mapeo_evangelizar = 0;
-$mapeo_cena        = 0;
-$mapeo_dar         = 0;
-$mapeo_bautizar    = 0;
-$mapeo_trabajadores = 0;
-$ext1 = '';
-$ext2 = '';
-$ext3 = '';
-$sum_baut = 0;
-$nombreGrupoMadre = '';
-$graduadosAdjuntos = [];
+// Array que nos servira para ir llevando cuenta de los requerimientos.
+$arrayRequerimientos = array();
+if(isset($_POST["funcion"])){
+    /*
+    *   Para verificar errores a futuro.
+        1   Campos requeridos en BLANCO (Nombre, identificacion, password)
+        2   Password no coincide
+        3   Identificacion YA existente
+    */
+    $error_datos = 0;
+    //
+    if($_POST["funcion"] == "insertar"){
+        //die("Insertar");
+        /*
+        *   PESTAÑA GENERAL
+        */
+        $fechaReporte = eliminarInvalidos($_REQUEST["fechaReporte"]);
+        $fechaInicio = eliminarInvalidos($_REQUEST["fechaInicio"]);        
+        if (isset($_REQUEST['sitioReunion'])) {
+            $sitioReunion = soloNumeros($_REQUEST["sitioReunion"]);
+        }else{
+            $sitioReunion = 0;
+        }  
+        $grupoMadre_txt = eliminarInvalidos($_REQUEST["grupoMadre_txt"]);
+        $nombreGrupo_txt = eliminarInvalidos($_REQUEST["nombreGrupo_txt"]);
+        
+        $pabellon = eliminarInvalidos($_REQUEST["pabellon"]);
+        $direccion = eliminarInvalidos($_REQUEST["direccion"]);
+        if (isset($_REQUEST["municipio"])) {
+            $ciudad = soloNumeros($_REQUEST["municipio"]);
+        }else{
+            $ciudad = 0;
+        }
+                    
+        
+        $capacitacion_txt = eliminarInvalidos($_REQUEST["capacitacion_txt"]);        
+        $idGrupoMadre = soloNumeros($_REQUEST["idGrupoMadre"]);
+        $generacionNumero = soloNumeros($_REQUEST["generacionNumero"]);
+        
 
-// ---------------------------------------------------------------------------
-// PROCESAMIENTO DEL FORMULARIO
-// ---------------------------------------------------------------------------
-if (isset($_POST['funcion'])) {
+        $asistencia_hom = soloNumeros($_REQUEST["asistencia_hom"]);
+        $asistencia_muj = soloNumeros($_REQUEST["asistencia_muj"]);
+        $asistencia_jov = soloNumeros($_REQUEST["asistencia_jov"]);
 
-    // -----------------------------------------------------------------------
-    // INSERTAR
-    // -----------------------------------------------------------------------
-    if ($_POST['funcion'] === 'insertar') {
+        $asistencia_nin = soloNumeros($_REQUEST["total"]);
+        $bautizados = soloNumeros($_REQUEST["total2"]);
+        $desiciones  = soloNumeros($_REQUEST["total3"]);
 
-        $fechaReporte     = eliminarInvalidos(postValue('fechaReporte'));
-        $fechaInicio      = eliminarInvalidos(postValue('fechaInicio'));
-        $sitioReunion     = (int) soloNumeros(postValue('sitioReunion', 0));
-        $grupoMadre_txt   = eliminarInvalidos(postValue('grupoMadre_txt'));
-        $nombreGrupo_txt  = eliminarInvalidos(postValue('nombreGrupo_txt'));
-        $pabellon         = eliminarInvalidos(postValue('pabellon'));
-        $direccion        = eliminarInvalidos(postValue('direccion'));
-        $ciudad           = (int) soloNumeros(postValue('municipio', 0));
-        $capacitacion_txt = eliminarInvalidos(postValue('capacitacion_txt'));
-        $idGrupoMadre     = (int) soloNumeros(postValue('idGrupoMadre', 0));
-        $generacionNumero = (int) soloNumeros(postValue('generacionNumero', 0));
-        $plantador        = eliminarInvalidos(postValue('plantador'));  // CORRECCIÓN: inicializado
+        $discipulado  = soloNumeros($_REQUEST["discipulado"]);
+        $rep_entr  = soloNumeros($_REQUEST["rep_entr"]);
 
-        $asistencia_hom   = (int) soloNumeros(postValue('asistencia_hom', 0));
-        $asistencia_muj   = (int) soloNumeros(postValue('asistencia_muj', 0));
-        $asistencia_jov   = (int) soloNumeros(postValue('asistencia_jov', 0));
-        $asistencia_nin   = (int) soloNumeros(postValue('total', 0));
-        $bautizados       = (int) soloNumeros(postValue('total2', 0));
-        $bautizadosPeriodo = (int) soloNumeros(postValue('bautizadosPeriodo', 0));  // CORRECCIÓN
-        $desiciones       = (int) soloNumeros(postValue('total3', 0));
-        $discipulado      = (int) soloNumeros(postValue('discipulado', 0));
-        $rep_entr         = (int) soloNumeros(postValue('rep_entr', 0));
-        $asistencia_total = (int) soloNumeros(postValue('asistencia_total', 0));
-        $preparandose     = (int) soloNumeros(postValue('preparandose', 0));  // CORRECCIÓN
 
-        $rep_tip = 307;
-        $rep_ndis_raw = postValue('rep_ndis', 0);
-        $rep_ndis = ($rep_ndis_raw != 0 && $rep_ndis_raw != null) ? (int) soloNumeros($rep_ndis_raw) : 0;
+        $nombre_archivo = $_FILES['archivo1']['name'];
+        $archivo1 = extension_archivo($nombre_archivo);
+        
+        $nombre_archivo = $_FILES['archivo2']['name'];
+        $archivo2 = extension_archivo($nombre_archivo);
+        
+        $nombre_archivo = $_FILES['archivo3']['name'];
+        $archivo3 = extension_archivo($nombre_archivo);
 
-        $mapeo_cuarto      = (int) soloNumeros(postValue('mapeo_cuarto', 0));
-        $mapeo_fecha       = eliminarInvalidos(postValue('mapeo_fecha'));
-        $mapeo_comprometido = (int) soloNumeros(postValue('mapeo_comprometido', 0));
-        $mapeo_oracion     = (int) soloNumeros(postValue('mapeo_oracion', 0));
-        $mapeo_companerismo = (int) soloNumeros(postValue('mapeo_companerismo', 0));
-        $mapeo_adoracion   = (int) soloNumeros(postValue('mapeo_adoracion', 0));
-        $mapeo_biblia      = (int) soloNumeros(postValue('mapeo_biblia', 0));
-        $mapeo_evangelizar = (int) soloNumeros(postValue('mapeo_evangelizar', 0));
-        $mapeo_cena        = (int) soloNumeros(postValue('mapeo_cena', 0));
-        $mapeo_dar         = (int) soloNumeros(postValue('mapeo_dar', 0));
-        $mapeo_bautizar    = (int) soloNumeros(postValue('mapeo_bautizar', 0));
-        $mapeo_trabajadores = (int) soloNumeros(postValue('mapeo_trabajadores', 0));
-        $mapeo_anho        = (int) date('Y');  // CORRECCIÓN: inicializado
+        $mapeo_cuarto = soloNumeros($_REQUEST["mapeo_cuarto"]);
+        $mapeo_fecha = eliminarInvalidos($_REQUEST["mapeo_fecha"]);
+        $mapeo_comprometido = soloNumeros($_REQUEST["mapeo_comprometido"]);
+        
+        $mapeo_oracion = soloNumeros($_REQUEST["mapeo_oracion"]);        
+        $mapeo_companerismo = soloNumeros($_REQUEST["mapeo_companerismo"]);        
+        $mapeo_adoracion = soloNumeros($_REQUEST["mapeo_adoracion"]);        
+        $mapeo_biblia = soloNumeros($_REQUEST["mapeo_biblia"]);        
+        $mapeo_evangelizar = soloNumeros($_REQUEST["mapeo_evangelizar"]);        
+        $mapeo_cena = soloNumeros($_REQUEST["mapeo_cena"]);        
+        $mapeo_dar = soloNumeros($_REQUEST["mapeo_dar"]);        
+        $mapeo_bautizar = soloNumeros($_REQUEST["mapeo_bautizar"]);        
+        $mapeo_trabajadores = soloNumeros($_REQUEST["mapeo_trabajadores"]);   
+        
+        
+        //Calculados:
+        $asistencia_total  = soloNumeros($_REQUEST["asistencia_total"]);
+        
+        
+        $rep_tip  = 307;
+        if ($_REQUEST["rep_ndis"]!= 0 && $_REQUEST["rep_ndis"]!= null) {
+            $rep_ndis  = soloNumeros($_REQUEST["rep_ndis"]);
+        }else{
+            $rep_ndis  = 0;
+        }
+        
+        
         $iglesias_reconocidas = 0;
+        //        
 
-        // Archivos
-        $archivo1 = procesarArchivoSubido('archivo1', '');
-        $archivo2 = procesarArchivoSubido('archivo2', '');
-        $archivo3 = procesarArchivoSubido('archivo3', '');
+        if($error_datos == 0){
+            
+            /*
+            *   DEBEMOS INSERTAR LA INFORMACION DEL REPORTE SEGUN CORRESPONDA.
+            */
+            $sql = 'INSERT INTO sat_reportes (
+                idUsuario,
+                plantador,
+                rep_entr,
+                fechaReporte,
+                fechaInicio,
+                sitioReunion,
+                grupoMadre_txt,
+                nombreGrupo_txt,
+                capacitacion_txt,
+                idGrupoMadre,
+                generacionNumero,
+                
+                pabellon,
+                direccion,
+                ciudad,
+                
+                    asistencia_hom,
+                    asistencia_muj,
+                    asistencia_jov,
+                    asistencia_nin,
 
-        if ($error_datos == 0) {
-            $idUsuario = (int) $_SESSION['id'];
+                bautizados,
+                bautizadosPeriodo,
 
-            // CORRECCIÓN SQL: todos los valores numéricos sin comillas y con cast.
-            // Todos los valores de texto ya pasaron por eliminarInvalidos().
-            $sql = "INSERT INTO sat_reportes (
-                        idUsuario, plantador, rep_entr, fechaReporte, fechaInicio,
-                        sitioReunion, grupoMadre_txt, nombreGrupo_txt, capacitacion_txt,
-                        idGrupoMadre, generacionNumero, pabellon, direccion, ciudad,
-                        asistencia_hom, asistencia_muj, asistencia_jov, asistencia_nin,
-                        bautizados, bautizadosPeriodo, asistencia_total, discipulado,
-                        desiciones, rep_ndis, preparandose, creacionFecha, creacionUsuario,
-                        ext1, ext2,
-                        mapeo_fecha, mapeo_comprometido,
-                        mapeo_oracion, mapeo_companerismo, mapeo_adoracion, mapeo_biblia,
-                        mapeo_evangelizar, mapeo_cena, mapeo_dar, mapeo_bautizar,
-                        mapeo_trabajadores, mapeo_anho, mapeo_cuarto, ext3, rep_tip
-                    ) VALUES (
-                        $idUsuario, '$plantador', $rep_entr, '$fechaReporte', '$fechaInicio',
-                        $sitioReunion, '$grupoMadre_txt', '$nombreGrupo_txt', '$capacitacion_txt',
-                        $idGrupoMadre, $generacionNumero, '$pabellon', '$direccion', $ciudad,
-                        $asistencia_hom, $asistencia_muj, $asistencia_jov, $asistencia_nin,
-                        $bautizados, $bautizadosPeriodo, $asistencia_total, $discipulado,
-                        $desiciones, $rep_ndis, $preparandose, NOW(), $idUsuario,
-                        '$archivo1', '$archivo2',
-                        '$mapeo_fecha', $mapeo_comprometido,
-                        $mapeo_oracion, $mapeo_companerismo, $mapeo_adoracion, $mapeo_biblia,
-                        $mapeo_evangelizar, $mapeo_cena, $mapeo_dar, $mapeo_bautizar,
-                        $mapeo_trabajadores, $mapeo_anho, $mapeo_cuarto, '$archivo3', $rep_tip
-                    )";
+                asistencia_total,
+                discipulado,
+                desiciones,
+                rep_ndis,
+                preparandose,
+                
+                creacionFecha,
+                creacionUsuario,
+                ext1,
+                ext2,
+                
+                    mapeo_fecha,
+                    mapeo_comprometido,
 
-            $PSN1->query($sql);
-            $ultimoId = (int) $PSN1->ultimoId();
+                        mapeo_oracion,
+                        mapeo_companerismo,
+                        mapeo_adoracion,
+                        mapeo_biblia,
+                        mapeo_evangelizar,
+                        mapeo_cena,
+                        mapeo_dar,
+                        mapeo_bautizar,
+                        mapeo_trabajadores,                
+                
+                mapeo_anho,
+                mapeo_cuarto,
+                ext3,
+                rep_tip
+                )';
+            
+            $sql .= ' VALUES 
+                (
+                "'.$_SESSION["id"].'",
+                "'.$plantador.'",
+                "'.$rep_entr.'", 
+                "'.$fechaReporte.'", 
+                "'.$fechaInicio.'", 
+                '.$sitioReunion.', 
+                "'.$grupoMadre_txt.'", 
+                "'.$nombreGrupo_txt.'",                 
+                "'.$capacitacion_txt.'", 
+                "'.$idGrupoMadre.'", 
+                "'.$generacionNumero.'", 
+                
+                "'.$pabellon.'", 
+                "'.$direccion.'", 
+                '.$ciudad.', 
+                
 
-            // Mover / comprimir archivos
-            foreach ([1 => $archivo1, 2 => $archivo2, 3 => $archivo3] as $n => $ext) {
-                if ($ext === '') continue;
-                $key     = "archivo$n";
-                $destino = "archivos/evi_{$ultimoId}_{$n}.{$ext}";
-                $imgExts = ['png', 'jpg', 'jpeg', 'gif'];
-                if (in_array($ext, $imgExts, true)) {
-                    compressImage($_FILES[$key]['tmp_name'], $destino, 80);
-                } else {
-                    move_uploaded_file($_FILES[$key]['tmp_name'], $destino);
+                    "'.$asistencia_hom.'", 
+                    "'.$asistencia_muj.'", 
+                    "'.$asistencia_jov.'", 
+                    "'.$asistencia_nin.'", 
+                    
+                "'.$bautizados.'", 
+                "'.$bautizadosPeriodo.'", 
+                
+                
+                "'.$asistencia_total.'", 
+                "'.$discipulado.'", 
+                "'.$desiciones.'",
+                '.$rep_ndis.', 
+                "'.$preparandose.'",
+
+                NOW(), 
+                "'.$_SESSION["id"].'",
+
+                "'.$archivo1.'",
+                "'.$archivo2.'",
+                
+                    "'.$mapeo_fecha.'",
+                    "'.$mapeo_comprometido.'",
+
+                    "'.$mapeo_oracion.'",
+                    "'.$mapeo_companerismo.'",
+                    "'.$mapeo_adoracion.'",
+                    "'.$mapeo_biblia.'",
+                    "'.$mapeo_evangelizar.'",
+                    "'.$mapeo_cena.'",
+                    "'.$mapeo_dar.'",
+                    "'.$mapeo_bautizar.'",
+                    "'.$mapeo_trabajadores.'",
+                        
+                    "'.$mapeo_anho.'",
+                    "'.$mapeo_cuarto.'",                    
+                "'.$archivo3.'",
+                '.$rep_tip.'
+            )';
+            
+            //
+            //
+            $ultimoQuery = $PSN1->query($sql);
+            $ultimoId =  $PSN1->ultimoId();
+                //
+                if($archivo1 != ""){
+                    $extArchivo = $archivo1;
+                    if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                        $rutaOrigen = $_FILES['archivo1']['tmp_name'];
+                        $rutaDestino = "archivos/evi_".$ultimoId."_1.".$archivo1;
+                        compressImage($rutaOrigen, $rutaDestino, 80);
+                    }
+                    else{
+                        if(move_uploaded_file($_FILES['archivo1']['tmp_name'], "archivos/evi_".$ultimoId."_1.".$archivo1))
+                        {
+                        }            
+                    }
                 }
-            }
+            
 
-            // Adjuntos
+                if($archivo2 != ""){
+                    $extArchivo = $archivo2;
+                    if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                        $rutaOrigen = $_FILES['archivo2']['tmp_name'];
+                        $rutaDestino = "archivos/evi_".$ultimoId."_2.".$archivo2;
+                        compressImage($rutaOrigen, $rutaDestino, 80);
+                    }
+                    else{
+                        if(move_uploaded_file($_FILES['archivo2']['tmp_name'], "archivos/evi_".$ultimoId."_2.".$archivo2))
+                        {
+                        }            
+                    }
+                }
+
             if ($asistencia_nin > 0) {
-                $adjuntosGraduados = normalizarAdjuntos(
-                    requestValue('act_grad_nom', []),
-                    requestValue('act_grad_tar', [])
-                );
-                guardarAdjuntos($PSN1, $ultimoId, 1, $adjuntosGraduados);
-            }
-            if ($bautizados > 0) {
-                $adjuntosVIN = normalizarAdjuntos(
-                    requestValue('act_vin_nom', []),
-                    requestValue('act_vin_tar', [])
-                );
-                guardarAdjuntos($PSN1, $ultimoId, 2, $adjuntosVIN);
-            }
-            if ($desiciones > 0) {
-                $adjuntosVEX = normalizarAdjuntos(
-                    requestValue('act_vex_nom', []),
-                    requestValue('act_vex_tar', [])
-                );
-                guardarAdjuntos($PSN1, $ultimoId, 3, $adjuntosVEX);
-            }
+                $adjuntosGraduados = normalizarAdjuntos(requestValue("act_grad_nom", array()), requestValue('act_grad_tar', array()));
 
+                guardarAdjuntos($PSN1, $ultimoId, 1, $adjuntosGraduados);
+            } 
+            if ($bautizados > 0) {
+                $adjuntosVoluntariosInternos = normalizarAdjuntos(requestValue("act_vin_nom", array()), requestValue('act_vin_tar', array()));
+                guardarAdjuntos($PSN1, $ultimoId, 2, $adjuntosVoluntariosInternos);
+            } 
+            if ($desiciones > 0) {
+                $adjuntosVoluntariosExternos = normalizarAdjuntos(requestValue("act_vex_nom", array()), requestValue('act_vex_tar', array()));
+                guardarAdjuntos($PSN1, $ultimoId, 3, $adjuntosVoluntariosExternos);
+            }         
             $varExitoREP = 1;
         }
-
-    // -----------------------------------------------------------------------
-    // ELIMINAR
-    // CORRECCIÓN: id casteado a (int)
-    // -----------------------------------------------------------------------
-    } elseif ($_POST['funcion'] === 'eliminar') {
-        $idEliminar = (int) $idReporteActual;
-        if ($idEliminar > 0) {
-            $PSN1->query("DELETE FROM sat_reportes WHERE id = $idEliminar");
-        }
-
-    // -----------------------------------------------------------------------
-    // ACTUALIZAR
-    // -----------------------------------------------------------------------
-    } elseif ($_POST['funcion'] === 'actualizar') {
-
-        $plantador        = eliminarInvalidos(postValue('plantador'));
-        $rep_entr         = (int) soloNumeros(postValue('rep_entr', 0));
-        $fechaReporte     = eliminarInvalidos(postValue('fechaReporte'));
-        $fechaInicio      = eliminarInvalidos(postValue('fechaInicio'));
-        $sitioReunion     = (int) soloNumeros(postValue('sitioReunion', 0));
-        $grupoMadre_txt   = eliminarInvalidos(postValue('grupoMadre_txt'));
-        $nombreGrupo_txt  = eliminarInvalidos(postValue('nombreGrupo_txt'));
-        $inactivo         = !empty(postValue('inactivo')) ? (int) soloNumeros(postValue('inactivo')) : 0;
-        $capacitacion_txt = eliminarInvalidos(postValue('capacitacion_txt'));
-        $idGrupoMadre     = (int) soloNumeros(postValue('idGrupoMadre', 0));
-        $generacionNumero = (int) soloNumeros(postValue('generacionNumero', 0));
-        $pabellon         = eliminarInvalidos(postValue('pabellon'));
-        $direccion        = eliminarInvalidos(postValue('direccion'));
-        $ciudad           = !empty(postValue('municipio')) ? (int) soloNumeros(postValue('municipio')) : 0;
-
-        $asistencia_hom   = (int) soloNumeros(postValue('asistencia_hom', 0));
-        $asistencia_muj   = (int) soloNumeros(postValue('asistencia_muj', 0));
-        $asistencia_jov   = (int) soloNumeros(postValue('asistencia_jov', 0));
-        $asistencia_nin   = (int) soloNumeros(postValue('total', 0));
-        $bautizados       = (int) soloNumeros(postValue('total2', 0));
-        $bautizadosPeriodo = (int) soloNumeros(postValue('bautizadosPeriodo', 0));
-        $asistencia_total = (int) soloNumeros(postValue('asistencia_total', 0));
-        $discipulado      = (int) soloNumeros(postValue('discipulado', 0));
-        $desiciones       = (int) soloNumeros(postValue('total3', 0));
-        $rep_ndis_raw     = postValue('rep_ndis', 0);
-        $rep_ndis         = ($rep_ndis_raw != 0 && $rep_ndis_raw != null) ? (int) soloNumeros($rep_ndis_raw) : 0;
-        $preparandose     = (int) soloNumeros(postValue('preparandose', 0));
-        $iglesias_reconocidas = 0;
-        $mapeo_anho       = (int) soloNumeros(postValue('mapeo_anho', date('Y')));
-        $mapeo_cuarto     = (int) soloNumeros(postValue('mapeo_cuarto', 0));
-        $mapeo_fecha      = eliminarInvalidos(postValue('mapeo_fecha'));
-        $mapeo_comprometido = (int) soloNumeros(postValue('mapeo_comprometido', 0));
-        $mapeo_oracion    = (int) soloNumeros(postValue('mapeo_oracion', 0));
-        $mapeo_companerismo = (int) soloNumeros(postValue('mapeo_companerismo', 0));
-        $mapeo_adoracion  = (int) soloNumeros(postValue('mapeo_adoracion', 0));
-        $mapeo_biblia     = (int) soloNumeros(postValue('mapeo_biblia', 0));
-        $mapeo_evangelizar = (int) soloNumeros(postValue('mapeo_evangelizar', 0));
-        $mapeo_cena       = (int) soloNumeros(postValue('mapeo_cena', 0));
-        $mapeo_dar        = (int) soloNumeros(postValue('mapeo_dar', 0));
-        $mapeo_bautizar   = (int) soloNumeros(postValue('mapeo_bautizar', 0));
-        $mapeo_trabajadores = (int) soloNumeros(postValue('mapeo_trabajadores', 0));
-
-        $archivo1 = procesarArchivoSubido('archivo1', '');
-        $archivo2 = procesarArchivoSubido('archivo2', '');
-        $archivo3 = procesarArchivoSubido('archivo3', '');
-
-        $idUsuario       = (int) $_SESSION['id'];
-        $idReporteActual = (int) $idReporteActual;
-
-        // CORRECCIÓN SQL: todos los valores numéricos sin comillas
-        $sql = "UPDATE sat_reportes SET
-                    inactivo           = $inactivo,
-                    rep_entr           = $rep_entr,
-                    plantador          = '$plantador',
-                    fechaInicio        = '$fechaInicio',
-                    sitioReunion       = $sitioReunion,
-                    grupoMadre_txt     = '$grupoMadre_txt',
-                    nombreGrupo_txt    = '$nombreGrupo_txt',
-                    capacitacion_txt   = '$capacitacion_txt',
-                    generacionNumero   = $generacionNumero,
-                    pabellon           = '$pabellon',
-                    direccion          = '$direccion',
-                    ciudad             = $ciudad,
-                    asistencia_hom     = $asistencia_hom,
-                    asistencia_muj     = $asistencia_muj,
-                    asistencia_jov     = $asistencia_jov,
-                    asistencia_nin     = $asistencia_nin,
-                    bautizados         = $bautizados,
-                    bautizadosPeriodo  = $bautizadosPeriodo,
-                    asistencia_total   = $asistencia_total,
-                    discipulado        = $discipulado,
-                    desiciones         = $desiciones,
-                    rep_ndis           = $rep_ndis,
-                    preparandose       = $preparandose,
-                    mapeo_fecha        = '$mapeo_fecha',
-                    mapeo_comprometido = $mapeo_comprometido,
-                    mapeo_oracion      = $mapeo_oracion,
-                    mapeo_companerismo = $mapeo_companerismo,
-                    mapeo_adoracion    = $mapeo_adoracion,
-                    mapeo_biblia       = $mapeo_biblia,
-                    mapeo_evangelizar  = $mapeo_evangelizar,
-                    mapeo_cena         = $mapeo_cena,
-                    mapeo_dar          = $mapeo_dar,
-                    mapeo_bautizar     = $mapeo_bautizar,
-                    mapeo_trabajadores = $mapeo_trabajadores,
-                    mapeo_anho         = $mapeo_anho,
-                    mapeo_cuarto       = $mapeo_cuarto";
-
-        if ($archivo1 !== '') { $sql .= ", ext1 = '$archivo1'"; }
-        if ($archivo2 !== '') { $sql .= ", ext2 = '$archivo2'"; }
-        if ($archivo3 !== '') { $sql .= ", ext3 = '$archivo3'"; }
-
-        $sql .= ", modificacionFecha   = NOW(),
-                  modificacionUsuario  = $idUsuario
-              WHERE id = $idReporteActual";
-
+    }else if($_POST["funcion"] == "eliminar"){
+        $sql = 'DELETE from sat_reportes WHERE id = "'.$idReporteActual.'"';
         $PSN1->query($sql);
-
-        // Adjuntos graduados
-        $adjuntosGraduados = normalizarAdjuntos(
-            requestValue('act_grad_nom', []),
-            requestValue('act_grad_tar', [])
-        );
-        guardarAdjuntos($PSN1, $idReporteActual, 1, $adjuntosGraduados, true);
-
-        // Adjuntos voluntarios internos
-        $adjuntosVIN = normalizarAdjuntos(
-            requestValue('act_vin_nom', []),
-            requestValue('act_vin_tar', [])
-        );
-        guardarAdjuntos($PSN1, $idReporteActual, 2, $adjuntosVIN, true);
-
-        // Adjuntos voluntarios externos
-        $adjuntosVEX = normalizarAdjuntos(
-            requestValue('act_vex_nom', []),
-            requestValue('act_vex_tar', [])
-        );
-        guardarAdjuntos($PSN1, $idReporteActual, 3, $adjuntosVEX, true);
-
-        $varExitoREP_UPD = 1;
-        $ultimoId        = $idReporteActual;
-
-        // Mover / comprimir archivos actualizados
-        foreach ([1 => $archivo1, 2 => $archivo2, 3 => $archivo3] as $n => $ext) {
-            if ($ext === '') continue;
-            $key     = "archivo$n";
-            $destino = "archivos/evi_{$ultimoId}_{$n}.{$ext}";
-            $imgExts = ['png', 'jpg', 'jpeg', 'gif'];
-            if (in_array($ext, $imgExts, true)) {
-                compressImage($_FILES[$key]['tmp_name'], $destino, 80);
-            } else {
-                if (!move_uploaded_file($_FILES[$key]['tmp_name'], $destino)) {
-                    error_log("LPP: No se pudo mover archivo$n para reporte $ultimoId");
-                }
-            }
+    }
+    else if($_POST["funcion"] == "actualizar"){
+       // die("Actualizar");
+        //
+        /*
+        *   PESTAÑA GENERAL
+        */
+        $plantador = eliminarInvalidos($_REQUEST["plantador"]);
+        $rep_entr = eliminarInvalidos($_REQUEST["rep_entr"]);
+        $fechaReporte = eliminarInvalidos($_REQUEST["fechaReporte"]);
+        $fechaInicio = eliminarInvalidos($_REQUEST["fechaInicio"]);
+        if (isset($_REQUEST['sitioReunion'])) {
+            $sitioReunion = soloNumeros($_REQUEST["sitioReunion"]);
+        }else{
+            $sitioReunion = 0;
+        }  
+        
+        $grupoMadre_txt = eliminarInvalidos($_REQUEST["grupoMadre_txt"]);
+        $nombreGrupo_txt = eliminarInvalidos($_REQUEST["nombreGrupo_txt"]);
+        
+        if (!empty($_REQUEST["inactivo"])) {
+            $inactivo = soloNumeros($_REQUEST["inactivo"]);
+        }else{
+            $inactivo = 0;
         }
+        
+        
+        
+        $capacitacion_txt = eliminarInvalidos($_REQUEST["capacitacion_txt"]);        
+        $idGrupoMadre = soloNumeros($_REQUEST["idGrupoMadre"]);
+        $generacionNumero = soloNumeros($_REQUEST["generacionNumero"]);
+        
+        $pabellon = eliminarInvalidos($_REQUEST["pabellon"]);
+        $direccion = eliminarInvalidos($_REQUEST["direccion"]);
+        if (!empty($_REQUEST["municipio"])) {
+            $ciudad = soloNumeros($_REQUEST["municipio"]);
+        }else{
+            $ciudad = 0;
+        }
+
+        $asistencia_hom = soloNumeros($_REQUEST["asistencia_hom"]);
+        $asistencia_muj = soloNumeros($_REQUEST["asistencia_muj"]);
+        $asistencia_jov = soloNumeros($_REQUEST["asistencia_jov"]);
+        $asistencia_nin = soloNumeros($_REQUEST["total"]);
+
+        $bautizados = soloNumeros($_REQUEST["total2"]);        
+        $bautizadosPeriodo = soloNumeros($_REQUEST["bautizadosPeriodo"]);
+        
+
+        //Calculados:
+        $asistencia_total  = soloNumeros($_REQUEST["asistencia_total"]);
+        $discipulado  = soloNumeros($_REQUEST["discipulado"]);
+        $desiciones  = soloNumeros($_REQUEST["total3"]);
+        if ($_REQUEST["rep_ndis"]!= 0 && $_REQUEST["rep_ndis"]!= null) {
+            $rep_ndis  = soloNumeros($_REQUEST["rep_ndis"]);
+        }else{
+            $rep_ndis  = 0;
+        }
+        $preparandose  = soloNumeros($_REQUEST["preparandose"]);
+        $iglesias_reconocidas = 0;
+        
+        
+        $mapeo_anho = soloNumeros($_REQUEST["mapeo_anho"]);
+        $mapeo_cuarto = soloNumeros($_REQUEST["mapeo_cuarto"]);
+        
+        
+        $nombre_archivo = $_FILES['archivo1']['name'];
+        $archivo1 = extension_archivo($nombre_archivo);
+        
+        $nombre_archivo = $_FILES['archivo2']['name'];
+        $archivo2 = extension_archivo($nombre_archivo);
+        
+        $nombre_archivo = $_FILES['archivo3']['name'];
+        $archivo3 = extension_archivo($nombre_archivo);
+
+        
+        
+        $mapeo_fecha = eliminarInvalidos($_REQUEST["mapeo_fecha"]);
+        $mapeo_comprometido = soloNumeros($_REQUEST["mapeo_comprometido"]);
+        
+        $mapeo_oracion = soloNumeros($_REQUEST["mapeo_oracion"]);        
+        $mapeo_companerismo = soloNumeros($_REQUEST["mapeo_companerismo"]);        
+        $mapeo_adoracion = soloNumeros($_REQUEST["mapeo_adoracion"]);        
+        $mapeo_biblia = soloNumeros($_REQUEST["mapeo_biblia"]);        
+        $mapeo_evangelizar = soloNumeros($_REQUEST["mapeo_evangelizar"]);        
+        $mapeo_cena = soloNumeros($_REQUEST["mapeo_cena"]);        
+        $mapeo_dar = soloNumeros($_REQUEST["mapeo_dar"]);        
+        $mapeo_bautizar = soloNumeros($_REQUEST["mapeo_bautizar"]);        
+        $mapeo_trabajadores = soloNumeros($_REQUEST["mapeo_trabajadores"]);        
+        
+        //
+        $sql = 'UPDATE  sat_reportes SET 
+                    inactivo = '.$inactivo.', 
+                    rep_entr = "'.$rep_entr.'", 
+                    plantador = "'.$plantador.'", 
+                    fechaInicio = "'.$fechaInicio.'", 
+                    sitioReunion = '.$sitioReunion.', 
+                    grupoMadre_txt = "'.$grupoMadre_txt.'", 
+                    nombreGrupo_txt = "'.$nombreGrupo_txt.'",                     
+                    capacitacion_txt = "'.$capacitacion_txt.'", 
+                    generacionNumero = "'.$generacionNumero.'", 
+
+                    pabellon = "'.$pabellon.'", 
+                    direccion = "'.$direccion.'", 
+                    ciudad = '.$ciudad.', 
+
+                        asistencia_hom = "'.$asistencia_hom.'", 
+                        asistencia_muj = "'.$asistencia_muj.'", 
+                        asistencia_jov = "'.$asistencia_jov.'", 
+                        asistencia_nin =  "'.$asistencia_nin.'", 
+
+                    bautizados =  "'.$bautizados.'", 
+                    bautizadosPeriodo = "'.$bautizadosPeriodo.'", 
+
+                    asistencia_total = "'.$asistencia_total.'", 
+                    discipulado = "'.$discipulado.'", 
+                    desiciones =  "'.$desiciones.'",
+                    rep_ndis =  "'.$rep_ndis.'", 
+                    preparandose = "'.$preparandose.'",
+
+
+                    mapeo_fecha = "'.$mapeo_fecha.'",
+                    mapeo_comprometido = "'.$mapeo_comprometido.'",
+
+                        mapeo_oracion = "'.$mapeo_oracion.'",
+                        mapeo_companerismo = "'.$mapeo_companerismo.'",
+                        mapeo_adoracion = "'.$mapeo_adoracion.'",
+                        mapeo_biblia = "'.$mapeo_biblia.'",
+                        mapeo_evangelizar = "'.$mapeo_evangelizar.'",
+                        mapeo_cena = "'.$mapeo_cena.'",
+                        mapeo_dar = "'.$mapeo_dar.'",
+                        mapeo_bautizar = "'.$mapeo_bautizar.'",
+                        mapeo_trabajadores = "'.$mapeo_trabajadores.'",
+
+                    mapeo_anho = "'.$mapeo_anho.'",
+                    mapeo_cuarto = "'.$mapeo_cuarto.'"';
+
+    
+                if($archivo1 != ""){
+                    $sql .= ', ext1 = "'.$archivo1.'"';
+                }
+
+        
+                if($archivo2 != ""){
+                    $sql .= ', ext2 = "'.$archivo2.'"';
+                }
+
+        
+                if($archivo3 != ""){
+                    $sql .= ', ext3 = "'.$archivo3.'"';
+                }
+
+
+        $sql .= '   ,modificacionFecha = NOW(),
+                    modificacionUsuario = "'.$_SESSION["id"].'"
+                WHERE id = "'.$idReporteActual.'"';
+                //echo $sql;
+        $PSN1->query($sql);
+        $adjuntosGraduados = normalizarAdjuntos(requestValue('act_grad_nom', array()), requestValue('act_grad_tar', array()));
+        guardarAdjuntos($PSN1, $idReporteActual, 1, $adjuntosGraduados, true);
+        $num_vin_ant = 0;
+        $act_vin_id = $_REQUEST['act_vin_id'];
+        $act_vin_nom = $_REQUEST['act_vin_nom'];
+        $act_vin_tar = $_REQUEST['act_vin_tar'];
+        $num_vin_ant = $_REQUEST['vin_regist'];
+        $num_vin_nue = $_REQUEST['total2'];
+        $adjuntosVoluntariosInternos = normalizarAdjuntos($act_vin_nom, $act_vin_tar);
+        guardarAdjuntos($PSN1, $idReporteActual, 2, $adjuntosVoluntariosInternos, true);
+
+        $num_vex_ant = 0;
+        $act_vex_id = $_REQUEST['act_vex_id'];
+        $act_vex_nom = $_REQUEST['act_vex_nom'];
+        $act_vex_tar = $_REQUEST['act_vex_tar'];
+        $num_vex_ant = $_REQUEST['vex_regist'];
+        $num_vex_nue = $_REQUEST['total3'];
+        $adjuntosVoluntariosExternos = normalizarAdjuntos($act_vex_nom, $act_vex_tar);
+        guardarAdjuntos($PSN1, $idReporteActual, 3, $adjuntosVoluntariosExternos, true);
+        $varExitoREP_UPD = 1;
+        //
+        //
+        //if($generacionNumero > 0){
+                // Compress Image
+                $ultimoId = $idReporteActual;
+                //
+                if($archivo1 != ""){
+                    $extArchivo = $archivo1;
+                    if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                        $rutaOrigen = $_FILES['archivo1']['tmp_name'];
+                        $rutaDestino = "archivos/evi_".$ultimoId."_1.".$archivo1;
+                        compressImage($rutaOrigen, $rutaDestino, 80);
+                    }
+                    else{
+                        if(move_uploaded_file($_FILES['archivo1']['tmp_name'], "archivos/evi_".$ultimoId."_1.".$archivo1))
+                        {
+                        }            
+                    }
+                }
+            
+
+                if($archivo2 != ""){
+                    $extArchivo = $archivo2;
+                    if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                        $rutaOrigen = $_FILES['archivo2']['tmp_name'];
+                        $rutaDestino = "archivos/evi_".$ultimoId."_2.".$archivo2;
+                        compressImage($rutaOrigen, $rutaDestino, 80);
+                    }
+                    else{
+                        if(move_uploaded_file($_FILES['archivo2']['tmp_name'], "archivos/evi_".$ultimoId."_2.".$archivo2))
+                        {
+                        }            
+                    }
+                }
+
+
+                if($archivo3 != ""){
+                    $extArchivo = $archivo3;
+                    if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                        $rutaOrigen = $_FILES['archivo3']['tmp_name'];
+                        $rutaDestino = "archivos/evi_".$ultimoId."_3.".$archivo3;
+                        compressImage($rutaOrigen, $rutaDestino, 80);
+                    }
+                    else{
+                        if(move_uploaded_file($_FILES['archivo3']['tmp_name'], "archivos/evi_".$ultimoId."_3.".$archivo3))
+                        {
+                        }            
+                        else{
+                            echo "Error";
+
+                        }
+                    }
+                }
+                //
+            //}        
+        
+        //
     }
 }
 
-// ---------------------------------------------------------------------------
-// MENSAJES DE ERROR
-// ---------------------------------------------------------------------------
-switch ($error_datos) {
-    case 1: $texto_error = "Datos requeridos."; break;
-    case 2: $texto_error = "Error no especificado."; break;
-    case 3: $texto_error = "Ese REPORTE ya existe en el sistema para el grupo y lugar seleccionado."; break;
-    default: break;
+
+switch($error_datos){
+    case 1:
+        $texto_error = "Datos requeridos.";
+        break;
+    case 2:
+        $texto_error = "Error no especificado.";
+        break;
+    case 3:
+        $texto_error = "Ese REPORTE ya existe en el sistema para el grupo y lugar seleccionado.";
+        break;
+    default:
+        break;
 }
 
-// ---------------------------------------------------------------------------
-// CARGA DE DATOS PARA MODO EDICIÓN
-// CORRECCIÓN SQL: $idReporteActual casteado a (int) en todas las queries SELECT
-// ---------------------------------------------------------------------------
-if ($idReporteActual > 0) {
-    $idReporteActual = (int) $idReporteActual;
-
-    $sql = "SELECT C.descripcion AS regional, U.nombre AS coordinador,
-                   U.id AS id_coordinador, sat_reportes.*,
-                   sat_grupos.nombre, D.id_departamento, M.id_municipio
-            FROM sat_reportes
-            LEFT JOIN sat_grupos              ON sat_grupos.id = sat_reportes.idGrupoMadre
-            LEFT JOIN dane_municipios   AS M  ON sat_reportes.ciudad = M.id_municipio
-            LEFT JOIN dane_departamentos AS D ON M.departamento_id = D.id_departamento
-            LEFT JOIN usuario           AS U  ON U.id = sat_reportes.idUsuario
-            LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion
-            LEFT JOIN categorias        AS C  ON C.id = RU.reub_reg_fk
-            WHERE sat_reportes.id = $idReporteActual
-            GROUP BY sat_reportes.id";
-
+if($idReporteActual > 0){
+    /*
+    *   TRAEMOS LOS DATOS PRINCIPALES DEL USUARIO
+    */
+    $sql = "SELECT C.descripcion AS regional, U.nombre AS coordinador, U.id as id_coordinador, sat_reportes.*, sat_grupos.nombre, D.id_departamento,M.id_municipio FROM sat_reportes"; 
+$sql .= " LEFT JOIN sat_grupos ON sat_grupos.id = sat_reportes.idGrupoMadre 
+LEFT JOIN dane_municipios AS M ON sat_reportes.ciudad = M.id_municipio 
+LEFT JOIN dane_departamentos AS D ON M.departamento_id = D.id_departamento 
+LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario
+LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion 
+LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk";
+    $sql.=" WHERE sat_reportes.id = '".$idReporteActual."'";
+    $sql.=" GROUP BY sat_reportes.id";
     $PSN1->query($sql);
+    //echo $sql;
+    if($PSN1->num_rows() > 0)
+    {
+        if($PSN1->next_record())
+        {
+            $inactivo = $PSN1->f("inactivo");
+            $regional = $PSN1->f("regional");
+            $plantador = $PSN1->f("plantador");
+            $rep_entr = $PSN1->f("rep_entr");
+            $coordinador = $PSN1->f("coordinador");
+            $id_coordinador = $PSN1->f("id_coordinador");
+            $fechaReporte = $PSN1->f("fechaReporte");
+            $fechaInicio = $PSN1->f("fechaInicio");        
+            $sitioReunion = $PSN1->f("sitioReunion");
+            $grupoMadre_txt = $PSN1->f("grupoMadre_txt");
+            $nombreGrupo_txt = $PSN1->f("nombreGrupo_txt");
+            
+            $capacitacion_txt = $PSN1->f("capacitacion_txt");
 
-    if ($PSN1->num_rows() > 0) {
-        if ($PSN1->next_record()) {
-            $inactivo           = $PSN1->f('inactivo');
-            $regional           = $PSN1->f('regional');
-            $plantador          = $PSN1->f('plantador');
-            $rep_entr           = $PSN1->f('rep_entr');
-            $coordinador        = $PSN1->f('coordinador');
-            $id_coordinador     = $PSN1->f('id_coordinador');
-            $fechaReporte       = $PSN1->f('fechaReporte');
-            $fechaInicio        = $PSN1->f('fechaInicio');
-            $sitioReunion       = $PSN1->f('sitioReunion');
-            $grupoMadre_txt     = $PSN1->f('grupoMadre_txt');
-            $nombreGrupo_txt    = $PSN1->f('nombreGrupo_txt');
-            $capacitacion_txt   = $PSN1->f('capacitacion_txt');
-            $pabellon           = $PSN1->f('pabellon');
-            $direccion          = $PSN1->f('direccion');
-            $municipio          = $PSN1->f('ciudad');
-            $departamento       = $PSN1->f('id_departamento');
-            $_SESSION['muni']   = $PSN1->f('ciudad');
-            $ext1               = $PSN1->f('ext1');
-            $ext2               = $PSN1->f('ext2');
-            $ext3               = $PSN1->f('ext3');
-            $idGrupoMadre       = $PSN1->f('idGrupoMadre');
-            $generacionNumero   = $PSN1->f('generacionNumero');
-            $asistencia_hom     = $PSN1->f('asistencia_hom');
-            $asistencia_muj     = $PSN1->f('asistencia_muj');
-            $asistencia_jov     = $PSN1->f('asistencia_jov');
-            $asistencia_nin     = $PSN1->f('asistencia_nin');
-            $bautizados         = $PSN1->f('bautizados');
-            $bautizadosPeriodo  = $PSN1->f('bautizadosPeriodo');
-            $asistencia_total   = $PSN1->f('asistencia_total');
-            $discipulado        = $PSN1->f('discipulado');
-            $desiciones         = $PSN1->f('desiciones');
-            $rep_ndis           = $PSN1->f('rep_ndis');
-            $preparandose       = $PSN1->f('preparandose');
-            $iglesias_reconocidas = $PSN1->f('iglesias_reconocidas');
-            $mapeo_fecha        = $PSN1->f('mapeo_fecha');
-            $mapeo_cuarto       = $PSN1->f('mapeo_cuarto');
-            $mapeo_comprometido = $PSN1->f('mapeo_comprometido');
-            $mapeo_oracion      = $PSN1->f('mapeo_oracion');
-            $mapeo_companerismo = $PSN1->f('mapeo_companerismo');
-            $mapeo_adoracion    = $PSN1->f('mapeo_adoracion');
-            $mapeo_biblia       = $PSN1->f('mapeo_biblia');
-            $mapeo_evangelizar  = $PSN1->f('mapeo_evangelizar');
-            $mapeo_cena         = $PSN1->f('mapeo_cena');
-            $mapeo_dar          = $PSN1->f('mapeo_dar');
-            $mapeo_bautizar     = $PSN1->f('mapeo_bautizar');
-            $mapeo_trabajadores = $PSN1->f('mapeo_trabajadores');
-        }
-    } else {
-        ?>
-        <div class="container report-shell">
-            <div class="row">
-                <h3 class="alert alert-info text-center">Registro eliminado</h3>
-            </div>
-            <div class="form-group">
-                <center>
-                    <input type="button" onclick="window.location.href='index.php?doc=consultar-sub-programa-lpp'"
-                           class="btn btn-danger" value="Cerrar" />
-                </center>
-            </div>
+            $pabellon = $PSN1->f("pabellon");
+            $direccion = $PSN1->f("direccion");
+            $municipio = $PSN1->f("ciudad");
+            $departamento = $PSN1->f("id_departamento");
+            $_SESSION['muni'] = $PSN1->f("ciudad");
+            
+            $ext1 = $PSN1->f("ext1");
+            $ext2 = $PSN1->f("ext2");
+            $ext3 = $PSN1->f("ext3");
+            
+            $idGrupoMadre = $PSN1->f("idGrupoMadre");
+            $generacionNumero = $PSN1->f("generacionNumero");
+
+            $asistencia_hom = $PSN1->f("asistencia_hom");
+            $asistencia_muj = $PSN1->f("asistencia_muj");
+            $asistencia_jov = $PSN1->f("asistencia_jov");
+            $asistencia_nin = $PSN1->f("asistencia_nin");
+
+            $bautizados = $PSN1->f("bautizados");
+            $bautizadosPeriodo = $PSN1->f("bautizadosPeriodo");
+            
+
+            //Calculados:
+            $asistencia_total  = $PSN1->f("asistencia_total");
+            $discipulado  = $PSN1->f("discipulado");
+            $desiciones  = $PSN1->f("desiciones");
+            $rep_ndis  = $PSN1->f("rep_ndis");
+            
+            $preparandose  = $PSN1->f("preparandose");
+            $iglesias_reconocidas = $PSN1->f("iglesias_reconocidas");  
+            
+            
+            $mapeo_fecha = $PSN1->f("mapeo_fecha");
+            $mapeo_cuarto = $PSN1->f("mapeo_cuarto");  
+            $mapeo_comprometido = $PSN1->f("mapeo_comprometido");  
+            
+            $mapeo_oracion = $PSN1->f("mapeo_oracion");  
+            $mapeo_companerismo = $PSN1->f("mapeo_companerismo");  
+            $mapeo_adoracion = $PSN1->f("mapeo_adoracion");  
+            $mapeo_biblia = $PSN1->f("mapeo_biblia");  
+            $mapeo_evangelizar = $PSN1->f("mapeo_evangelizar");  
+            $mapeo_cena = $PSN1->f("mapeo_cena");  
+            $mapeo_dar = $PSN1->f("mapeo_dar");  
+            $mapeo_bautizar = $PSN1->f("mapeo_bautizar");  
+            $mapeo_trabajadores = $PSN1->f("mapeo_trabajadores");  
+            
+            
+            //
+        }//chequear el registro
+    }else{
+        ?><div class="row">
+            <h3 class="alert alert-info text-center">Registro eliminado</h3>
+        </div>
+        <div class="form-group">
+            <center><input type="button" onClick="window.location.href='index.php?doc=consultar-sub-programa-lpp'" name="previous" class="previous btn btn-danger" value="Cerrar" /> <br />
         </div>
         <?php
         exit;
     }
-
-    // Suma bautizados (adjuntos)
-    $sqlSum = "SELECT SUM(adj_can) AS suma FROM tbl_adjuntos WHERE adj_rep_fk = $idReporteActual";
-    $PSN1->query($sqlSum);
-    if ($PSN1->num_rows() > 0 && $PSN1->next_record()) {
-        $sum_baut = (int) $PSN1->f('suma');
+    $sql = "SELECT SUM(adj_can) as suma";
+    $sql.=" FROM tbl_adjuntos ";
+    $sql.=" WHERE adj_rep_fk = '".$idReporteActual."'";
+    $PSN1->query($sql);
+    if($PSN1->num_rows() > 0){
+        if($PSN1->next_record()){
+            $sum_baut = $PSN1->f("suma");
+        }
     }
-
-    // Graduados adjuntos para la tabla de edición
-    $graduadosAdjuntos = [];
-    $sqlGrad = "SELECT adj_id, adj_nom, adj_url
-                FROM tbl_adjuntos
-                WHERE adj_rep_fk = $idReporteActual AND adj_tip = 1
-                ORDER BY adj_id ASC";
-    $PSN1->query($sqlGrad);
-    while ($PSN1->next_record()) {
-        $graduadosAdjuntos[] = [
-            'id'        => $PSN1->f('adj_id'),
-            'nombre'    => $PSN1->f('adj_nom'),
-            'documento' => $PSN1->f('adj_url'),
-        ];
-    }
-
-    // Anterior / Siguiente reporte
-    $empresaFiltro = '';
-    if ($_SESSION['empresa_pd'] !== '' && $_SESSION['empresa_pd'] != 0) {
-        $empresaPd     = (int) $_SESSION['empresa_pd'];
-        $empresaFiltro = "AND UE.empresa_pd = $empresaPd";
-    }
-
-    $sqlAnt = "SELECT SR.id FROM sat_reportes AS SR
-               LEFT JOIN usuario AS U ON U.id = SR.idUsuario
-               LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
-               WHERE SR.id = (SELECT MAX(STR.id) FROM sat_reportes AS STR WHERE STR.id < $idReporteActual)
-               $empresaFiltro
-               AND SR.rep_tip = 307";
-    $PSN1->query($sqlAnt);
-    $antId = ($PSN1->num_rows() > 0 && $PSN1->next_record()) ? (int) $PSN1->f('id') : 0;
-
-    $sqlSig = "SELECT SR.id FROM sat_reportes AS SR
-               LEFT JOIN usuario AS U ON U.id = SR.idUsuario
-               LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
-               WHERE SR.id = (SELECT MIN(STR.id) FROM sat_reportes AS STR WHERE STR.id > $idReporteActual)
-               $empresaFiltro
-               AND SR.rep_tip = 307";
-    $PSN1->query($sqlSig);
-    $sigId = ($PSN1->num_rows() > 0 && $PSN1->next_record()) ? (int) $PSN1->f('id') : 0;
-
-    // -----------------------------------------------------------------------
-    // VISTA DE EDICIÓN / VISUALIZACIÓN
-    // -----------------------------------------------------------------------
-    $fecha_actual = date('Y-m-d');
-    $fechLimite   = date('Y-m-d', strtotime($fecha_actual . ' - 90 days'));
-    $soloLectura  = ($_SESSION['perfil'] == '168' || $fechLimite > $fechaReporte);
-
-    $graduadosEdicion = [];
-    foreach ($graduadosAdjuntos as $adjunto) {
-        $graduadosEdicion[] = [
-            'nombre'  => $adjunto['nombre'],
-            'tarjeta' => $adjunto['documento'],
-        ];
+    $graduadosAdjuntos = array();
+    if ((int) $idReporteActual > 0) {
+        $sql = "SELECT adj_id, adj_nom, adj_url FROM tbl_adjuntos WHERE adj_rep_fk = '".$idReporteActual."' AND adj_tip = 1 ORDER BY adj_id ASC";
+        $PSN1->query($sql);
+        while ($PSN1->next_record()) {
+            $graduadosAdjuntos[] = array(
+                'id' => $PSN1->f("adj_id"),
+                'nombre' => $PSN1->f("adj_nom"),
+                'documento' => $PSN1->f("adj_url"),
+            );
+        }
     }
     ?>
-    <!-- ================================================================ -->
-    <!-- ESTILOS                                                           -->
-    <!-- ================================================================ -->
     <style type="text/css">
-        .report-shell {
+        .report-shell{
             max-width: 1240px;
             margin: 24px auto 42px;
             padding: 0 14px 26px;
         }
-        .report-shell .alert {
+
+        .report-shell .alert{
             border: 0;
             border-radius: 24px;
             padding: 18px 24px;
             margin-bottom: 20px;
-            box-shadow: 0 18px 38px rgba(15,45,72,.12);
+            box-shadow: 0 18px 38px rgba(15, 45, 72, 0.12);
             font-weight: 700;
-            letter-spacing: .2px;
+            letter-spacing: 0.2px;
         }
-        .report-shell .alert-info    { background:#ffffff; color:#1f2933; border:1px solid #d9dee3; border-left:4px solid #243746; }
-        .report-shell .alert-success { background:#f7f9f7; color:#27352d; border:1px solid #c8d9cf; border-left:4px solid #56685a; }
-        .report-shell .alert-warning { background:#fbf8f2; color:#6d5634; border:1px solid #e8d9b5; border-left:4px solid #8a6a3f; }
-        .report-shell .alert-danger  { background:#fbf6f5; color:#6b3b38; border:1px solid #e8c4c2; border-left:4px solid #7a4340; }
-        .report-shell .alert a { color:inherit; text-decoration:none; }
-        .report-shell .alert a:hover { text-decoration:underline; }
 
-        .report-form {
+        .report-shell .alert-info{
+            background: linear-gradient(135deg, #123e59 0%, #296d92 60%, #8ec6df 100%);
+            color: #ffffff;
+        }
+
+        .report-shell .alert-success{
+            background: linear-gradient(135deg, #28724f 0%, #39a46e 100%);
+            color: #ffffff;
+        }
+
+        .report-shell .alert-warning{
+            background: #fff5d7;
+            color: #7a5a08;
+            border: 1px solid #f2d78d;
+        }
+
+        .report-shell .alert-danger{
+            background: #fff1f0;
+            color: #8f2b24;
+            border: 1px solid #f1b7b3;
+        }
+
+        .report-shell .alert a{
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .report-shell .alert a:hover{
+            text-decoration: underline;
+        }
+
+        .report-form{
             position: relative;
             overflow: hidden;
-            background: #f5f5f3;
-            border: 1px solid #d7dbdf;
-            border-radius: 18px;
-            padding: 28px 26px 34px;
-            box-shadow: 0 18px 40px rgba(15,23,42,.06);
+            background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+            border: 1px solid #dbe7f1;
+            border-radius: 30px;
+            padding: 24px 24px 34px;
+            box-shadow: 0 24px 60px rgba(16, 46, 72, 0.12);
         }
-        .report-form > .col-sm-12 {
+
+        .report-form:before{
+            content: "";
+            position: absolute;
+            top: -140px;
+            right: -70px;
+            width: 320px;
+            height: 320px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(85, 154, 196, 0.18) 0%, rgba(85, 154, 196, 0) 70%);
+            pointer-events: none;
+        }
+
+        .report-form > .col-sm-12{
             position: relative;
             width: 100%;
-            margin-bottom: 18px;
+            margin-bottom: 22px;
             padding: 24px 22px 16px;
-            border-radius: 14px;
-            border: 1px solid #e1e4e8;
-            background: #ffffff;
-            box-shadow: 0 8px 22px rgba(15,23,42,.04);
+            border-radius: 24px;
+            border: 1px solid #e4edf4;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 14px 34px rgba(22, 53, 80, 0.08);
         }
-        .report-form .cont-tit {
+
+        .report-form > .col-sm-12:last-of-type{
+            margin-bottom: 0;
+        }
+
+        .report-form .cont-tit{
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 18px;
             margin-bottom: 20px;
         }
-        .report-form .cont-tit .hr { flex: 1 1 0; }
-        .report-form .cont-tit hr  { margin: 0; border: 0; border-top: 1px solid #d7dce1; }
-        .report-form .cont-tit .tit-cen {
+
+        .report-form .cont-tit .hr{
+            flex: 1 1 0;
+        }
+
+        .report-form .cont-tit hr{
+            margin: 10px 0;
+            border-top: 1px solid #cad8e4;
+        }
+
+        .report-form .cont-tit .tit-cen{
             flex: 0 1 auto;
             min-width: 280px;
-            padding: 14px 22px;
-            border-radius: 12px;
-            background: #f8f9fa;
-            border: 1px solid #d9dee3;
+            padding: 12px 20px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #f1f7fb 0%, #ffffff 100%);
+            border: 1px solid #d9e6f0;
             text-align: center;
         }
-        .report-form .cont-tit h3 {
+
+        .report-form .cont-tit h3{
             margin: 0 0 4px;
-            color: #1e2d3a;
-            font-family: Georgia,"Times New Roman",serif;
-            font-size: 22px;
+            color: #19344c;
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 24px;
             font-weight: 700;
         }
-        .report-form .cont-tit h5,
-        .report-form .cont-tit p { margin: 0; color: #52606d; font-size: 13px; }
 
-        .report-form .form-group { margin-left:-8px; margin-right:-8px; margin-bottom:4px; }
-        .report-form .form-group > [class*="col-sm-"] { padding-left:8px; padding-right:8px; margin-bottom:16px; }
-        .report-form strong { display:block; margin-bottom:8px; color:#24313d; font-size:12.5px; font-weight:700; letter-spacing:.04em; }
+        .report-form .cont-tit h5,
+        .report-form .cont-tit p{
+            margin: 0;
+            color: #577086;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .report-form .form-group{
+            margin-left: -8px;
+            margin-right: -8px;
+            margin-bottom: 4px;
+        }
+
+        .report-form .form-group > [class*="col-sm-"]{
+            padding-left: 8px;
+            padding-right: 8px;
+            margin-bottom: 16px;
+        }
+
+        .report-form strong{
+            display: block;
+            margin-bottom: 8px;
+            color: #243c55;
+            font-size: 13px;
+            letter-spacing: 0.2px;
+        }
 
         .report-form .form-control,
         .report-form select,
-        .report-form textarea {
-            min-height: 44px;
+        .report-form textarea{
+            min-height: 46px;
             height: auto;
-            padding: 10px 14px;
-            border-radius: 10px;
-            border: 1px solid #cfd5db;
-            background: #ffffff;
-            color: #1f2933;
-            transition: border-color .18s ease, box-shadow .18s ease;
+            border-radius: 14px;
+            border: 1px solid #c7d6e2;
+            background: #f8fbfd;
+            box-shadow: none;
+            color: #1f3348;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
         }
+
+        .report-form textarea.form-control{
+            min-height: 120px;
+        }
+
         .report-form .form-control:focus,
         .report-form select:focus,
-        .report-form textarea:focus {
-            border-color: #334e68;
-            box-shadow: 0 0 0 3px rgba(51,78,104,.10);
+        .report-form textarea:focus{
+            border-color: #4f8db6;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(79, 141, 182, 0.14);
         }
+
         .report-form .form-control[readonly],
         .report-form .form-control[disabled],
-        .report-form select[disabled] { background:#f4f5f6; color:#5f6b76; }
-        .report-form input[type="file"].form-control { padding: 8px 10px; }
+        .report-form select[disabled],
+        .report-form textarea[disabled]{
+            background: #eef4f8;
+            color: #53687b;
+        }
 
-        .report-form .btn {
-            border-radius: 10px;
-            padding: 10px 18px;
+        .report-form input[type="file"].form-control{
+            padding: 10px 12px;
+        }
+
+        .report-form .btn{
+            border-radius: 14px;
+            padding: 11px 18px;
             font-weight: 700;
-            letter-spacing: .03em;
-            border: 1px solid transparent;
-            box-shadow: 0 8px 18px rgba(15,23,42,.08);
-            transition: box-shadow .18s ease, filter .18s ease;
+            letter-spacing: 0.2px;
+            border: 0;
+            box-shadow: 0 12px 24px rgba(20, 56, 86, 0.14);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
         }
-        .report-form .btn:hover { box-shadow: 0 12px 22px rgba(15,23,42,.12); filter: brightness(1.02); }
-        .report-form .btn-success { background:#1f3547; border-color:#1f3547; color:#fff; }
-        .report-form .btn-info    { background:#4b5b68; border-color:#4b5b68; color:#fff; }
-        .report-form .btn-warning { background:#8a6a3f; border-color:#8a6a3f; color:#fff; }
-        .report-form .btn-danger  { background:#7a4340; border-color:#7a4340; color:#fff; }
 
-        /* Botones de acción circulares */
+        .report-form .btn:hover,
+        .report-form .btn:focus{
+            transform: translateY(-1px);
+            box-shadow: 0 16px 26px rgba(20, 56, 86, 0.18);
+            filter: brightness(1.02);
+        }
+
+        .report-form .btn-success{
+            background: linear-gradient(135deg, #2d8658 0%, #39a977 100%);
+            color: #ffffff;
+        }
+
+        .report-form .btn-info{
+            background: linear-gradient(135deg, #2c6d8f 0%, #3d90bb 100%);
+            color: #ffffff;
+        }
+
+        .report-form .btn-warning{
+            background: linear-gradient(135deg, #d89d2f 0%, #efb64c 100%);
+            color: #ffffff;
+        }
+
+        .report-form .btn-danger{
+            background: linear-gradient(135deg, #c54c43 0%, #df6a61 100%);
+            color: #ffffff;
+        }
+
         .report-form .btn-cir-uno,
-        .report-form .btn-eliminar-fila {
-            width:40px; height:40px; min-width:40px;
-            padding:0; border-radius:50%;
-            display:inline-flex; align-items:center; justify-content:center;
-            background:#c0392b !important; border-color:#c0392b !important; color:#fff !important;
+        .report-form .btn-eliminar-fila{
+            width: 42px;
+            height: 42px;
+            min-width: 42px;
+            padding: 0;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        /* Tablas de adjuntos */
-        .report-form .registro-table { width:100%; border-collapse:separate; border-spacing:0 12px; background:transparent !important; border:0 !important; }
-        .report-form .registro-table td {
-            padding:16px 14px; vertical-align:top;
-            border:1px solid #dbe3ea; border-left-width:0;
-            background:#ffffff; box-shadow:0 8px 20px rgba(15,23,42,.04);
-        }
-        .report-form .registro-table td:first-child { border-left-width:1px; border-radius:14px 0 0 14px; }
-        .report-form .registro-table td:last-child   { border-radius:0 14px 14px 0; }
-        .report-form .registro-table .registro-col--nombre        { width:52%; }
-        .report-form .registro-table .registro-col--identificacion { width:38%; }
-        .report-form .registro-table .registro-col--action        { width:10%; text-align:center; vertical-align:middle !important; }
-        .report-form .registro-table input { width:100%; margin-top:0; }
-
-        /* Resumen / controles de tabla */
-        .report-form .registro-summary,
-        .report-form .registro-bulk-controls {
-            display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px 16px;
-            width:100%; padding:18px 20px;
-            border:1px solid #dbe3ea; border-radius:14px; background:#f8fafc;
-        }
-        .report-form .registro-summary > [class*="col-sm-"],
-        .report-form .registro-bulk-controls > [class*="col-sm-"] { float:none; width:auto; padding:0; margin:0; }
-        .report-form .registro-summary > :first-child,
-        .report-form .registro-bulk-controls > :first-child { flex:1 1 360px; }
-        .report-form .registro-summary > :nth-child(2),
-        .report-form .registro-bulk-controls > :nth-child(2) { flex:0 0 160px; max-width:180px; }
-        .report-form .registro-summary > :last-child,
-        .report-form .registro-bulk-controls > :last-child { flex:1 1 220px; display:flex; justify-content:flex-end; gap:10px; }
-
-        /* Botones especiales */
-        #adicionarAdd, #adicionarAdd2, #adicionarAdd3, #generarVariasAdd {
-            background:#2f7d32 !important; border-color:#2f7d32 !important; color:#fff !important;
-        }
-        #borrarTodoAdd { background:#c0392b !important; border-color:#c0392b !important; color:#fff !important; }
-        .report-form input[type="submit"][value="Guardar"],
-        .report-form input[type="submit"][value="Guardar cambios"] {
-            background:#2b5daa !important; border-color:#2b5daa !important; color:#fff !important;
+        .report-form #tablaAdd,
+        .report-form #tablaAdd2,
+        .report-form #tablaAdd3{
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            overflow: hidden;
+            border-radius: 18px;
+            border: 1px solid #dce7ef;
+            background: #f9fbfd;
         }
 
-        /* Navegación */
-        .report-shell .cont-btn { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
-        .report-shell .cont-btn.fl-cent { justify-content:center; }
-        .report-shell .item-btn { margin:0; }
+        .report-form #tablaAdd td,
+        .report-form #tablaAdd2 td,
+        .report-form #tablaAdd3 td{
+            padding: 16px 14px;
+            vertical-align: top;
+            border-top: 1px solid #e2eaf1;
+        }
+
+        .report-form #tablaAdd tr:first-child td,
+        .report-form #tablaAdd2 tr:first-child td,
+        .report-form #tablaAdd3 tr:first-child td{
+            border-top: 0;
+        }
+
+        .report-shell .cont-btn{
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .report-shell .cont-btn.fl-cent{
+            justify-content: center;
+        }
+
+        .report-shell .item-btn{
+            margin: 0;
+        }
+
         .report-shell .item-btn .btn,
-        .report-shell .item-btn input.btn { min-width:180px; }
+        .report-shell .item-btn input.btn{
+            min-width: 180px;
+        }
 
-        @media (max-width:767px) {
-            .report-form .registro-table td { display:block; width:100% !important; }
-            .report-form .registro-table td:first-child { border-radius:14px 14px 0 0; border-left-width:1px; }
-            .report-form .registro-table td:last-child   { border-radius:0 0 14px 14px; border-top:0; }
-            .report-shell .item-btn, .report-shell .item-btn .btn, .report-shell .item-btn input.btn { width:100%; }
+        @media (max-width: 991px){
+            .report-shell{
+                padding: 0 12px 22px;
+            }
+
+            .report-form{
+                padding: 18px 16px 26px;
+                border-radius: 24px;
+            }
+
+            .report-form > .col-sm-12{
+                padding: 20px 16px 12px;
+                border-radius: 20px;
+            }
+
+            .report-form .cont-tit{
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .report-form .cont-tit .hr{
+                width: 100%;
+            }
+
+            .report-form .cont-tit .tit-cen{
+                width: 100%;
+                min-width: 0;
+            }
+        }
+
+        @media (max-width: 767px){
+            .report-shell{
+                margin-top: 14px;
+                padding: 0 10px 18px;
+            }
+
+            .report-shell .alert{
+                border-radius: 18px;
+                padding: 16px 18px;
+                font-size: 18px;
+            }
+
+            .report-form .form-group{
+                margin-left: 0;
+                margin-right: 0;
+            }
+
+            .report-form .form-group > [class*="col-sm-"]{
+                padding-left: 0;
+                padding-right: 0;
+                margin-bottom: 14px;
+            }
+
+            .report-form [class*="col-sm-"]:empty{
+                display: none;
+            }
+
+            .report-form #tablaAdd td,
+            .report-form #tablaAdd2 td,
+            .report-form #tablaAdd3 td{
+                display: block;
+                width: 100% !important;
+            }
+
+            .report-shell .cont-btn{
+                justify-content: center;
+            }
+
+            .report-shell .item-btn,
+            .report-shell .item-btn .btn,
+            .report-shell .item-btn input.btn{
+                width: 100%;
+            }
+
+            .report-form center .btn{
+                width: 100%;
+                max-width: none;
+            }
         }
     </style>
+    <style type="text/css">
+        .report-shell .alert,
+        .report-shell .alert-info,
+        .report-shell .alert-success,
+        .report-shell .alert-warning,
+        .report-shell .alert-danger{
+            background: #ffffff;
+            color: #20262d;
+            border: 1px solid #d7dce1;
+            border-left: 4px solid #2d3338;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+        }
 
-    <!-- ================================================================ -->
-    <!-- FORMULARIO DE EDICIÓN / VISUALIZACIÓN                            -->
-    <!-- ================================================================ -->
-    <div class="container report-shell">
-    <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="report-form">
+        .report-form{
+            background: #f7f7f7;
+            border: 1px solid #d8d8d8;
+            box-shadow: 0 14px 32px rgba(0, 0, 0, 0.05);
+        }
 
-        <h3 class="alert alert-info text-center">
-            <?php echo ($idReporteActual == 0) ? "REPORTE" : "VISUALIZACIÓN"; ?> DE <?= htmlspecialchars($temp_letrero) ?>
-        </h3>
+        .report-form:before{
+            display: none !important;
+        }
 
-        <!-- Navegación Anterior / Todos / Siguiente -->
-        <div class="cont-btn">
-            <div class="item-btn">
-                <?php if ($antId > 0): ?>
-                <a href="index.php?doc=gestionar-sub-programa-lpp&id=<?= $antId ?>" class="btn btn-info">
-                    &laquo; Anterior (<?= $antId ?>)
-                </a>
-                <?php endif; ?>
+        .report-form > .col-sm-12{
+            background: #ffffff;
+            border: 1px solid #e1e1e1;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+        }
+
+        .report-form .cont-tit .tit-cen{
+            background: #fbfbfb;
+            border: 1px solid #d9d9d9;
+            box-shadow: none;
+        }
+
+        .report-form .cont-tit hr{
+            border-top-color: #d0d0d0;
+        }
+
+        .report-form .cont-tit h3{
+            color: #111111;
+        }
+
+        .report-form .cont-tit h5,
+        .report-form .cont-tit p{
+            color: #555555;
+        }
+
+        .report-form .form-group > [class*="col-sm-"] > strong:first-child{
+            min-height: 3.7em;
+        }
+
+        .report-form .form-control,
+        .report-form select,
+        .report-form textarea{
+            background: #ffffff;
+            border: 1px solid #cfcfcf;
+            color: #1f1f1f;
+        }
+
+        .report-form .form-control:focus,
+        .report-form select:focus,
+        .report-form textarea:focus{
+            border-color: #6f7780;
+            box-shadow: 0 0 0 3px rgba(70, 70, 70, 0.08);
+        }
+
+        .report-form .btn,
+        .report-form input.btn{
+            background: #f3f3f3;
+            border-color: #cccccc;
+            color: #222222;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .report-form .btn-success,
+        .report-form .btn-info,
+        .report-form .btn-warning{
+            background: #f3f3f3;
+            border-color: #cccccc;
+            color: #222222;
+        }
+
+        #adicionarAdd,
+        #adicionarAdd2,
+        #adicionarAdd3,
+        #generarVariasAdd{
+            background: #2f7d32 !important;
+            border-color: #2f7d32 !important;
+            color: #ffffff !important;
+        }
+
+        #borrarTodoAdd,
+        .report-form .btn-danger,
+        .report-form .btn-cir-uno,
+        .report-form .btn-eliminar-fila{
+            background: #c0392b !important;
+            border-color: #c0392b !important;
+            color: #ffffff !important;
+        }
+
+        .report-form input[type="submit"][name="button"],
+        .report-form input[type="submit"][value="Guardar"]{
+            background: #2b5daa !important;
+            border-color: #2b5daa !important;
+            color: #ffffff !important;
+        }
+
+        @media (max-width: 767px){
+            .report-form .form-group > [class*="col-sm-"] > strong:first-child{
+                min-height: 0;
+            }
+        }
+    </style>
+    <?php
+    ?><div class="container report-shell">
+    <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="form-horizontal report-form">
+        <h3 class="alert alert-info text-center"><?php
+            if($idReporteActual == 0){
+                echo "REPORTE";
+            }else{
+                echo "VISUALIZACIÓN";
+                $sqlU = "SELECT SR.id FROM sat_reportes AS SR
+                LEFT JOIN usuario AS U ON U.id = SR.idUsuario
+                LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
+                LEFT JOIN categorias AS C ON C.id = UE.empresa_pd
+                WHERE SR.id = (SELECT MAX(STR.id)FROM sat_reportes AS STR WHERE STR.id < ".$idReporteActual.") ";
+                    if ($_SESSION["empresa_pd"]!="" && $_SESSION["empresa_pd"]!=0) {
+                        $sqlU .= "AND UE.empresa_pd = ".$_SESSION["empresa_pd"]." ";
+                    }
+                    $sqlU .= "AND SR.rep_tip = 307";
+                $PSN1->query($sqlU); 
+                if($PSN1->num_rows() > 0){
+                    if($PSN1->next_record()){
+                    $antId  = $PSN1->f('id');
+                    }
+                }else{
+                   $antId  = 0; 
+                }
+                $sqlU = "SELECT SR.id FROM sat_reportes AS SR
+                LEFT JOIN usuario AS U ON U.id = SR.idUsuario
+                LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
+                LEFT JOIN categorias AS C ON C.id = UE.empresa_pd
+                WHERE SR.id = (SELECT MIN(STR.id)FROM sat_reportes AS STR WHERE STR.id > ".$idReporteActual.") ";
+                    if ($_SESSION["empresa_pd"]!="" && $_SESSION["empresa_pd"]!=0) {
+                        $sqlU .= "AND UE.empresa_pd = ".$_SESSION["empresa_pd"]." ";
+                    }
+                    $sqlU .= "AND SR.rep_tip = 307";
+                $PSN1->query($sqlU);
+                //echo  $sqlU;
+                if($PSN1->num_rows() > 0){
+                    if($PSN1->next_record()){
+                    $sigId  = $PSN1->f('id');
+                    }
+                }else{
+                   $sigId  = 0; 
+                }              
+            }
+            
+            ?> DE <?=$temp_letrero; ?></h3>
+            <?php //if ($_SESSION["perfil"] == 162 || $_SESSION["perfil"] == 2){ ?>
+            <div class="cont-btn cont-flex fl-sbet">
+                <div class="item-btn">
+                    <?php
+                    if ($antId != 0) {?>
+                    <a href="index.php?doc=gestionar-sub-programa-lpp&id=<?=$antId ?>" name="previous" class="previous btn btn-info">Anterior reporte <?=$antId ?></a>
+                    <?php } ?>
+                </div>
+                <div class="item-btn">
+                    <a href="index.php?doc=consultar-sub-programa-lpp" name="previous" class="btn btn-warning">Todos los reportes</a>
+                </div>
+                <div class="item-btn">
+                    <?php
+                    if ($sigId != 0) {?>
+                    <a href="index.php?doc=gestionar-sub-programa-lpp&id=<?=$sigId ?>" name="previous" class="previous btn btn-info">Siguiente reporte <?=$sigId ?></a>
+                    <?php } ?>
+                </div>
             </div>
-            <div class="item-btn">
-                <a href="index.php?doc=consultar-sub-programa-lpp" class="btn btn-warning">Todos los reportes</a>
+        <?php 
+            $fecha_actual = date("Y-m-d");
+            $fechLimite = date("Y-m-d",strtotime($fecha_actual."- 90 days"));
+            //echo $fechLimite ." - ". $fechaReporte;
+        ?>
+        <div class="cont-tit">
+            <div class="hr"><hr></div>
+            <div class="tit-cen">
+                <h3 class="text-center">INFORMACIÓN GENERAL</h3>
+                <h5>REGISTRO ID: <?=str_pad($idReporteActual, 6, "0", STR_PAD_LEFT); ?></h5>
             </div>
-            <div class="item-btn">
-                <?php if ($sigId > 0): ?>
-                <a href="index.php?doc=gestionar-sub-programa-lpp&id=<?= $sigId ?>" class="btn btn-info">
-                    Siguiente (<?= $sigId ?>) &raquo;
-                </a>
-                <?php endif; ?>
+            <div class="hr"><hr></div>
+        </div> 
+              
+        <div class="form-group">
+            <div class="col-sm-1"></div>
+            <div class="col-sm-2">
+                <strong>Regional:</strong>
+                <input name="regional" type="text" id="regional" maxlength="250" value="<?=$regional; ?>" class="form-control" required readonly />
             </div>
-        </div>
-
-        <!-- ------------------------------------------------------------ -->
-        <!-- SECCIÓN: Información General                                  -->
-        <!-- ------------------------------------------------------------ -->
-        <div class="col-sm-12">
-            <div class="cont-tit">
-                <div class="hr"><hr></div>
-                <div class="tit-cen">
-                    <h3>INFORMACIÓN GENERAL</h3>
-                    <h5>REGISTRO ID: <?= str_pad($idReporteActual, 6, '0', STR_PAD_LEFT) ?></h5>
-                </div>
-                <div class="hr"><hr></div>
+            <div class="col-sm-2">
+                <strong>Coordinador de prisión:</strong>
+                <select required readonly name="usua_id" id="usua_id" class="form-control">
+                    <option value="<?=$id_coordinador; ?>"><?=$coordinador; ?></option>
+                </select>
             </div>
-
-            <div class="form-group">
-                <div class="col-sm-1"></div>
-                <div class="col-sm-2">
-                    <strong>Regional:</strong>
-                    <input name="regional" type="text" maxlength="250"
-                           value="<?= htmlspecialchars($regional) ?>"
-                           class="form-control" readonly />
-                </div>
-                <div class="col-sm-2">
-                    <strong>Coordinador de prisión:</strong>
-                    <select name="usua_id" class="form-control" readonly>
-                        <option value="<?= (int)$id_coordinador ?>"><?= htmlspecialchars($coordinador) ?></option>
-                    </select>
-                </div>
-                <div class="col-sm-2">
-                    <strong>Fecha del registro:</strong>
-                    <input name="fechaReporte" type="date" maxlength="250"
-                           value="<?= htmlspecialchars($fechaReporte) ?>"
-                           class="form-control" readonly />
-                </div>
-                <div class="col-sm-2">
-                    <strong>Período:</strong>
-                    <select name="mapeo_cuarto" class="form-control" readonly>
-                        <?php if ($mapeo_cuarto == '1'):  ?><option value="1"  selected>Q1 (Ene - Mar)</option><?php endif; ?>
-                        <?php if ($mapeo_cuarto == '4'):  ?><option value="4"  selected>Q2 (Abr - Jun)</option><?php endif; ?>
-                        <?php if ($mapeo_cuarto == '7'):  ?><option value="7"  selected>Q3 (Jul - Sep)</option><?php endif; ?>
-                        <?php if ($mapeo_cuarto == '10'): ?><option value="10" selected>Q4 (Oct - Dic)</option><?php endif; ?>
-                    </select>
-                </div>
-                <div class="col-sm-2">
-                    <strong>Cárcel ubicación:</strong>
-                    <select name="sitioReunion" id="rep_carcel" class="form-control" required>
-                        <?php
-                        if ($_SESSION['empresa_pd'] != '') {
-                            echo '<option value="">Sin especificar</option>';
-                            $empresaPdFilt = (int) $_SESSION['empresa_pd'];
-                            $sqlCarcel = "SELECT * FROM tbl_regional_ubicacion"
-                                       . ($empresaPdFilt ? " WHERE reub_reg_fk = $empresaPdFilt" : '')
-                                       . " ORDER BY reub_reg_fk ASC";
-                            $PSN1->query($sqlCarcel);
-                            while ($PSN1->next_record()) {
-                                $sel = ($sitioReunion == $PSN1->f('reub_id')) ? ' selected="selected"' : '';
-                                echo '<option value="' . (int)$PSN1->f('reub_id') . '"' . $sel . '>'
-                                     . htmlspecialchars($PSN1->f('reub_nom')) . '</option>';
-                            }
-                        } else {
-                            echo '<option value="">Sin regional asignada</option>';
+            <div class="col-sm-2">
+                <strong>Fecha del registro:</strong>
+                <input name="fechaReporte" type="date" id="fechaReporte" maxlength="250" value="<?=$fechaReporte; ?>" class="form-control" required readonly  />
+            </div>
+            <div class="col-sm-2">
+                <strong>Período:</strong>
+                <select name="mapeo_cuarto" readonly class="form-control">
+                    <?php echo($mapeo_cuarto== "1")?'<option value="1" selected >Q1 (Ene - Mar)':''; ?>
+                    <?php echo($mapeo_cuarto== "4")?'<option value="4" selected >Q2 (Abr - Jun)':''; ?>
+                    <?php echo($mapeo_cuarto== "7")?'<option value="7" selected >Q3 (Jul - Sep)':''; ?>
+                    <?php echo($mapeo_cuarto== "10")?'<option value="10" selected >Q4 (Oct - Dic)':''; ?></option>
+                </select>
+            </div>
+            <div class="col-sm-2">
+                <strong>Cárcel ubicación: </strong>
+                <select required name="sitioReunion" id="rep_carcel" class="form-control">        
+                    <?php
+                    /*
+                    *   TRAEMOS LOS TIPOS DE SERVICIOS QUE PRESTA (25)
+                    */
+                    if ($_SESSION['empresa_pd'] != "") {
+                        echo '<option value="">Sin especificar</option>';
+                        $sql = "SELECT * ";
+                       $sql.=" FROM tbl_regional_ubicacion ";
+                        if($_SESSION['empresa_pd'] != 0){
+                            $sql.=" WHERE reub_reg_fk = ".$_SESSION['empresa_pd'];
                         }
-                        ?>
-                    </select>
-                </div>
-            </div>
+                        $sql.=" ORDER BY reub_reg_fk asc";
 
-            <div class="form-group">
-                <div class="col-sm-1"></div>
-                <div id="ubicacion"></div>
+                        $PSN1->query($sql);
+                        $numero=$PSN1->num_rows();
+                        if($numero > 0){
+                            while($PSN1->next_record()){
+                                ?><option value="<?=$PSN1->f('reub_id'); ?>" <?php
+                                if($sitioReunion == $PSN1->f('reub_id'))
+                                {
+                                    ?>selected="selected"<?php
+                                }
+                                ?>><?=$PSN1->f('reub_nom'); ?></option><?php
+                            }
+                        }
+                    }else{
+                        echo '<option value="">Sin regional asignada</option>';
+                    }
+                    ?>
+                </select>
+            </div>     
+        </div>
+        <div class="form-group">
+            <div class="col-sm-1"></div> 
+              
+            <div id="ubicacion"></div>
+            <div class="col-sm-2">
+                <strong>N° de patios y/o pabellón:</strong>
+                <input name="pabellon" type="number" id="pabellon" maxlength="250" value="<?=$pabellon; ?>" class="form-control" required />
+            </div> 
+        </div>
+        <div class="cont-tit">
+            <div class="hr"><hr></div>
+            <div class="tit-cen">
+                <h3>INFORMACIÓN DE LA PRISIÓN</h3>
+            </div>
+            <div class="hr"><hr></div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-3">
+                <strong>Total población que hay en la prisión:</strong>
+                <input name="asistencia_total" type="number" id="asistencia_total" value="<?=$asistencia_total; ?>" class="form-control" required />
+            </div>
+            <div class="col-sm-3">
+                <strong>Número de prisioneros invitados:</strong>
+                <input name="asistencia_hom" type="number" id="asistencia_hom" value="<?=$asistencia_hom; ?>" class="form-control" required  />
+            </div>
+            <div class="col-sm-3">
+                <strong>Número de prisioneros que iniciaron el curso:</strong>
+                <input name="asistencia_muj" type="number" id="asistencia_muj" value="<?=$asistencia_muj; ?>" class="form-control" required />
+            </div>
+            <div class="col-sm-3">
+                <strong>Numero de cursos activos de LPP:</strong>
+                <input name="asistencia_jov" type="number" id="asistencia_jov" value="<?=$asistencia_jov; ?>" class="form-control" readonly />
+            </div>
+        </div>
+        <?php if (false) { ?>
+        <!--MODIFICAR REGISTRO DE GRADUADOS--->
+        <div class="cont-tit">
+            <div class="hr"><hr></div>
+            <div class="tit-cen">
+                <h3 class="text-center">MODIFICAR DE GRADUADOS</h3>
+                <p>A continuación por favor ingrese los datos requeridos</p>               
+            </div>
+            <div class="hr"><hr></div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-12 registro-table-wrap">
+                <script>
+                        $(function(){
+                            var total = <?= $asistencia_nin; ?>;
+                            var tar = $(".act_grad_tar").val();
+                            var nom = $(".act_grad_nom").val();
+
+                            //$("#asistencia_total").prop('required',true);
+
+                            if (tar == "" || nom == "") {
+                                $("#adicionarAdd").prop( "disabled", true );
+                            }else{
+                                <?php if($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte){ ?>
+                                $("#adicionarAdd").prop( "disabled", true );
+                            <?php }else{ ?>
+                                $("#adicionarAdd").prop( "disabled", false );
+                            <?php } ?>
+                            }
+                            var vtotal = $("#asistencia_total").val();
+                            $("#asistencia_hom").attr('max', (vtotal-1));
+
+                            var vtotal = $("#asistencia_hom").val();
+                            $("#asistencia_muj").attr('max', vtotal);
+
+                            $("#asistencia_hom").change(function(){
+                                var vtotal = $("#asistencia_hom").val();
+                                $("#asistencia_muj").attr('max', vtotal);
+                            });
+                            $("#asistencia_total").change(function(){
+                                var vtotal = $("#asistencia_total").val();
+                                $("#asistencia_hom").attr('max', (vtotal-1));
+                            });
+                            var totalG = $("#total").val();
+                                if (totalG<=0) {
+                                   totalG = 0; 
+                                }
+                                $("#rep_ndis").attr('max', totalG);
+                            $("#total").change(function(){
+                                var totalG = $("#total").val();
+                                if (totalG<=0) {
+                                   totalG = 0; 
+                                }
+                                $("#rep_ndis").attr('max', totalG);
+                            });
+                            $("#asistencia_muj").change(function(){
+                                var vtotal = $("#asistencia_muj").val();
+                                if (total >= vtotal) {
+                                    $("#adicionarAdd").prop( "disabled", true );
+                                }else{
+                                    $("#adicionarAdd").prop( "disabled", false );
+                                }
+                            });
+                            
+                            $(".act_grad_nom").change(function(){
+                                var vtotal = $("#asistencia_muj").val();
+                                var tar3 = $(".act_grad_tar").val();
+                                var nom3 = $(".act_grad_nom").val();
+                                if (tar3 != "" && nom3 !="") {
+                                    if (total < 1) {
+                                        total = total + 1;
+                                    }
+                                    $("#adicionarAdd").prop( "disabled", false );
+                                }else if (tar3 == "" && nom3 =="") {
+                                    if (total == 1) {
+                                        total = total - 1;
+                                        $(".act_grad_nom").prop('required',false);
+                                        $(".act_grad_tar").prop('required',false);
+                                    }
+                                }else{
+                                    $("#adicionarAdd").prop( "disabled", true );
+                                }
+                                $('#total').val(total);
+                            });
+                            $(".act_grad_tar").change(function(){
+                                var vtotal = $("#asistencia_muj").val();
+                                var nom2 = $(".act_grad_nom").val();
+                                var tar2 = $(".act_grad_tar").val();
+                                if (nom2 != ""&& tar2 != "") {
+                                    if (total < 1) {
+                                        total = total + 1;
+                                    }
+                                    $("#adicionarAdd").prop( "disabled", false );
+                                }else if (tar3 == "" && nom3 =="") {
+                                    if (total == 1) {
+                                        total = total - 1;
+                                        $(".act_grad_nom").prop('required',false);
+                                        $(".act_grad_tar").prop('required',false);
+                                    }
+                                }else{
+                                    $("#adicionarAdd").prop( "disabled", true );
+                                }
+                                $('#total').val(total);
+                            });
+
+                            $("#adicionarAdd").on('click',function(){
+                                $("#tablaAdd tr:last").clone().removeClass('fila-fijaAdd').appendTo("#tablaAdd");
+                                $("#tablaAdd tr input.act_grad_nom:last").val('');
+                                $("#tablaAdd tr input.act_grad_tar:last").val('');
+                                var vtotal = $("#asistencia_muj").val();
+                                var tar2 = $(".act_grad_tar").val();
+                                var nom2 = $(".act_grad_nom").val();
+                                if (tar2!="" && nom2!="") {
+                                    total = total + 1;
+                                }
+                                if (total >= vtotal) {
+                                    $("#adicionarAdd").prop( "disabled", true );
+                                }else{
+                                    $("#adicionarAdd").prop( "disabled", false );
+                                }
+                                $(".act_grad_nom").prop('required',true);
+                                $(".act_grad_tar").prop('required',true);
+                                $('#total').val(total);
+                                var totalG = $("#total").val();
+                                $("#rep_ndis").attr('max', totalG);
+                            });
+                            $(document).on("click",".eliminarAdd",function(){
+                                var vtotal = $("#asistencia_muj").val();
+                                var parent = $(this).parents().get(0);
+                                $(parent).remove();
+                                total = total - 1;
+                                $('#total').val(total);
+                                var totalG = $("#total").val();
+                                $("#rep_ndis").attr('max', (totalG));
+                                if (total >= vtotal) {
+                                    $("#adicionarAdd").prop( "disabled", true );
+                                }else{
+                                    $("#adicionarAdd").prop( "disabled", false );
+                                }
+                            });
+                            
+                        });
+                    </script>
+                <table id="tablaAdd">
+                    <?php 
+                    $sql = "SELECT * ";
+                    $sql.=" FROM tbl_adjuntos ";
+                    $sql.=" WHERE adj_rep_fk = '".$idReporteActual."' AND adj_tip = 1 ";
+                    $PSN1->query($sql);
+                    $numero=$PSN1->num_rows();
+                    $cont = 0;
+                    echo '<input type="hidden" name="grad_regist" value="'.$numero.'" placeholder="">';
+                    if($numero > 0){
+                        while($PSN1->next_record()){ ?>
+                            <input type="hidden" name="act_grad_id[]" value="<?= $PSN1->f("adj_id");  ?>">
+                            <tr <?php echo($cont==0)?'class="fila-fijaAdd"':''; ?>>
+                                <td class="col-sm-7">
+                                   
+                                    <strong>Nombre completo del graduado:</strong>
+                                    <input name="act_grad_nom[]" type="text" id="act_grad_nom" class="act_grad_nom form-control" value="<?=$PSN1->f("adj_nom"); ?>" required />
+                                </td>
+                                <td class="col-sm-4">
+                                    <strong>Tarjeta dactilar / N° identificación:</strong>
+                                    <input name="act_grad_tar[]" type="text" id="act_grad_tar" min="0" class="act_grad_tar form-control" value="<?=$PSN1->f("adj_url"); ?>" required />
+                                </td>
+                                <td class="eliminarAdd"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
+                            </tr>
+                        <?php $cont++;
+                        }
+                    }else{ ?>
+                        
+                        <tr class="fila-fijaAdd">
+                            <td class="col-sm-7">
+                                <strong>Nombre completo del graduado:</strong>
+                                <input name="act_grad_nom[]" type="text" id="act_grad_nom" class="act_grad_nom form-control"  />
+                            </td>
+                            <td class="col-sm-4">
+                                <strong>Tarjeta dactilar / N° identificación:</strong>
+                                <input name="act_grad_tar[]" type="text" id="act_grad_tar" min="0" class="act_grad_tar form-control" />
+                            </td>
+                            <td class="eliminarAdd"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
+                        </tr>
+                    <?php } ?>
+                </table>
+            </div>
+            <div class="col-sm-2"></div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-12 registro-table-wrap">
+                <div class="col-sm-4"><strong>Número de graduados en LPP en la prisión:</strong> </div>
                 <div class="col-sm-2">
-                    <strong>N° de patios y/o pabellón:</strong>
-                    <input name="pabellon" type="number" maxlength="250"
-                           value="<?= (int)$pabellon ?>"
-                           class="form-control" required />
+                    <input type="text" name="total" id="total" class="form-control" value="<?=$asistencia_nin; ?>" readonly>
                 </div>
-            </div>
-        </div><!-- /información general -->
-
-        <!-- ------------------------------------------------------------ -->
-        <!-- SECCIÓN: Información de la Prisión                           -->
-        <!-- ------------------------------------------------------------ -->
-        <div class="col-sm-12">
-            <div class="cont-tit">
-                <div class="hr"><hr></div>
-                <div class="tit-cen"><h3>INFORMACIÓN DE LA PRISIÓN</h3></div>
-                <div class="hr"><hr></div>
-            </div>
-            <div class="form-group">
-                <div class="col-sm-3">
-                    <strong>Total población que hay en la prisión:</strong>
-                    <input name="asistencia_total" type="number" id="asistencia_total"
-                           value="<?= (int)$asistencia_total ?>" class="form-control" />
-                </div>
-                <div class="col-sm-3">
-                    <strong>Número de prisioneros invitados:</strong>
-                    <input name="asistencia_hom" type="number" id="asistencia_hom"
-                           value="<?= (int)$asistencia_hom ?>" class="form-control" />
-                </div>
-                <div class="col-sm-3">
-                    <strong>Número de prisioneros que iniciaron el curso:</strong>
-                    <input name="asistencia_muj" type="number" id="asistencia_muj"
-                           value="<?= (int)$asistencia_muj ?>" class="form-control" />
-                </div>
-                <div class="col-sm-3">
-                    <strong>Número de cursos activos de LPP:</strong>
-                    <input name="asistencia_jov" type="number" id="asistencia_jov"
-                           value="<?= (int)$asistencia_jov ?>" class="form-control" readonly />
+                <div class="col-sm-4"></div>
+                <div class="col-sm-2">
+                    <center>
+                        <button id="adicionarAdd" class="btn btn-success" type="button" class="boton" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>><i class="fas fa-plus"></i>  Adicionar</button>
+                    </center>
                 </div>
             </div>
         </div>
-
-        <!-- ------------------------------------------------------------ -->
-        <!-- SECCIÓN: Graduados                                            -->
-        <!-- ------------------------------------------------------------ -->
-        <div class="col-sm-12">
-            <div class="cont-tit">
-                <div class="hr"><hr></div>
-                <div class="tit-cen">
-                    <h3>MODIFICAR GRADUADOS</h3>
-                    <p>A continuación por favor ingrese los datos requeridos</p>
-                </div>
-                <div class="hr"><hr></div>
+        <?php } ?>
+        <div class="cont-tit">
+            <div class="hr"><hr></div>
+            <div class="tit-cen">
+                <h3 class="text-center">MODIFICAR DE GRADUADOS</h3>
+                <p>A continuacion por favor ingrese los datos requeridos</p>
             </div>
-
-            <div class="form-group">
-                <div class="col-sm-12">
-                    <table id="tablaAdd" class="table table-bordered registro-table">
-                        <tbody></tbody>
-                    </table>
-                </div>
+            <div class="hr"><hr></div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-12 registro-table-wrap">
+                <?php
+                $graduadosEdicion = array();
+                foreach ($graduadosAdjuntos as $adjunto) {
+                    $graduadosEdicion[] = array(
+                        'nombre' => $adjunto['nombre'],
+                        'tarjeta' => $adjunto['documento'],
+                    );
+                }
+                ?>
+                <table id="tablaAdd" class="table table-bordered registro-table">
+                    <tbody></tbody>
+                </table>
             </div>
-
-            <div class="form-group">
-                <div class="col-sm-12">
-                    <div class="registro-bulk-controls" style="margin-bottom:15px">
-                        <div class="col-sm-6 registro-bulk-controls__text">
-                            <label for="cantidadAdd">¿Cuántos registros desea generar?</label>
-                        </div>
-                        <div class="col-sm-3 registro-bulk-controls__value">
-                            <input type="number" id="cantidadAdd" class="form-control" min="1" placeholder="Ej: 5">
-                        </div>
-                        <div class="col-sm-3 registro-bulk-controls__actions">
-                            <button id="generarVariasAdd" class="btn btn-primary btn-block" type="button"
-                                    <?= $soloLectura ? 'disabled="disabled"' : '' ?>>
-                                <i class="fa fa-list"></i> Generar
-                            </button>
-                        </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-12">
+                <div class="registro-bulk-controls" style="margin-bottom: 15px;">
+                    <div class="col-sm-6 registro-bulk-controls__text">
+                        <label for="cantidadAdd">Cuantos registros desea realizar?</label>
                     </div>
-                    <div class="registro-summary">
+                    <div class="col-sm-3 registro-bulk-controls__value">
+                        <input type="number" id="cantidadAdd" class="form-control" min="1" placeholder="Ej: 5">
+                    </div>
+                    <div class="col-sm-3 registro-bulk-controls__actions">
+                        <button id="generarVariasAdd" class="btn btn-primary btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
+                            <i class="fa fa-list"></i> Generar
+                        </button>
+                    </div>
+                </div>
+                <div class="registro-summary">
+                    <div class="col-sm-6 registro-summary__text">
+                        <strong>Numero de graduados en LPP en la prision:</strong>
+                    </div>
+                    <div class="col-sm-2 registro-summary__value">
+                        <input type="text" name="total" id="total" class="form-control" value="<?=$asistencia_nin; ?>" readonly>
+                    </div>
+                    <div class="col-sm-4 registro-summary__actions">
                         <div class="col-sm-6">
-                            <strong>Número de graduados en LPP en la prisión:</strong>
-                        </div>
-                        <div class="col-sm-2">
-                            <input type="text" name="total" id="total" class="form-control"
-                                   value="<?= (int)$asistencia_nin ?>" readonly>
-                        </div>
-                        <div class="col-sm-4" style="display:flex;gap:10px;justify-content:flex-end">
-                            <button id="adicionarAdd" class="btn btn-success" type="button"
-                                    <?= $soloLectura ? 'disabled="disabled"' : '' ?>>
+                            <button id="adicionarAdd" class="btn btn-success btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
                                 <i class="fa fa-plus"></i> Adicionar
                             </button>
-                            <button id="borrarTodoAdd" class="btn btn-danger" type="button"
-                                    <?= $soloLectura ? 'disabled="disabled"' : '' ?>>
+                        </div>
+                        <div class="col-sm-6">
+                            <button id="borrarTodoAdd" class="btn btn-danger btn-block" type="button" <?php echo($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>>
                                 <i class="fa fa-trash"></i> Borrar todo
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </div><!-- /graduados -->
+        </div>
+        <style>
+            #tablaAdd {
+                width: 100%;
+                max-width: 100%;
+            }
 
-        <!-- Script tabla graduados (modo edición) -->
+            #tablaAdd td {
+                vertical-align: top;
+                padding: 14px;
+            }
+
+            #tablaAdd input {
+                margin-top: 8px;
+            }
+
+            #tablaAdd .campo-identificacion-graduado {
+                display: flex !important;
+                align-items: center;
+                gap: 12px;
+                margin-top: 8px;
+            }
+
+            #tablaAdd .campo-identificacion-graduado .contenedor-input {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+
+            #tablaAdd .btn-eliminar-fila {
+                width: 36px;
+                height: 34px;
+                min-width: 36px;
+                padding: 0;
+                border-radius: 4px;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                background-color: #d9534f !important;
+                border: 1px solid #d43f3a;
+                color: #fff !important;
+                font-size: 22px;
+                font-weight: bold;
+                line-height: 1;
+                text-align: center;
+                text-decoration: none !important;
+                cursor: pointer;
+                flex: 0 0 36px;
+                opacity: 1 !important;
+                visibility: visible !important;
+            }
+
+            #cantidadAdd {
+                text-align: center;
+                font-size: 16px;
+                font-weight: bold;
+            }
+
+            #generarVariasAdd,
+            #adicionarAdd,
+            #borrarTodoAdd {
+                white-space: nowrap;
+            }
+
+            @media (min-width: 992px) {
+                #tablaAdd td:first-child {
+                    width: 58% !important;
+                }
+
+                #tablaAdd td:nth-child(2) {
+                    width: 42% !important;
+                }
+            }
+        </style>
         <script>
-        $(function () {
-            var STORAGE_KEY       = 'lpp_graduados_edicion_<?= $idReporteActual ?>';
-            var registrosIniciales = <?= json_encode($graduadosEdicion) ?>;
-            var soloLectura       = <?= $soloLectura ? 'true' : 'false' ?>;
-            var storage           = window.sessionStorage;
+            $(function () {
+                var STORAGE_KEY = 'lpp_graduados_edicion_<?= $idReporteActual; ?>';
+                var registrosIniciales = <?= json_encode($graduadosEdicion); ?>;
+                var soloLectura = <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'true' : 'false'; ?>;
+                var storage = window.sessionStorage;
 
-            function crearFila() {
-                return $(
-                    '<tr class="registro-table-row">' +
-                    '<td class="registro-col registro-col--nombre">' +
-                        '<strong>Nombre completo del graduado:</strong>' +
-                        '<input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />' +
-                    '</td>' +
-                    '<td class="registro-col registro-col--identificacion">' +
-                        '<strong>Tarjeta dactilar / N&deg; identificación:</strong>' +
-                        '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
-                    '</td>' +
-                    '<td class="registro-col registro-col--action">' +
-                        '<button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar">' +
-                            '<i class="fa fa-times"></i>' +
-                        '</button>' +
-                    '</td>' +
-                    '</tr>'
-                );
-            }
-
-            function obtenerMaximo() {
-                var v = parseInt($('#asistencia_muj').val(), 10);
-                return (isNaN(v) || v < 1) ? null : v;
-            }
-
-            function datosFila($f) {
-                return {
-                    nombre:  $.trim($f.find('.act_grad_nom').val()),
-                    tarjeta: $.trim($f.find('.act_grad_tar').val())
-                };
-            }
-
-            function filaCompleta($f)  { var d = datosFila($f); return d.nombre !== '' && d.tarjeta !== ''; }
-            function filaIncompleta($f) { var d = datosFila($f); return (d.nombre !== '' && d.tarjeta === '') || (d.nombre === '' && d.tarjeta !== ''); }
-
-            function contarCompletos() {
-                var n = 0;
-                $('#tablaAdd tbody tr').each(function () { if (filaCompleta($(this))) n++; });
-                return n;
-            }
-
-            function sincronizarTotal() {
-                var n = contarCompletos();
-                $('#total').val(n);
-                $('#rep_ndis').attr('max', n > 0 ? n : 0);
-                return n;
-            }
-
-            function guardarDatos() {
-                if (!storage || soloLectura) return;
-                var datos = [];
-                $('#tablaAdd tbody tr').each(function () { datos.push(datosFila($(this))); });
-                try { storage.setItem(STORAGE_KEY, JSON.stringify(datos)); } catch(e) {}
-            }
-
-            function obtenerGuardados() {
-                if (!storage) return null;
-                try {
-                    var d = storage.getItem(STORAGE_KEY);
-                    if (!d) return null;
-                    d = JSON.parse(d);
-                    return Array.isArray(d) ? d : null;
-                } catch(e) { return null; }
-            }
-
-            function renderizar(datos) {
-                var $tb = $('#tablaAdd tbody');
-                $tb.empty();
-                if (!Array.isArray(datos) || datos.length === 0) datos = [{nombre:'', tarjeta:''}];
-                $.each(datos, function(_, item) {
-                    var $f = crearFila();
-                    $f.find('.act_grad_nom').val(item.nombre  || '');
-                    $f.find('.act_grad_tar').val(item.tarjeta || '');
-                    $tb.append($f);
-                });
-            }
-
-            function asegurarMinimo() {
-                if ($('#tablaAdd tbody tr').length === 0) renderizar([]);
-            }
-
-            function hayDatos() {
-                var hay = false;
-                $('#tablaAdd tbody tr').each(function () {
-                    var d = datosFila($(this));
-                    if (d.nombre !== '' || d.tarjeta !== '') { hay = true; return false; }
-                });
-                return hay;
-            }
-
-            function actualizarBotones() {
-                var max   = obtenerMaximo();
-                var filas = $('#tablaAdd tbody tr').length;
-                var bloq  = soloLectura || (max !== null && filas >= max);
-                $('#adicionarAdd').prop('disabled', bloq);
-                $('#generarVariasAdd').prop('disabled', soloLectura);
-                $('#borrarTodoAdd').prop('disabled', soloLectura);
-                $('#tablaAdd .btn-eliminar-fila').prop('disabled', soloLectura);
-            }
-
-            function actualizarLimites() {
-                var tot = parseInt($('#asistencia_total').val(), 10);
-                var hom = parseInt($('#asistencia_hom').val(), 10);
-                if (!isNaN(tot)) $('#asistencia_hom').attr('max', Math.max(tot - 1, 0));
-                if (!isNaN(hom)) $('#asistencia_muj').attr('max', hom);
-            }
-
-            // Inicializar
-            var guardados = obtenerGuardados();
-            renderizar(guardados !== null ? guardados : registrosIniciales);
-            actualizarLimites();
-            sincronizarTotal();
-            actualizarBotones();
-
-            // Eventos
-            $('#asistencia_hom, #asistencia_total, #asistencia_muj').on('change keyup', function () {
-                actualizarLimites(); actualizarBotones();
-            });
-
-            $(document).on('click', '#adicionarAdd', function (e) {
-                e.preventDefault();
-                var max = obtenerMaximo(), filas = $('#tablaAdd tbody tr').length;
-                if (max !== null && filas >= max) {
-                    alert('No puede registrar más graduados que prisioneros que iniciaron el curso (' + max + ').');
-                    return;
+                function crearFila() {
+                    return $(
+                        '<tr class="fila-fijaAdd registro-table-row">' +
+                            '<td class="registro-col registro-col--nombre">' +
+                                '<strong>Nombre completo del graduado:</strong>' +
+                                '<input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />' +
+                            '</td>' +
+                            '<td class="registro-col registro-col--identificacion">' +
+                                '<strong>Tarjeta dactilar / N&deg; identificacion:</strong>' +
+                                '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
+                            '</td>' +
+                            '<td class="registro-col registro-col--action">' +
+                                '<button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar" aria-label="Eliminar registro">' +
+                                    '<i class="fa fa-times"></i>' +
+                                '</button>' +
+                            '</td>' +
+                        '</tr>'
+                    );
                 }
-                $('#tablaAdd tbody').append(crearFila());
-                actualizarBotones(); guardarDatos();
-            });
 
-            $(document).on('click', '#generarVariasAdd', function (e) {
-                e.preventDefault();
-                var cant = parseInt($('#cantidadAdd').val(), 10);
-                if (isNaN(cant) || cant <= 0) { alert('Ingrese una cantidad válida mayor a 0.'); $('#cantidadAdd').focus(); return; }
-                var max = obtenerMaximo(), filas = $('#tablaAdd tbody tr').length;
-                if (max !== null && (filas + cant) > max) {
-                    alert('No puede generar más registros que prisioneros que iniciaron el curso (' + max + ').');
-                    return;
+                function obtenerMaximoGraduados() {
+                    var maximo = parseInt($('#asistencia_muj').val(), 10);
+                    return isNaN(maximo) || maximo < 1 ? null : maximo;
                 }
-                for (var i = 0; i < cant; i++) $('#tablaAdd tbody').append(crearFila());
-                sincronizarTotal(); actualizarBotones(); guardarDatos();
-            });
 
-            $(document).on('click', '#borrarTodoAdd', function (e) {
-                e.preventDefault();
-                if (hayDatos() && !confirm('¿Está seguro de borrar todos los registros cargados?')) return;
-                renderizar([]); sincronizarTotal(); actualizarBotones(); guardarDatos();
-            });
+                function actualizarLimitesAsistencia() {
+                    var asistenciaTotal = parseInt($('#asistencia_total').val(), 10);
+                    var asistenciaHombres = parseInt($('#asistencia_hom').val(), 10);
 
-            $(document).on('click', '#tablaAdd .btn-eliminar-fila', function (e) {
-                e.preventDefault();
-                $(this).closest('tr').remove();
-                asegurarMinimo(); sincronizarTotal(); actualizarBotones(); guardarDatos();
-            });
-
-            $(document).on('keyup change blur', '.act_grad_nom, .act_grad_tar', function () {
-                sincronizarTotal(); actualizarBotones(); guardarDatos();
-            });
-
-            $('form').on('submit', function (e) {
-                var hay = false;
-                $('#tablaAdd tbody tr').each(function () {
-                    if (filaIncompleta($(this))) { hay = true; return false; }
-                });
-                if (hay) {
-                    e.preventDefault();
-                    alert('Si diligencia una fila de graduados, debe completar tanto el nombre como la identificación.');
-                    return false;
-                }
-                sincronizarTotal();
-            });
-        });
-        </script>
-
-        <!-- ------------------------------------------------------------ -->
-        <!-- SECCIÓN: Voluntarios Internos                                 -->
-        <!-- ------------------------------------------------------------ -->
-        <div class="col-sm-12">
-            <div class="cont-tit">
-                <div class="hr"><hr></div>
-                <div class="tit-cen">
-                    <h3>MODIFICAR VOLUNTARIOS INTERNOS</h3>
-                    <p>A continuación por favor ingrese los datos requeridos</p>
-                </div>
-                <div class="hr"><hr></div>
-            </div>
-            <div class="form-group">
-                <div class="col-sm-12">
-                    <?php
-                    $sqlVIN = "SELECT * FROM tbl_adjuntos
-                               WHERE adj_rep_fk = $idReporteActual AND adj_tip = 2";
-                    $PSN1->query($sqlVIN);
-                    $numVIN = $PSN1->num_rows();
-                    echo '<input type="hidden" name="vin_regist" value="' . (int)$numVIN . '">';
-                    if ($numVIN > 0) {
-                        while ($PSN1->next_record()) {
-                            echo '<input type="hidden" name="act_vin_id[]" value="' . (int)$PSN1->f('adj_id') . '">';
-                        }
-                        $PSN1->query($sqlVIN);
+                    if (!isNaN(asistenciaTotal) && asistenciaTotal >= 0) {
+                        $('#asistencia_hom').attr('max', Math.max(asistenciaTotal - 1, 0));
                     }
-                    ?>
-                    <table id="tablaAdd2" class="table table-bordered registro-table">
-                        <tbody>
-                        <?php
-                        if ($numVIN > 0) {
-                            while ($PSN1->next_record()) {
-                                ?>
-                                <tr class="registro-table-row">
-                                    <td class="registro-col registro-col--nombre">
-                                        <strong>Nombre completo del siervo facilitador:</strong>
-                                        <input name="act_vin_nom[]" type="text"
-                                               class="act_vin_nom form-control"
-                                               value="<?= htmlspecialchars($PSN1->f('adj_nom')) ?>" required />
-                                    </td>
-                                    <td class="registro-col registro-col--identificacion">
-                                        <strong>Tarjeta dactilar / N° identificación:</strong>
-                                        <input name="act_vin_tar[]" type="text"
-                                               class="act_vin_tar form-control"
-                                               value="<?= htmlspecialchars($PSN1->f('adj_url')) ?>" required />
-                                    </td>
-                                    <td class="registro-col registro-col--action eliminarAdd2">
-                                        <button type="button" class="btn btn-cir-uno" title="Eliminar">
-                                            <i class="fa fa-times"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <?php
+
+                    if (!isNaN(asistenciaHombres) && asistenciaHombres >= 0) {
+                        $('#asistencia_muj').attr('max', asistenciaHombres);
+                    }
+                }
+
+                function obtenerDatosFila($fila) {
+                    return {
+                        nombre: $.trim($fila.find('.act_grad_nom').val()),
+                        tarjeta: $.trim($fila.find('.act_grad_tar').val())
+                    };
+                }
+
+                function filaCompleta($fila) {
+                    var datos = obtenerDatosFila($fila);
+                    return datos.nombre !== '' && datos.tarjeta !== '';
+                }
+
+                function filaIncompleta($fila) {
+                    var datos = obtenerDatosFila($fila);
+                    return (datos.nombre !== '' && datos.tarjeta === '') || (datos.nombre === '' && datos.tarjeta !== '');
+                }
+
+                function contarCompletos() {
+                    var total = 0;
+                    $('#tablaAdd tbody tr').each(function () {
+                        if (filaCompleta($(this))) {
+                            total++;
+                        }
+                    });
+                    return total;
+                }
+
+                function sincronizarTotal() {
+                    var total = contarCompletos();
+                    $('#total').val(total);
+                    $('#rep_ndis').attr('max', total > 0 ? total : 0);
+                    return total;
+                }
+
+                function guardarDatos() {
+                    if (!storage || soloLectura) {
+                        return;
+                    }
+
+                    var datos = [];
+                    $('#tablaAdd tbody tr').each(function () {
+                        datos.push(obtenerDatosFila($(this)));
+                    });
+
+                    try {
+                        storage.setItem(STORAGE_KEY, JSON.stringify(datos));
+                    } catch (error) {
+                    }
+                }
+
+                function obtenerDatosGuardados() {
+                    if (!storage) {
+                        return null;
+                    }
+
+                    try {
+                        var datos = storage.getItem(STORAGE_KEY);
+                        if (!datos) {
+                            return null;
+                        }
+
+                        datos = JSON.parse(datos);
+                        return Array.isArray(datos) ? datos : null;
+                    } catch (error) {
+                        return null;
+                    }
+                }
+
+                function renderizarFilas(datos) {
+                    var $tbody = $('#tablaAdd tbody');
+                    $tbody.empty();
+
+                    if (!Array.isArray(datos) || datos.length === 0) {
+                        datos = [{ nombre: '', tarjeta: '' }];
+                    }
+
+                    $.each(datos, function (_, item) {
+                        var $fila = crearFila();
+                        $fila.find('.act_grad_nom').val(item.nombre || '');
+                        $fila.find('.act_grad_tar').val(item.tarjeta || '');
+                        $tbody.append($fila);
+                    });
+                }
+
+                function asegurarMinimoUnaFila() {
+                    if ($('#tablaAdd tbody tr').length === 0) {
+                        renderizarFilas([]);
+                    }
+                }
+
+                function hayDatosCapturados() {
+                    var hayDatos = false;
+                    $('#tablaAdd tbody tr').each(function () {
+                        var datos = obtenerDatosFila($(this));
+                        if (datos.nombre !== '' || datos.tarjeta !== '') {
+                            hayDatos = true;
+                            return false;
+                        }
+                    });
+                    return hayDatos;
+                }
+
+                function actualizarBotones() {
+                    var maximo = obtenerMaximoGraduados();
+                    var filas = $('#tablaAdd tbody tr').length;
+                    var deshabilitarAgregar = soloLectura || (maximo !== null && filas >= maximo);
+
+                    $('#adicionarAdd').prop('disabled', deshabilitarAgregar);
+                    $('#generarVariasAdd').prop('disabled', soloLectura);
+                    $('#borrarTodoAdd').prop('disabled', soloLectura);
+                    $('#tablaAdd .btn-eliminar-fila').prop('disabled', soloLectura);
+                }
+
+                function restaurarDatos() {
+                    var datosGuardados = obtenerDatosGuardados();
+                    renderizarFilas(datosGuardados !== null ? datosGuardados : registrosIniciales);
+                    actualizarLimitesAsistencia();
+                    sincronizarTotal();
+                    actualizarBotones();
+                }
+
+                function agregarFila() {
+                    var maximo = obtenerMaximoGraduados();
+                    var filas = $('#tablaAdd tbody tr').length;
+
+                    if (maximo !== null && filas >= maximo) {
+                        alert('No puede registrar mas graduados que prisioneros que iniciaron el curso (' + maximo + ').');
+                        return;
+                    }
+
+                    $('#tablaAdd tbody').append(crearFila());
+                    actualizarBotones();
+                    guardarDatos();
+                }
+
+                function generarFilas(cantidad) {
+                    var maximo = obtenerMaximoGraduados();
+                    var filasActuales = $('#tablaAdd tbody tr').length;
+
+                    if (maximo !== null && (filasActuales + cantidad) > maximo) {
+                        alert('No puede generar mas registros que prisioneros que iniciaron el curso (' + maximo + ').');
+                        return;
+                    }
+
+                    for (var i = 0; i < cantidad; i++) {
+                        $('#tablaAdd tbody').append(crearFila());
+                    }
+
+                    sincronizarTotal();
+                    actualizarBotones();
+                    guardarDatos();
+                }
+
+                function borrarTodo() {
+                    renderizarFilas([]);
+                    sincronizarTotal();
+                    actualizarBotones();
+                    guardarDatos();
+                }
+
+                restaurarDatos();
+
+                $('#asistencia_hom, #asistencia_total, #asistencia_muj').on('change keyup', function () {
+                    actualizarLimitesAsistencia();
+                    actualizarBotones();
+                });
+
+                $(document).on('click', '#adicionarAdd', function (e) {
+                    e.preventDefault();
+                    agregarFila();
+                });
+
+                $(document).on('click', '#generarVariasAdd', function (e) {
+                    e.preventDefault();
+
+                    var cantidad = parseInt($('#cantidadAdd').val(), 10);
+                    if (isNaN(cantidad) || cantidad <= 0) {
+                        alert('Ingrese una cantidad valida mayor a 0.');
+                        $('#cantidadAdd').focus();
+                        return;
+                    }
+
+                    generarFilas(cantidad);
+                });
+
+                $(document).on('click', '#borrarTodoAdd', function (e) {
+                    e.preventDefault();
+
+                    if (hayDatosCapturados() && !confirm('Esta seguro de borrar todos los registros cargados?')) {
+                        return;
+                    }
+
+                    borrarTodo();
+                });
+
+                $(document).on('click', '#tablaAdd .btn-eliminar-fila', function (e) {
+                    e.preventDefault();
+
+                    $(this).closest('tr').remove();
+                    asegurarMinimoUnaFila();
+                    sincronizarTotal();
+                    actualizarBotones();
+                    guardarDatos();
+                });
+
+                $(document).on('keyup change blur', '.act_grad_nom, .act_grad_tar', function () {
+                    sincronizarTotal();
+                    actualizarBotones();
+                    guardarDatos();
+                });
+
+                $('form').on('submit', function (e) {
+                    var hayIncompletas = false;
+
+                    $('#tablaAdd tbody tr').each(function () {
+                        if (filaIncompleta($(this))) {
+                            hayIncompletas = true;
+                            return false;
+                        }
+                    });
+
+                    if (hayIncompletas) {
+                        e.preventDefault();
+                        alert('Si diligencia una fila de graduados, debe completar tanto el nombre como la identificacion.');
+                        return false;
+                    }
+
+                    sincronizarTotal();
+                });
+            });
+        </script>
+        <!--MODIFICAR REGISTRO DE VOLUNTARIOS INTERNOS-->
+        <div class="cont-tit">
+            <div class="hr"><hr></div>
+            <div class="tit-cen">
+                <h3 class="text-center">MODIFICAR DE VOLUNTARIOS INTERNOS</h3>
+                <p>A continuación por favor ingrese los datos requeridos</p>               
+            </div>
+            <div class="hr"><hr></div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-12 registro-table-wrap">
+                <script>
+                    $(function(){
+                        var total = <?=$bautizados; ?>;
+                        var tar = $(".act_vin_tar").val();
+                        var nom = $(".act_vin_nom").val();
+                        if (tar == "" || nom == "") {
+                            $("#adicionarAdd2").prop( "disabled", true );
+                        }else{
+                            <?php if($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte){ ?>
+                                $("#adicionarAdd2").prop( "disabled", true );
+                            <?php }else{ ?>
+                                $("#adicionarAdd2").prop( "disabled", false );
+                            <?php } ?>
+                        }
+                        $(".act_vin_nom").change(function(){
+                            var tar3 = $(".act_vin_tar").val();
+                            var nom3 = $(".act_vin_nom").val();
+                            if (tar3 != "" && nom3 !="") {
+                                if (total < 1) {
+                                    total = total + 1;
+                                }
+                                $("#adicionarAdd2").prop( "disabled", false );
+                            }else if (tar3 == "" && nom3 =="") {
+                                if (total == 1) {
+                                    total = total - 1;
+                                    $(".act_vin_nom").prop('required',false);
+                                    $(".act_vin_tar").prop('required',false);
+                                }
+                            }else{
+                                $("#adicionarAdd2").prop( "disabled", true );
                             }
-                        } else {
-                            ?>
-                            <tr class="fila-fijaAdd2 registro-table-row">
+                            $('#total2').val(total);
+                        });
+                        $(".act_vin_tar").change(function(){
+                            var nom2 = $(".act_vin_nom").val();
+                            var tar2 = $(".act_vin_tar").val();
+                            if (nom2 != ""&& tar2 != "") {
+                                if (total < 1) {
+                                    total = total + 1;
+                                }
+                                $("#adicionarAdd2").prop( "disabled", false );
+                            }else if (tar2 == "" && nom2 =="") {
+                                if (total == 1) {
+                                    total = total - 1;
+                                    $(".act_vin_nom").prop('required',false);
+                                    $(".act_vin_tar").prop('required',false);
+                                }
+                            }else{
+                                $("#adicionarAdd2").prop( "disabled", true );
+                            }
+                            $('#total2').val(total);
+                        });
+
+                        $("#adicionarAdd2").on('click',function(){
+                            $("#tablaAdd2 tbody tr:last").clone().removeClass('fila-fijaAdd2').appendTo("#tablaAdd2 tbody");
+                            $("#tablaAdd2 tbody tr input.act_vin_nom:last").val('');
+                            $("#tablaAdd2 tbody tr input.act_vin_tar:last").val('');
+                            var tar2 = $(".act_vin_tar").val();
+                            var nom2 = $(".act_vin_nom").val();
+                            if (tar2!="" && nom2!="") {
+                                total = total + 1;
+                            }
+                            $(".act_vin_nom").prop('required',true);
+                            $(".act_vin_tar").prop('required',true);
+                            $('#total2').val(total);
+                        });
+                        $(document).on("click",".eliminarAdd2",function(){
+                            var parent = $(this).parents().get(0);
+                            $(parent).remove();
+                            total = total - 1;
+                            $('#total2').val(total);
+                        });
+                        
+                    });
+                </script>
+                <?php 
+                $sql = "SELECT * ";
+                $sql.=" FROM tbl_adjuntos ";
+                $sql.=" WHERE adj_rep_fk = '".$idReporteActual."' AND adj_tip = 2 ";
+                $PSN1->query($sql);
+                $numero=$PSN1->num_rows();
+                $cont = 0;
+                echo '<input type="hidden" name="vin_regist" value="'.$numero.'" placeholder="">';
+                if($numero > 0){
+                    while($PSN1->next_record()){ ?>
+                        <input type="hidden" name="act_vin_id[]" value="<?= $PSN1->f("adj_id");  ?>">
+                    <?php }
+                    $PSN1->query($sql);
+                }
+                ?>
+                <table id="tablaAdd2" class="table table-bordered registro-table">
+                    <tbody>
+                    <?php
+                    if($numero > 0){
+                        while($PSN1->next_record()){ ?>
+                            <tr <?php echo($cont==0)?'class="fila-fijaAdd2 registro-table-row"':'class="registro-table-row"'; ?>>
                                 <td class="registro-col registro-col--nombre">
                                     <strong>Nombre completo del siervo facilitador:</strong>
-                                    <input name="act_vin_nom[]" type="text" class="act_vin_nom form-control" />
+                                    <input name="act_vin_nom[]" type="text" id="act_vin_nom" class="act_vin_nom form-control" value="<?=$PSN1->f("adj_nom"); ?>" required />
                                 </td>
                                 <td class="registro-col registro-col--identificacion">
                                     <strong>Tarjeta dactilar / N° identificación:</strong>
-                                    <input name="act_vin_tar[]" type="text" class="act_vin_tar form-control" />
+                                    <input name="act_vin_tar[]" type="text" id="act_vin_tar" min="0" class="act_vin_tar form-control" value="<?=$PSN1->f("adj_url"); ?>" required />
                                 </td>
-                                <td class="registro-col registro-col--action eliminarAdd2">
-                                    <button type="button" class="btn btn-cir-uno" title="Eliminar">
-                                        <i class="fa fa-times"></i>
-                                    </button>
-                                </td>
+                                <td class="registro-col registro-col--action eliminarAdd2"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                             </tr>
-                            <?php
+                        <?php $cont++;
                         }
-                        ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="form-group">
-                <div class="col-sm-12">
-                    <div class="registro-summary">
-                        <div class="col-sm-6">
-                            <strong>Número de voluntarios internos activos en esta prisión:</strong>
-                        </div>
-                        <div class="col-sm-2">
-                            <input type="text" name="total2" id="total2" class="form-control"
-                                   value="<?= (int)$bautizados ?>" readonly>
-                        </div>
-                        <div class="col-sm-4" style="display:flex;justify-content:flex-end">
-                            <button id="adicionarAdd2" class="btn btn-success" type="button"
-                                    <?= $soloLectura ? 'disabled="disabled"' : '' ?>>
-                                <i class="fas fa-plus"></i> Adicionar
-                            </button>
-                        </div>
+                    }else{ ?>
+                        <tr class="fila-fijaAdd2 registro-table-row">
+                            <td class="registro-col registro-col--nombre">
+                                <strong>Nombre completo del siervo facilitador:</strong>
+                                <input name="act_vin_nom[]" type="text" id="act_vin_nom" class="act_vin_nom form-control"  />
+                            </td>
+                            <td class="registro-col registro-col--identificacion">
+                                <strong>Tarjeta dactilar / N° identificación:</strong>
+                                <input name="act_vin_tar[]" type="text" id="act_vin_tar" min="0" class="act_vin_tar form-control"  />
+                            </td>
+                            <td class="registro-col registro-col--action eliminarAdd2"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
+                        </tr>
+                    <?php } ?>
+                    </tbody>
+                </table>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-12">
+                <div class="registro-summary">
+                    <div class="col-sm-6 registro-summary__text"><strong>Número de voluntarios internos activos en esta prisión:</strong></div>
+                    <div class="col-sm-2 registro-summary__value">
+                        <input type="text" name="total2" id="total2" class="form-control" value="<?=$bautizados; ?>" readonly>
+                    </div>
+                    <div class="col-sm-4 registro-summary__actions">
+                        <center>
+                            <button id="adicionarAdd2" class="btn btn-success" type="button" class="boton" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte)?'disabled="disabled"':'';?>><i class="fas fa-plus"></i>  Adicionar</button>
+                        </center>
                     </div>
                 </div>
             </div>
-        </div><!-- /voluntarios internos -->
-
-        <script>
-        $(function(){
-            var total2 = <?= (int)$bautizados ?>;
-
-            $(document).on('click', '#adicionarAdd2', function(){
-                var $clone = $('#tablaAdd2 tbody tr:last').clone();
-                $clone.find('input').val('');
-                $clone.appendTo('#tablaAdd2 tbody');
-                total2++;
-                $('#total2').val(total2);
-            });
-            $(document).on('click', '.eliminarAdd2', function(){
-                $(this).closest('tr').remove();
-                total2 = Math.max(0, total2 - 1);
-                $('#total2').val(total2);
-            });
-        });
-        </script>
-
-        <!-- ------------------------------------------------------------ -->
-        <!-- SECCIÓN: Voluntarios Externos                                 -->
-        <!-- ------------------------------------------------------------ -->
-        <div class="col-sm-12">
-            <div class="cont-tit">
-                <div class="hr"><hr></div>
-                <div class="tit-cen">
-                    <h3>MODIFICAR VOLUNTARIOS EXTERNOS</h3>
-                    <p>A continuación por favor ingrese los datos requeridos</p>
-                </div>
-                <div class="hr"><hr></div>
+        </div>
+        <!--MODIFICAR REGISTRO DE VOLUNTARIOS EXTERNOS-->
+        <div class="cont-tit">
+            <div class="hr"><hr></div>
+            <div class="tit-cen">
+                <h3 class="text-center">MODIFICAR DE VOLUNTARIOS EXTERNOS</h3>
+                <p>A continuación por favor ingrese los datos requeridos</p>               
             </div>
-            <div class="form-group">
-                <div class="col-sm-12">
-                    <?php
-                    $sqlVEX = "SELECT * FROM tbl_adjuntos
-                               WHERE adj_rep_fk = $idReporteActual AND adj_tip = 3";
-                    $PSN1->query($sqlVEX);
-                    $numVEX = $PSN1->num_rows();
-                    echo '<input type="hidden" name="vex_regist" value="' . (int)$numVEX . '">';
-                    if ($numVEX > 0) {
-                        while ($PSN1->next_record()) {
-                            echo '<input type="hidden" name="act_vex_id[]" value="' . (int)$PSN1->f('adj_id') . '">';
+            <div class="hr"><hr></div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-12 registro-table-wrap">
+                <script>
+                    $(function(){
+                        var total = <?=$desiciones; ?>;
+                        var tar = $(".act_vex_tar").val();
+                        var nom = $(".act_vex_nom").val();
+                        if (tar == "" || nom == "") {
+                            $("#adicionarAdd3").prop( "disabled", true );
+                        }else{
+                            <?php if($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte){ ?>
+                                $("#adicionarAdd3").prop( "disabled", true );
+                            <?php }else{ ?>
+                                $("#adicionarAdd3").prop( "disabled", false );
+                            <?php } ?>
                         }
-                        $PSN1->query($sqlVEX);
-                    }
-                    ?>
-                    <table id="tablaAdd3" class="table table-bordered registro-table">
-                        <tbody>
-                        <?php
-                        if ($numVEX > 0) {
-                            while ($PSN1->next_record()) {
-                                ?>
-                                <tr class="registro-table-row">
-                                    <td class="registro-col registro-col--nombre">
-                                        <strong>Nombre completo del entrenador:</strong>
-                                        <input name="act_vex_nom[]" type="text"
-                                               class="act_vex_nom form-control"
-                                               value="<?= htmlspecialchars($PSN1->f('adj_nom')) ?>" required />
-                                    </td>
-                                    <td class="registro-col registro-col--identificacion">
-                                        <strong>N° identificación:</strong>
-                                        <input name="act_vex_tar[]" type="text"
-                                               class="act_vex_tar form-control"
-                                               value="<?= htmlspecialchars($PSN1->f('adj_url')) ?>" required />
-                                    </td>
-                                    <td class="registro-col registro-col--action eliminarAdd3">
-                                        <button type="button" class="btn btn-cir-uno" title="Eliminar">
-                                            <i class="fa fa-times"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <?php
+                        $(".act_vex_nom").change(function(){
+                            var tar3 = $(".act_vex_tar").val();
+                            var nom3 = $(".act_vex_nom").val();
+                            if (tar3 != "" && nom3 !="") {
+                                if (total < 1) {
+                                    total = total + 1;
+                                }
+                                $("#adicionarAdd3").prop( "disabled", false );
+                            }else if (tar3 == "" && nom3 =="") {
+                                if (total == 1) {
+                                    total = total - 1;
+                                    $(".act_vex_nom").prop('required',false);
+                                    $(".act_vex_tar").prop('required',false);
+                                }
+                            }else{
+                                $("#adicionarAdd3").prop( "disabled", true );
                             }
-                        } else {
-                            ?>
-                            <tr class="fila-fijaAdd3 registro-table-row">
+                            $('#total3').val(total);
+                        });
+                        $(".act_vex_tar").change(function(){
+                            var nom2 = $(".act_vex_nom").val();
+                            var tar2 = $(".act_vex_tar").val();
+                            if (nom2 != ""&& tar2 != "") {
+                                if (total < 1) {
+                                    total = total + 1;
+                                }
+                                $("#adicionarAdd3").prop( "disabled", false );
+                            }else if (tar2 == "" && nom2 =="") {
+                                if (total == 1) {
+                                    total = total - 1;
+                                    $(".act_vex_nom").prop('required',false);
+                                    $(".act_vex_tar").prop('required',false);
+                                }
+                            }else{
+                                $("#adicionarAdd3").prop( "disabled", true );
+                            }
+                            $('#total3').val(total);
+                        });
+
+                        $("#adicionarAdd3").on('click',function(){
+                            $("#tablaAdd3 tbody tr:last").clone().removeClass('fila-fijaAdd3').appendTo("#tablaAdd3 tbody");
+                            $("#tablaAdd3 tbody tr input.act_vex_nom:last").val('');
+                            $("#tablaAdd3 tbody tr input.act_vex_tar:last").val('');
+                            var tar2 = $(".act_vex_tar").val();
+                            var nom2 = $(".act_vex_nom").val();
+                            if (tar2!="" && nom2!="") {
+                                total = total + 1;
+                            }
+                            $(".act_vex_nom").prop('required',true);
+                            $(".act_vex_tar").prop('required',true);
+                            $('#total3').val(total);
+                        });
+                        $(document).on("click",".eliminarAdd3",function(){
+                            var parent = $(this).parents().get(0);
+                            $(parent).remove();
+                            total = total - 1;
+                            $('#total3').val(total);
+                        });
+                        
+                    });
+                </script>
+                <?php 
+                $sql = "SELECT * ";
+                $sql.=" FROM tbl_adjuntos ";
+                $sql.=" WHERE adj_rep_fk = '".$idReporteActual."' AND adj_tip = 3 ";
+                $PSN1->query($sql);
+                $numero=$PSN1->num_rows();
+                $cont = 0;
+                echo '<input type="hidden" name="vex_regist" value="'.$numero.'" placeholder="">';
+                if($numero > 0){
+                    while($PSN1->next_record()){ ?>
+                        <input type="hidden" name="act_vex_id[]" value="<?= $PSN1->f("adj_id");  ?>">
+                    <?php }
+                    $PSN1->query($sql);
+                }
+                ?>
+                <table id="tablaAdd3" class="table table-bordered registro-table">
+                    <tbody>
+                    <?php
+                    if($numero > 0){
+                        while($PSN1->next_record()){ ?>
+                            <tr <?php echo($cont==0)?'class="fila-fijaAdd3 registro-table-row"':'class="registro-table-row"'; ?>>
                                 <td class="registro-col registro-col--nombre">
                                     <strong>Nombre completo del entrenador:</strong>
-                                    <input name="act_vex_nom[]" type="text" class="act_vex_nom form-control" />
+                                    <input name="act_vex_nom[]" type="text" id="act_vex_nom" class="act_vex_nom form-control" value="<?=$PSN1->f("adj_nom"); ?>" required />
                                 </td>
                                 <td class="registro-col registro-col--identificacion">
                                     <strong>N° identificación:</strong>
-                                    <input name="act_vex_tar[]" type="text" class="act_vex_tar form-control" />
+                                    <input name="act_vex_tar[]" type="text" id="act_vex_tar" min="0" class="act_vex_tar form-control" value="<?=$PSN1->f("adj_url"); ?>" required />
                                 </td>
-                                <td class="registro-col registro-col--action eliminarAdd3">
-                                    <button type="button" class="btn btn-cir-uno" title="Eliminar">
-                                        <i class="fa fa-times"></i>
-                                    </button>
-                                </td>
+                                <td class="registro-col registro-col--action eliminarAdd3"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                             </tr>
-                            <?php
+                        <?php $cont++;
                         }
-                        ?>
-                        </tbody>
-                    </table>
+                    }else{ ?>
+                        <tr class="fila-fijaAdd3 registro-table-row">
+                                <td class="registro-col registro-col--nombre">
+                                    <strong>Nombre completo del entrenador:</strong>
+                                    <input name="act_vex_nom[]" type="text" id="act_vex_nom" class="act_vex_nom form-control"  />
+                                </td>
+                                <td class="registro-col registro-col--identificacion">
+                                    <strong>N° identificación:</strong>
+                                    <input name="act_vex_tar[]" type="text" id="act_vex_tar" min="0" class="act_vex_tar form-control"  />
+                                </td>
+                                <td class="registro-col registro-col--action eliminarAdd3"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
+                            </tr>
+                    <?php } ?>
+                    </tbody>
+                </table>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-12">
+                <div class="registro-summary">
+                <div class="col-sm-6 registro-summary__text"><strong>Número de voluntarios externos para esta prisión:</strong> </div>
+                <div class="col-sm-2 registro-summary__value">
+                    <input type="text" name="total3" id="total3" class="form-control" value="<?=$desiciones; ?>" readonly>
                 </div>
-            </div>
-            <div class="form-group">
-                <div class="col-sm-12">
-                    <div class="registro-summary">
-                        <div class="col-sm-6">
-                            <strong>Número de voluntarios externos para esta prisión:</strong>
-                        </div>
-                        <div class="col-sm-2">
-                            <input type="text" name="total3" id="total3" class="form-control"
-                                   value="<?= (int)$desiciones ?>" readonly>
-                        </div>
-                        <div class="col-sm-4" style="display:flex;justify-content:flex-end">
-                            <button id="adicionarAdd3" class="btn btn-success" type="button"
-                                    <?= $soloLectura ? 'disabled="disabled"' : '' ?>>
-                                <i class="fas fa-plus"></i> Adicionar
-                            </button>
-                        </div>
-                    </div>
+                <div class="col-sm-4 registro-summary__actions">
+                    <center>
+                        <button id="adicionarAdd3" class="btn btn-success" type="button" class="boton" ><i class="fas fa-plus"></i>  Adicionar</button>
+                    </center>
                 </div>
-            </div>
-        </div><!-- /voluntarios externos -->
-
-        <script>
-        $(function(){
-            var total3 = <?= (int)$desiciones ?>;
-
-            $(document).on('click', '#adicionarAdd3', function(){
-                var $clone = $('#tablaAdd3 tbody tr:last').clone();
-                $clone.find('input').val('');
-                $clone.appendTo('#tablaAdd3 tbody');
-                total3++;
-                $('#total3').val(total3);
-            });
-            $(document).on('click', '.eliminarAdd3', function(){
-                $(this).closest('tr').remove();
-                total3 = Math.max(0, total3 - 1);
-                $('#total3').val(total3);
-            });
-        });
-        </script>
-
-        <!-- ------------------------------------------------------------ -->
-        <!-- SECCIÓN: Método de Verificación - Testimonio                  -->
-        <!-- ------------------------------------------------------------ -->
-        <div class="col-sm-12">
-            <div class="cont-tit">
-                <div class="hr"><hr></div>
-                <div class="tit-cen">
-                    <h3>MÉTODO DE VERIFICACIÓN</h3>
-                    <h5>TESTIMONIO</h5>
-                </div>
-                <div class="hr"><hr></div>
-            </div>
-            <div class="form-group">
-                <div class="col-sm-2"></div>
-                <div class="col-sm-3">
-                    <strong>Número de discípulos que pasaron a C&amp;M:</strong>
-                    <input name="rep_ndis" type="number" id="rep_ndis"
-                           value="<?= (int)$rep_ndis ?>" class="form-control" />
-                </div>
-                <div class="col-sm-3">
-                    <strong>Testimonio:</strong>
-                    <?php if ($ext2 !== ''): ?>
-                        <a href="archivos/evi_<?= $idReporteActual ?>_2.<?= htmlspecialchars($ext2) ?>"
-                           target="_blank">
-                            <i class="fas fa-file-word"></i> Formato testimonio LPP
-                        </a>
-                    <?php endif; ?>
-                    <input name="archivo2" type="file" id="archivo2" class="form-control" />
-                </div>
-                <div class="col-sm-2">
-                    <strong>Costo de recursos gestionados ($):</strong>
-                    <input name="rep_entr" type="number" id="rep_entr" min="0"
-                           value="<?= (int)$rep_entr ?>" class="form-control" />
                 </div>
             </div>
         </div>
-
-        <!-- ------------------------------------------------------------ -->
-        <!-- SECCIÓN: Foto                                                  -->
-        <!-- ------------------------------------------------------------ -->
-        <div class="col-sm-12">
-            <div class="cont-tit">
-                <div class="hr"><hr></div>
-                <div class="tit-cen">
-                    <h3>Método de verificación</h3>
-                    <h5>FOTO</h5>
-                </div>
-                <div class="hr"><hr></div>
+        <div class="cont-tit">
+            <div class="hr"><hr></div>
+            <div class="tit-cen">
+                <h3 class="text-center">MÉTODO DE VERIFICACIÓN</h3>
+                <h5>TESTIMONIO</h5>
             </div>
-            <div class="form-group">
-                <div class="col-sm-3"></div>
-                <div class="col-sm-6">
-                    <?php if ($ext1 !== ''): ?>
-                        <center>
-                            <img src="archivos/evi_<?= $idReporteActual ?>_1.<?= htmlspecialchars($ext1) ?>"
-                                 style="max-height:250px;max-width:100%;border-radius:10px;">
-                        </center><br>
-                    <?php endif; ?>
-                    <input name="archivo1" type="file" id="archivo1" class="form-control"
-                           accept="image/png,image/jpeg,image/gif" />
-                </div>
-                <div class="col-sm-3"></div>
+            <div class="hr"><hr></div>
+        </div>
+        <div class="form-group">
+        <div class="form-group">
+            <div class="col-sm-2"></div>
+            <div class="col-sm-3">
+            <strong>Número de discípulos que pasaron a C&M:</strong>
+                <input name="rep_ndis" type="number" id="rep_ndis"  maxlength="255" value="<?=$rep_ndis; ?>" class="form-control" required />
+            </div>
+            <div class="col-sm-3">
+                <strong>Testimonio:</strong>
+                <?php if ($ext2!=""){?>
+                    <a href='archivos/evi_<?=$idReporteActual; ?>_2.<?=$ext2; ?>' target="_blank"><i class="fas fa-file-word"></i> Formato testimonio LPP</a>
+                <?php } ?>  
+                <input name="archivo2" type="file" id="archivo2" class="form-control" />
+            </div>
+            <div class="col-sm-2">
+                <strong>Costo de recursos gestionados($):</strong>
+                <input name="rep_entr" type="number" id="rep_entr" min="0" value="<?= $rep_entr; ?>" class="form-control" />
             </div>
         </div>
-
-        <!-- ------------------------------------------------------------ -->
-        <!-- BOTONES DE ACCIÓN                                             -->
-        <!-- ------------------------------------------------------------ -->
-        <?php if ($_SESSION['perfil'] != '168'): ?>
-        <div class="cont-btn">
+        <div class="cont-tit">
+            <div class="hr"><hr></div>
+            <div class="tit-cen">
+                <h3 class="text-center">Método de verificación</h3>
+                <h5>FOTO</h5>
+            </div>
+            <div class="hr"><hr></div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-3"></div>
+            <div class="col-sm-6">
+                <?php if ($ext1!=""){?>
+                    <center><img src="archivos/evi_<?=$idReporteActual; ?>_1.<?=$ext1; ?>" style="max-height:250px; max-width: 100%; "></center><br>  
+                <?php } ?>                
+                <input name="archivo1" type="file" id="archivo1" class="form-control" />
+            </div>
+            <div class="col-sm-3"></div>
+        </div>
+        <?php if ($_SESSION['perfil']!="168") {?>
+        <div class="cont-btn cont-flex fl-sbet">
             <div class="item-btn">
-                <input type="button"
-                       onclick="window.location.href='index.php?doc=consultar-sub-programa-lpp'"
-                       class="btn btn-info" value="Cerrar" />
+                <input type="button" onClick="window.location.href='index.php?doc=consultar-sub-programa-lpp'" name="previous" class="previous btn btn-info" value="Cerrar" />
             </div>
             <div class="item-btn">
-                <input type="submit" name="button" value="Guardar cambios" class="btn btn-success">
+                <input type="submit" name="button" value="Guardar cambios" class="btn btn-success" id="guarda_rep">
             </div>
             <div class="item-btn">
-                <input type="button" onclick="eliminarRegistro()" class="btn btn-danger" value="Eliminar">
+                <input type="button" onClick="eliminarRegistro()" name="button" value="Eliminar" class="btn btn-danger">
             </div>
         </div>
-        <?php endif; ?>
+        <?php } ?>         
+        <input type="hidden" name="funcion" id="funcion" value="actualizar" />
+        <input type="hidden" name="generacion" id="generacion" value="<?=$generacionActual; ?>" />
+    </form>
+    <script language="javascript">
+        function sumar(){
+            var asistencia_hom = 0;
+            var asistencia_muj = 0;
+            var asistencia_jov = 0;
+            var asistencia_nin = 0;
+            
+            if(document.getElementById("final_asistencia_hom").value != ""){
+                var asistencia_hom = document.getElementById("final_asistencia_hom").value;
+            }
+            if(document.getElementById("final_asistencia_muj").value != ""){
+                var asistencia_muj = document.getElementById("final_asistencia_muj").value;
+            }
+            if(document.getElementById("final_asistencia_jov").value != ""){
+                var asistencia_jov = document.getElementById("final_asistencia_jov").value;
+            }
+            if(document.getElementById("final_asistencia_nin").value != ""){
+                var asistencia_nin = document.getElementById("final_asistencia_nin").value;
+            }
+            
+            var var_suma = parseInt(asistencia_hom) + parseInt(asistencia_muj) + parseInt(asistencia_jov) + parseInt(asistencia_nin);
+            //
+            document.getElementById("final_asistencia_hom").value = parseInt(asistencia_hom);
+            document.getElementById("final_asistencia_muj").value = parseInt(asistencia_muj);
+            document.getElementById("final_asistencia_jov").value = parseInt(asistencia_jov);
+            document.getElementById("final_asistencia_nin").value = parseInt(asistencia_nin);
+            
+            
+            
+            document.getElementById("final_bautizados").value = parseInt(bautizados) + 1;
+            document.getElementById("final_discipulado").value = parseInt(var_suma) - 1;
+            //
+            document.getElementById("final_bautizadosPeriodo").value = parseInt(bautizadosPeriodo);
+            
+            //document.getElementById("final_desiciones").value = parseInt(var_suma) - 1;
+            document.getElementById("final_preparandose").value = parseInt(var_suma) - 1 - parseInt(bautizadosPeriodo);                
+        }            
+        
+        function eliminarRegistro(){
+            if(confirm("Esta seguro que desea eliminar este registro, esta acción NO se puede deshacer.")){
+                document.getElementById('funcion').value = "eliminar";
+                document.getElementById('form1').submit();
+            }                
+        }
+        
+        function generarForm(generacion){
+            sumar();
+            <?php
+            //if($_SESSION["perfil"] == 163){
+                ?>
+                $(':input[type="submit"]').prop('disabled', true);
+                document.getElementById('funcion').value = "actualizar";
+                //Completo el formulario  
+                //document.getElementById('form1').submit();
+                return true;
+            <?php
+            //}
+            //else{
+            //    /* //return false; */
+            //}
+            ?>
+        }            
 
-        <input type="hidden" name="funcion"    id="funcion"    value="actualizar" />
-        <input type="hidden" name="generacion" id="generacion" value="<?= htmlspecialchars($generacionActual) ?>" />
+        function init(){
+            document.getElementById('form1').onsubmit = function(){
+                    return generarForm();
+            }
 
-    </form><!-- /form edición -->
-    </div><!-- /report-shell -->
-
-    <!-- ================================================================ -->
-    <!-- JAVASCRIPT DE EDICIÓN                                            -->
-    <!-- CORRECCIÓN: función sumar() corregida (lee valores del DOM)      -->
-    <!-- ================================================================ -->
-    <script>
-    function sumar() {
-        // CORRECCIÓN: lee todos los valores directamente del DOM.
-        // Las variables bautizados/var_suma/bautizadosPeriodo NO existen en este scope;
-        // el formulario de edición no usa campos con esos IDs, así que esta función
-        // sólo necesita asegurarse de que el submit no falle por referencias rotas.
-        // Los campos real_asistencia_* no existen en este formulario; se deja vacía
-        // para compatibilidad y se delega la validación al servidor.
+        }        
+        //
+        window.onload = function(){
+            init();
+        }
+    </script>
+<?php }else if($preguntarGeneracion == 1){?>
+    <script language="javascript">
+        generarForm('LPP');
+        function generarForm(generacion){
+            if(generacion == "LPP"){
+                document.getElementById('generacion').value = "LPP";
+            }
+            //Completo el formulario  
+          document.getElementById('form1').submit();
+        }            
+        
+        function init(){
+            document.getElementById('form1').onsubmit = function(){
+                    return generarForm();
+            }
+        }        
+        window.onload = function(){
+            init();
+        }
+    </script>        
+<?php }else if(!isset($_REQUEST["id"])){
+    $temp_accionForm = "insertar";
+    $idGrupoMadre = soloNumeros($_REQUEST["idGrupoMadre"]);
+    //
+    if(!isset($_REQUEST["fechaReporte"])){
+        $fechaReporte = date("Y-m-d");        
+    }else{
+        $fechaReporte = eliminarInvalidos($_REQUEST["fechaReporte"]);
+    }
+    //
+    $sql = "SELECT sat_grupos.nombre ";
+    $sql.=" FROM sat_grupos ";
+    $sql.=" WHERE sat_grupos.id = '".$idGrupoMadre."'";
+    $sql.=" GROUP BY sat_grupos.id";
+    $PSN1->query($sql);
+    if($PSN1->num_rows() > 0)
+    {
+        if($PSN1->next_record())
+        {
+            $nombreGrupoMadre =  $PSN1->f("nombre");
+        }//chequear el registro
+    }//chequear el numero
+}else{
+    $temp_accionForm = "actualizar";
+    //  ID del usuario actual
+    $idReporteActual = soloNumeros($_REQUEST["id"]);   
+}
+/*
+*   SI SE INSERTO REGISTRO SE REDIRIGE
+*/
+?>
+<style type="text/css">
+    .report-shell{
+        max-width: 1240px;
+        margin: 24px auto 42px;
+        padding: 0 14px 26px;
     }
 
-    function eliminarRegistro() {
-        if (confirm("¿Está seguro que desea eliminar este registro? Esta acción NO se puede deshacer.")) {
-            document.getElementById('funcion').value = "eliminar";
-            document.getElementById('form1').submit();
+    .report-shell .alert{
+        border: 0;
+        border-radius: 24px;
+        padding: 18px 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 18px 38px rgba(15, 45, 72, 0.12);
+        font-weight: 700;
+        letter-spacing: 0.2px;
+    }
+
+    .report-shell .alert-info{
+        background: linear-gradient(135deg, #123e59 0%, #296d92 60%, #8ec6df 100%);
+        color: #ffffff;
+    }
+
+    .report-shell .alert-success{
+        background: linear-gradient(135deg, #28724f 0%, #39a46e 100%);
+        color: #ffffff;
+    }
+
+    .report-shell .alert-warning{
+        background: #fff5d7;
+        color: #7a5a08;
+        border: 1px solid #f2d78d;
+    }
+
+    .report-shell .alert-danger{
+        background: #fff1f0;
+        color: #8f2b24;
+        border: 1px solid #f1b7b3;
+    }
+
+    .report-shell .alert a{
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .report-shell .alert a:hover{
+        text-decoration: underline;
+    }
+
+    .report-form{
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+        border: 1px solid #dbe7f1;
+        border-radius: 30px;
+        padding: 24px 24px 34px;
+        box-shadow: 0 24px 60px rgba(16, 46, 72, 0.12);
+    }
+
+    .report-form:before{
+        content: "";
+        position: absolute;
+        top: -140px;
+        right: -70px;
+        width: 320px;
+        height: 320px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(85, 154, 196, 0.18) 0%, rgba(85, 154, 196, 0) 70%);
+        pointer-events: none;
+    }
+
+    .report-form > .col-sm-12{
+        position: relative;
+        width: 100%;
+        margin-bottom: 22px;
+        padding: 24px 22px 16px;
+        border-radius: 24px;
+        border: 1px solid #e4edf4;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 14px 34px rgba(22, 53, 80, 0.08);
+    }
+
+    .report-form > .col-sm-12:last-of-type{
+        margin-bottom: 0;
+    }
+
+    .report-form .cont-tit{
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-bottom: 20px;
+    }
+
+    .report-form .cont-tit .hr{
+        flex: 1 1 0;
+    }
+
+    .report-form .cont-tit hr{
+        margin: 10px 0;
+        border-top: 1px solid #cad8e4;
+    }
+
+    .report-form .cont-tit .tit-cen{
+        flex: 0 1 auto;
+        min-width: 280px;
+        padding: 12px 20px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #f1f7fb 0%, #ffffff 100%);
+        border: 1px solid #d9e6f0;
+        text-align: center;
+    }
+
+    .report-form .cont-tit h3{
+        margin: 0 0 4px;
+        color: #19344c;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 24px;
+        font-weight: 700;
+    }
+
+    .report-form .cont-tit h5,
+    .report-form .cont-tit p{
+        margin: 0;
+        color: #577086;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .report-form .form-group{
+        margin-left: -8px;
+        margin-right: -8px;
+        margin-bottom: 4px;
+    }
+
+    .report-form .form-group > [class*="col-sm-"]{
+        padding-left: 8px;
+        padding-right: 8px;
+        margin-bottom: 16px;
+    }
+
+    .report-form strong{
+        display: block;
+        margin-bottom: 8px;
+        color: #243c55;
+        font-size: 13px;
+        letter-spacing: 0.2px;
+    }
+
+    .report-form .form-control,
+    .report-form select,
+    .report-form textarea{
+        min-height: 46px;
+        height: auto;
+        border-radius: 14px;
+        border: 1px solid #c7d6e2;
+        background: #f8fbfd;
+        box-shadow: none;
+        color: #1f3348;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    }
+
+    .report-form textarea.form-control{
+        min-height: 120px;
+    }
+
+    .report-form .form-control:focus,
+    .report-form select:focus,
+    .report-form textarea:focus{
+        border-color: #4f8db6;
+        background: #ffffff;
+        box-shadow: 0 0 0 4px rgba(79, 141, 182, 0.14);
+    }
+
+    .report-form .form-control[readonly],
+    .report-form .form-control[disabled],
+    .report-form select[disabled],
+    .report-form textarea[disabled]{
+        background: #eef4f8;
+        color: #53687b;
+    }
+
+    .report-form input[type="file"].form-control{
+        padding: 10px 12px;
+    }
+
+    .report-form .btn{
+        border-radius: 14px;
+        padding: 11px 18px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        border: 0;
+        box-shadow: 0 12px 24px rgba(20, 56, 86, 0.14);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+    }
+
+    .report-form .btn:hover,
+    .report-form .btn:focus{
+        transform: translateY(-1px);
+        box-shadow: 0 16px 26px rgba(20, 56, 86, 0.18);
+        filter: brightness(1.02);
+    }
+
+    .report-form .btn-success{
+        background: linear-gradient(135deg, #2d8658 0%, #39a977 100%);
+        color: #ffffff;
+    }
+
+    .report-form .btn-info{
+        background: linear-gradient(135deg, #2c6d8f 0%, #3d90bb 100%);
+        color: #ffffff;
+    }
+
+    .report-form .btn-warning{
+        background: linear-gradient(135deg, #d89d2f 0%, #efb64c 100%);
+        color: #ffffff;
+    }
+
+    .report-form .btn-danger{
+        background: linear-gradient(135deg, #c54c43 0%, #df6a61 100%);
+        color: #ffffff;
+    }
+
+    .report-form .btn-cir-uno,
+    .report-form .btn-eliminar-fila{
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+        padding: 0;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .report-form #tablaAdd,
+    .report-form #tablaAdd2,
+    .report-form #tablaAdd3{
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        overflow: hidden;
+        border-radius: 18px;
+        border: 1px solid #dce7ef;
+        background: #f9fbfd;
+    }
+
+    .report-form #tablaAdd td,
+    .report-form #tablaAdd2 td,
+    .report-form #tablaAdd3 td{
+        padding: 16px 14px;
+        vertical-align: top;
+        border-top: 1px solid #e2eaf1;
+    }
+
+    .report-form #tablaAdd tr:first-child td,
+    .report-form #tablaAdd2 tr:first-child td,
+    .report-form #tablaAdd3 tr:first-child td{
+        border-top: 0;
+    }
+
+    .report-shell .cont-btn{
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .report-shell .cont-btn.fl-cent{
+        justify-content: center;
+    }
+
+    .report-shell .item-btn{
+        margin: 0;
+    }
+
+    .report-shell .item-btn .btn,
+    .report-shell .item-btn input.btn{
+        min-width: 180px;
+    }
+
+    @media (max-width: 991px){
+        .report-shell{
+            padding: 0 12px 22px;
+        }
+
+        .report-form{
+            padding: 18px 16px 26px;
+            border-radius: 24px;
+        }
+
+        .report-form > .col-sm-12{
+            padding: 20px 16px 12px;
+            border-radius: 20px;
+        }
+
+        .report-form .cont-tit{
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .report-form .cont-tit .hr{
+            width: 100%;
+        }
+
+        .report-form .cont-tit .tit-cen{
+            width: 100%;
+            min-width: 0;
         }
     }
 
-    function generarForm() {
-        $(':input[type="submit"]').prop('disabled', true);
-        document.getElementById('funcion').value = "actualizar";
-        return true;
+    @media (max-width: 767px){
+        .report-shell{
+            margin-top: 14px;
+            padding: 0 10px 18px;
+        }
+
+        .report-shell .alert{
+            border-radius: 18px;
+            padding: 16px 18px;
+            font-size: 18px;
+        }
+
+        .report-form .form-group{
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .report-form .form-group > [class*="col-sm-"]{
+            padding-left: 0;
+            padding-right: 0;
+            margin-bottom: 14px;
+        }
+
+        .report-form [class*="col-sm-"]:empty{
+            display: none;
+        }
+
+        .report-form #tablaAdd td,
+        .report-form #tablaAdd2 td,
+        .report-form #tablaAdd3 td{
+            display: block;
+            width: 100% !important;
+        }
+
+        .report-shell .cont-btn{
+            justify-content: center;
+        }
+
+        .report-shell .item-btn,
+        .report-shell .item-btn .btn,
+        .report-shell .item-btn input.btn{
+            width: 100%;
+        }
+
+        .report-form center .btn{
+            width: 100%;
+            max-width: none;
+        }
+    }
+</style>
+<style type="text/css">
+    .report-shell{
+        max-width: 1260px;
+        margin: 28px auto 40px;
+        padding: 0 18px 24px;
     }
 
-    window.addEventListener('load', function () {
-        document.getElementById('form1').onsubmit = function () {
-            return generarForm();
-        };
-    });
-    </script>
+    .report-shell .alert{
+        background: #ffffff;
+        color: #1f2933;
+        border: 1px solid #d9dee3;
+        border-left-width: 4px;
+        border-radius: 12px;
+        padding: 18px 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        font-weight: 700;
+        letter-spacing: 0.01em;
+    }
 
+    .report-shell .alert-info{
+        background: #f8f9fb;
+        color: #1f2d3a;
+        border-left-color: #243746;
+    }
+
+    .report-shell .alert-success{
+        background: #f7f9f7;
+        color: #27352d;
+        border-left-color: #56685a;
+    }
+
+    .report-shell .alert-warning{
+        background: #fbf8f2;
+        color: #6d5634;
+        border-left-color: #8a6a3f;
+    }
+
+    .report-shell .alert-danger{
+        background: #fbf6f5;
+        color: #6b3b38;
+        border-left-color: #7a4340;
+    }
+
+    .report-form{
+        background: #f5f5f3;
+        border: 1px solid #d7dbdf;
+        border-radius: 18px;
+        padding: 28px 26px 34px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+    }
+
+    .report-form:before{
+        display: none;
+    }
+
+    .report-form > .col-sm-12{
+        margin-bottom: 18px;
+        padding: 24px 22px 18px;
+        border-radius: 14px;
+        border: 1px solid #e1e4e8;
+        background: #ffffff;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+    }
+
+    .report-form .cont-tit{
+        gap: 16px;
+        margin: 0 0 24px;
+    }
+
+    .report-form .cont-tit hr{
+        margin: 0;
+        border: 0;
+        border-top: 1px solid #d7dce1;
+    }
+
+    .report-form .cont-tit .tit-cen{
+        width: auto;
+        max-width: 560px;
+        min-width: 320px;
+        padding: 14px 22px 12px;
+        border-radius: 12px;
+        background: #f8f9fa;
+        border: 1px solid #d9dee3;
+        text-align: center;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    .report-form .cont-tit h3{
+        margin: 0;
+        color: #1e2d3a;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 23px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+
+    .report-form .cont-tit h5{
+        margin: 5px 0 0;
+        color: #52606d;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .report-form .cont-tit p{
+        margin: 6px 0 0;
+        color: #5b6875;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .report-form .form-group{
+        margin-left: -10px;
+        margin-right: -10px;
+        margin-bottom: 2px;
+    }
+
+    .report-form .form-group > [class*="col-sm-"]{
+        padding-left: 10px;
+        padding-right: 10px;
+        margin-bottom: 18px;
+    }
+
+    .report-form strong{
+        margin-bottom: 7px;
+        color: #24313d;
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.45;
+    }
+
+    .report-form .form-control,
+    .report-form select,
+    .report-form textarea{
+        padding: 11px 14px;
+        border-radius: 10px;
+        border: 1px solid #cfd5db;
+        background: #ffffff;
+        color: #1f2933;
+    }
+
+    .report-form .form-control:focus,
+    .report-form select:focus,
+    .report-form textarea:focus{
+        border-color: #334e68;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(51, 78, 104, 0.10);
+    }
+
+    .report-form .form-control[readonly],
+    .report-form .form-control[disabled],
+    .report-form select[disabled],
+    .report-form textarea[disabled]{
+        background: #f4f5f6;
+        color: #5f6b76;
+    }
+
+    .report-form input[type="file"].form-control{
+        padding: 8px 10px;
+    }
+
+    .report-form .btn{
+        border-radius: 10px;
+        padding: 11px 18px;
+        letter-spacing: 0.03em;
+        border: 1px solid transparent;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+
+    .report-form .btn:hover,
+    .report-form .btn:focus{
+        box-shadow: 0 12px 22px rgba(15, 23, 42, 0.10);
+        filter: brightness(1.01);
+    }
+
+    .report-form .btn-success{
+        background: #1f3547;
+        border-color: #1f3547;
+        color: #ffffff;
+    }
+
+    .report-form .btn-info{
+        background: #4b5b68;
+        border-color: #4b5b68;
+        color: #ffffff;
+    }
+
+    .report-form .btn-warning{
+        background: #8a6a3f;
+        border-color: #8a6a3f;
+        color: #ffffff;
+    }
+
+    .report-form .btn-danger{
+        background: #7a4340;
+        border-color: #7a4340;
+        color: #ffffff;
+    }
+
+    .report-form .btn-cir-uno,
+    .report-form .btn-eliminar-fila{
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+    }
+
+    .report-form #tablaAdd,
+    .report-form #tablaAdd2,
+    .report-form #tablaAdd3{
+        border-radius: 14px;
+        border: 1px solid #e0e4e7;
+        background: #ffffff;
+    }
+
+    .report-form #tablaAdd td,
+    .report-form #tablaAdd2 td,
+    .report-form #tablaAdd3 td{
+        border-top: 1px solid #eceff2;
+    }
+
+    .report-shell .cont-btn{
+        margin-bottom: 20px;
+    }
+
+    @media (max-width: 991px){
+        .report-shell{
+            padding: 0 14px 22px;
+        }
+
+        .report-form{
+            padding: 22px 18px 28px;
+            border-radius: 16px;
+        }
+
+        .report-form > .col-sm-12{
+            padding: 20px 16px 14px;
+            border-radius: 12px;
+        }
+
+        .report-form .cont-tit{
+            gap: 12px;
+        }
+
+        .report-form .cont-tit .tit-cen{
+            width: 100%;
+            min-width: 0;
+            max-width: none;
+        }
+    }
+
+    @media (max-width: 767px){
+        .report-shell{
+            margin-top: 16px;
+            padding: 0 10px 16px;
+        }
+
+        .report-shell .alert{
+            padding: 16px 18px;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+    }
+</style>
+<style type="text/css">
+    .report-shell .alert,
+    .report-shell .alert-info,
+    .report-shell .alert-success,
+    .report-shell .alert-warning,
+    .report-shell .alert-danger{
+        background: #ffffff;
+        color: #20262d;
+        border: 1px solid #d7dce1;
+        border-left: 4px solid #2d3338;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+    }
+
+    .report-form{
+        background: #f7f7f7;
+        border: 1px solid #d8d8d8;
+        box-shadow: 0 14px 32px rgba(0, 0, 0, 0.05);
+    }
+
+    .report-form:before{
+        display: none !important;
+    }
+
+    .report-form > .col-sm-12{
+        background: #ffffff;
+        border: 1px solid #e1e1e1;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+    }
+
+    .report-form .cont-tit .tit-cen{
+        background: #fbfbfb;
+        border: 1px solid #d9d9d9;
+        box-shadow: none;
+    }
+
+    .report-form .cont-tit hr{
+        border-top-color: #d0d0d0;
+    }
+
+    .report-form .cont-tit h3{
+        color: #111111;
+    }
+
+    .report-form .cont-tit h5,
+    .report-form .cont-tit p{
+        color: #555555;
+    }
+
+    .report-form .form-group > [class*="col-sm-"] > strong:first-child{
+        min-height: 3.7em;
+    }
+
+    .report-form .form-control,
+    .report-form select,
+    .report-form textarea{
+        background: #ffffff;
+        border: 1px solid #cfcfcf;
+        color: #1f1f1f;
+    }
+
+    .report-form .form-control:focus,
+    .report-form select:focus,
+    .report-form textarea:focus{
+        border-color: #6f7780;
+        box-shadow: 0 0 0 3px rgba(70, 70, 70, 0.08);
+    }
+
+    .report-form .btn,
+    .report-form input.btn{
+        background: #f3f3f3;
+        border-color: #cccccc;
+        color: #222222;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .report-form .btn-success,
+    .report-form .btn-info,
+    .report-form .btn-warning{
+        background: #f3f3f3;
+        border-color: #cccccc;
+        color: #222222;
+    }
+
+    #adicionarAdd,
+    #adicionarAdd2,
+    #adicionarAdd3,
+    #generarVariasAdd{
+        background: #2f7d32 !important;
+        border-color: #2f7d32 !important;
+        color: #ffffff !important;
+    }
+
+    #borrarTodoAdd,
+    .report-form .btn-danger,
+    .report-form .btn-cir-uno,
+    .report-form .btn-eliminar-fila{
+        background: #c0392b !important;
+        border-color: #c0392b !important;
+        color: #ffffff !important;
+    }
+
+    .report-form input[type="submit"][name="button"],
+    .report-form input[type="submit"][value="Guardar"]{
+        background: #2b5daa !important;
+        border-color: #2b5daa !important;
+        color: #ffffff !important;
+    }
+
+    .report-form .registro-section{
+        border-top: 3px solid #252525;
+    }
+
+    .report-form .registro-section.registro-graduados{
+        border-top-color: #404040;
+        background: linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
+    }
+
+    .report-form .registro-section.registro-internos{
+        border-top-color: #5a5a5a;
+        background: linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
+    }
+
+    .report-form .registro-section.registro-externos{
+        border-top-color: #7a7a7a;
+        background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+    }
+
+    .report-form .registro-table-wrap{
+        float: none;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+
+    .report-form .registro-table{
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0;
+        table-layout: fixed;
+        border: 0 !important;
+        border-collapse: separate !important;
+        border-spacing: 0 14px !important;
+        background: transparent !important;
+    }
+
+    .report-form .registro-table > tbody > tr > td,
+    .report-form .registro-table > tr > td{
+        padding: 18px 20px !important;
+        vertical-align: top !important;
+        border: 1px solid #dbe3ea !important;
+        border-left-width: 0 !important;
+        background: #ffffff;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    .report-form .registro-table > tbody > tr > td:first-child,
+    .report-form .registro-table > tr > td:first-child{
+        border-left-width: 1px !important;
+        border-radius: 18px 0 0 18px;
+    }
+
+    .report-form .registro-table > tbody > tr > td:last-child,
+    .report-form .registro-table > tr > td:last-child{
+        border-radius: 0 18px 18px 0;
+    }
+
+    .report-form .registro-table .registro-col--nombre{
+        width: 52%;
+    }
+
+    .report-form .registro-table .registro-col--identificacion{
+        width: 38%;
+    }
+
+    .report-form .registro-table .registro-col--action{
+        width: 10%;
+        padding: 18px 10px !important;
+        text-align: center;
+        vertical-align: middle !important;
+    }
+
+    .report-form .registro-table strong{
+        display: block;
+        width: 100%;
+        min-height: 0 !important;
+        margin-bottom: 8px;
+    }
+
+    .report-form .registro-table input{
+        width: 100% !important;
+        min-height: 44px !important;
+        margin-top: 0;
+    }
+
+    .report-form .registro-table .btn,
+    .report-form .registro-table .btn-cir-uno,
+    .report-form .registro-table .btn-eliminar-fila{
+        margin: 0 auto;
+    }
+
+    .report-form .registro-summary,
+    .report-form .registro-bulk-controls{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 14px 16px;
+        width: 100%;
+        padding: 18px 20px;
+        border: 1px solid #dbe3ea;
+        border-radius: 18px;
+        background: #f8fafc;
+    }
+
+    .report-form .registro-summary > [class*="col-sm-"],
+    .report-form .registro-bulk-controls > [class*="col-sm-"]{
+        float: none;
+        width: auto;
+        padding: 0;
+        margin: 0;
+    }
+
+    .report-form .registro-summary > :first-child,
+    .report-form .registro-bulk-controls > :first-child{
+        flex: 1 1 360px;
+        min-width: 0;
+    }
+
+    .report-form .registro-summary > :nth-child(2),
+    .report-form .registro-bulk-controls > :nth-child(2){
+        flex: 0 0 160px;
+        max-width: 180px;
+        min-width: 130px;
+    }
+
+    .report-form .registro-summary > :nth-child(3){
+        display: none;
+    }
+
+    .report-form .registro-summary > :last-child,
+    .report-form .registro-bulk-controls > :last-child{
+        flex: 1 1 220px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-end;
+    }
+
+    .report-form .registro-summary > :last-child > center,
+    .report-form .registro-bulk-controls > :last-child > center{
+        width: 100%;
+    }
+
+    .report-form .registro-summary__text,
+    .report-form .registro-bulk-controls__text{
+        flex: 1 1 360px;
+        min-width: 0;
+    }
+
+    .report-form .registro-summary__text strong,
+    .report-form .registro-bulk-controls__text label{
+        display: block;
+        width: 100%;
+        margin: 0;
+        min-height: 0 !important;
+    }
+
+    .report-form .registro-summary__value,
+    .report-form .registro-bulk-controls__value{
+        flex: 0 0 160px;
+        max-width: 180px;
+        min-width: 130px;
+    }
+
+    .report-form .registro-summary__value .form-control,
+    .report-form .registro-bulk-controls__value .form-control{
+        width: 100%;
+        text-align: center;
+        font-weight: 700;
+    }
+
+    .report-form .registro-summary__actions,
+    .report-form .registro-bulk-controls__actions{
+        flex: 1 1 220px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .report-form .registro-summary__actions > [class*="col-sm-"],
+    .report-form .registro-bulk-controls__actions > [class*="col-sm-"]{
+        float: none;
+        width: auto;
+        padding: 0;
+        margin: 0;
+    }
+
+    .report-form .registro-summary__actions .btn,
+    .report-form .registro-bulk-controls__actions .btn,
+    .report-form .registro-summary > :last-child .btn,
+    .report-form .registro-bulk-controls > :last-child .btn{
+        min-width: 160px;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 767px){
+        .report-form .form-group > [class*="col-sm-"] > strong:first-child{
+            min-height: 0;
+        }
+
+        .report-form .registro-table{
+            border-spacing: 0 12px !important;
+        }
+
+        .report-form .registro-table > tbody > tr,
+        .report-form .registro-table > tr{
+            display: block;
+        }
+
+        .report-form .registro-table > tbody > tr > td,
+        .report-form .registro-table > tr > td{
+            display: block;
+            width: 100% !important;
+            border-left-width: 1px !important;
+            border-radius: 0 !important;
+        }
+
+        .report-form .registro-table > tbody > tr > td:first-child,
+        .report-form .registro-table > tr > td:first-child{
+            border-radius: 18px 18px 0 0 !important;
+        }
+
+        .report-form .registro-table > tbody > tr > td:last-child,
+        .report-form .registro-table > tr > td:last-child{
+            border-top: 0 !important;
+            border-radius: 0 0 18px 18px !important;
+        }
+
+        .report-form .registro-table .registro-col--action{
+            min-height: 74px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .report-form .registro-summary,
+        .report-form .registro-bulk-controls{
+            padding: 16px;
+        }
+
+        .report-form .registro-summary__text,
+        .report-form .registro-summary__value,
+        .report-form .registro-summary__actions,
+        .report-form .registro-bulk-controls__text,
+        .report-form .registro-bulk-controls__value,
+        .report-form .registro-bulk-controls__actions{
+            flex: 1 1 100%;
+            max-width: none;
+        }
+
+        .report-form .registro-summary__actions,
+        .report-form .registro-bulk-controls__actions{
+            justify-content: stretch;
+        }
+
+        .report-form .registro-summary__actions .btn,
+        .report-form .registro-bulk-controls__actions .btn,
+        .report-form .registro-summary > :last-child .btn,
+        .report-form .registro-bulk-controls > :last-child .btn{
+            width: 100%;
+            min-width: 0;
+        }
+
+        .report-form .registro-summary > :last-child,
+        .report-form .registro-bulk-controls > :last-child{
+            width: 100%;
+            justify-content: stretch;
+        }
+
+        .report-form .registro-summary__actions > [class*="col-sm-"],
+        .report-form .registro-bulk-controls__actions > [class*="col-sm-"]{
+            width: 100%;
+        }
+    }
+</style>
 <?php
-// ---------------------------------------------------------------------------
-// MODO: INSERCIÓN EXITOSA (redirect / confirmación)
-// ---------------------------------------------------------------------------
-} elseif ($varExitoREP == 1) {
-    ?>
+if($idReporteActual > 0){
+    //No hacemos nada.
+}else if($varExitoREP == 1){?>
     <div class="container report-shell">
         <div class="row">
-            <h2 class="alert alert-info text-center">REPORTE DE <?= htmlspecialchars($temp_letrero) ?></h2>
+            <h2 class="alert alert-info text-center"><?php
+            if($idReporteActual == 0){
+                echo "REPORTE";
+            }
+            else{
+                echo "ACTUALIZACIÓN";
+            }
+            ?> DE <?=$temp_letrero; ?></h2>
         </div>
+
         <div class="row">
-            <h2 class="alert alert-success text-center">
-                <a href="index.php?doc=gestionar-sub-programa-lpp&opc=2&id=<?= $ultimoId ?>">
-                    Se ha creado correctamente el registro, haga clic aquí para verlo.
-                </a>
-            </h2>
+            <h2 class="alert alert-success text-center"><a href="index.php?doc=gestionar-sub-programa-lpp&opc=2&id=<?=$ultimoId; ?>" class="h2">Se ha <?php
+            if($idReporteActual == 0){
+                echo "creado";
+            }
+            else{
+                echo "actualizado";
+            }
+            ?> correctamente el registro, para ver el reporte de clic aquí</a>.</h2>
         </div>
-    </div>
-<?php
-// ---------------------------------------------------------------------------
-// MODO: FORMULARIO DE INSERCIÓN (nuevo reporte)
-// ---------------------------------------------------------------------------
-} elseif ($idReporteActual == 0) {
-    $temp_accionForm = "insertar";
-    $idGrupoMadre    = (int) soloNumeros(requestValue('idGrupoMadre', 0));
-
-    if (!isset($_REQUEST['fechaReporte'])) {
-        $fechaReporte = date('Y-m-d');
-    } else {
-        $fechaReporte = eliminarInvalidos($_REQUEST['fechaReporte']);
-    }
-
-    // Nombre del grupo madre
-    if ($idGrupoMadre > 0) {
-        $sqlGM = "SELECT nombre FROM sat_grupos WHERE id = $idGrupoMadre GROUP BY id";
-        $PSN1->query($sqlGM);
-        if ($PSN1->num_rows() > 0 && $PSN1->next_record()) {
-            $nombreGrupoMadre = $PSN1->f('nombre');
-        }
-    }
-    ?>
-    <!-- ================================================================ -->
-    <!-- ESTILOS (mismo set que el modo edición, incluido arriba)         -->
-    <!-- ================================================================ -->
+    </div>   
+<?php }else if($idReporteActual == 0){?>
     <style type="text/css">
-        /* Reutiliza los mismos estilos definidos en el bloque de edición  */
-        /* (en producción mover a un único archivo CSS externo).           */
-        .report-shell { max-width:1240px; margin:24px auto 42px; padding:0 14px 26px; }
-        .report-shell .alert { border-radius:12px; padding:18px 22px; margin-bottom:18px; box-shadow:0 8px 24px rgba(15,23,42,.06); font-weight:700; }
-        .report-shell .alert-info    { background:#f8f9fb; color:#1f2d3a; border:1px solid #d9dee3; border-left:4px solid #243746; }
-        .report-shell .alert-success { background:#f7f9f7; color:#27352d; border:1px solid #c8d9cf; border-left:4px solid #56685a; }
-        .report-shell .alert-warning { background:#fbf8f2; color:#6d5634; border:1px solid #e8d9b5; border-left:4px solid #8a6a3f; }
-        .report-shell .alert-danger  { background:#fbf6f5; color:#6b3b38; border:1px solid #e8c4c2; border-left:4px solid #7a4340; }
-        .report-form { background:#f5f5f3; border:1px solid #d7dbdf; border-radius:18px; padding:28px 26px 34px; box-shadow:0 18px 40px rgba(15,23,42,.06); }
-        .report-form > .col-sm-12 { margin-bottom:18px; padding:24px 22px 18px; border-radius:14px; border:1px solid #e1e4e8; background:#fff; box-shadow:0 8px 22px rgba(15,23,42,.04); }
-        .report-form .cont-tit { display:flex; align-items:center; gap:16px; margin-bottom:20px; }
-        .report-form .cont-tit .hr { flex:1 1 0; }
-        .report-form .cont-tit hr { margin:0; border:0; border-top:1px solid #d7dce1; }
-        .report-form .cont-tit .tit-cen { flex:0 1 auto; min-width:280px; padding:14px 22px; border-radius:12px; background:#f8f9fa; border:1px solid #d9dee3; text-align:center; }
-        .report-form .cont-tit h3 { margin:0 0 4px; color:#1e2d3a; font-family:Georgia,"Times New Roman",serif; font-size:22px; font-weight:700; }
-        .report-form .cont-tit h5, .report-form .cont-tit p { margin:0; color:#52606d; font-size:13px; }
-        .report-form .form-group { margin-left:-8px; margin-right:-8px; margin-bottom:4px; }
-        .report-form .form-group > [class*="col-sm-"] { padding-left:8px; padding-right:8px; margin-bottom:16px; }
-        .report-form strong { display:block; margin-bottom:8px; color:#24313d; font-size:12.5px; font-weight:700; }
-        .report-form .form-control, .report-form select, .report-form textarea { min-height:44px; height:auto; padding:10px 14px; border-radius:10px; border:1px solid #cfd5db; background:#fff; color:#1f2933; transition:border-color .18s,box-shadow .18s; }
-        .report-form .form-control:focus, .report-form select:focus { border-color:#334e68; box-shadow:0 0 0 3px rgba(51,78,104,.10); }
-        .report-form .form-control[readonly], .report-form .form-control[disabled] { background:#f4f5f6; color:#5f6b76; }
-        .report-form input[type="file"].form-control { padding:8px 10px; }
-        .report-form .btn { border-radius:10px; padding:10px 18px; font-weight:700; border:1px solid transparent; box-shadow:0 8px 18px rgba(15,23,42,.08); transition:box-shadow .18s,filter .18s; }
-        .report-form .btn:hover { box-shadow:0 12px 22px rgba(15,23,42,.12); filter:brightness(1.02); }
-        .report-form .btn-success { background:#1f3547; border-color:#1f3547; color:#fff; }
-        .report-form .btn-info    { background:#4b5b68; border-color:#4b5b68; color:#fff; }
-        .report-form .btn-danger  { background:#7a4340; border-color:#7a4340; color:#fff; }
-        .report-form .btn-cir-uno, .report-form .btn-eliminar-fila { width:40px; height:40px; min-width:40px; padding:0; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#c0392b !important; border-color:#c0392b !important; color:#fff !important; }
-        .report-form .registro-table { width:100%; border-collapse:separate; border-spacing:0 12px; background:transparent !important; border:0 !important; }
-        .report-form .registro-table td { padding:16px 14px; vertical-align:top; border:1px solid #dbe3ea; border-left-width:0; background:#fff; box-shadow:0 8px 20px rgba(15,23,42,.04); }
-        .report-form .registro-table td:first-child { border-left-width:1px; border-radius:14px 0 0 14px; }
-        .report-form .registro-table td:last-child { border-radius:0 14px 14px 0; }
-        .report-form .registro-table .registro-col--nombre { width:52%; }
-        .report-form .registro-table .registro-col--identificacion { width:38%; }
-        .report-form .registro-table .registro-col--action { width:10%; text-align:center; vertical-align:middle !important; }
-        .report-form .registro-table input { width:100%; margin-top:0; }
-        .report-form .registro-summary, .report-form .registro-bulk-controls { display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px 16px; width:100%; padding:18px 20px; border:1px solid #dbe3ea; border-radius:14px; background:#f8fafc; }
-        .report-form .registro-summary > [class*="col-sm-"], .report-form .registro-bulk-controls > [class*="col-sm-"] { float:none; width:auto; padding:0; margin:0; }
-        .report-form .registro-summary > :first-child, .report-form .registro-bulk-controls > :first-child { flex:1 1 360px; }
-        .report-form .registro-summary > :nth-child(2), .report-form .registro-bulk-controls > :nth-child(2) { flex:0 0 160px; max-width:180px; }
-        .report-form .registro-summary > :last-child, .report-form .registro-bulk-controls > :last-child { flex:1 1 220px; display:flex; justify-content:flex-end; gap:10px; }
-        #adicionarAdd, #adicionarAdd2, #adicionarAdd3, #generarVariasAdd { background:#2f7d32 !important; border-color:#2f7d32 !important; color:#fff !important; }
-        #borrarTodoAdd { background:#c0392b !important; border-color:#c0392b !important; color:#fff !important; }
-        .report-form input[type="submit"][value="Guardar"] { background:#2b5daa !important; border-color:#2b5daa !important; color:#fff !important; }
-        .report-shell .cont-btn { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:12px; margin-bottom:18px; }
-        @media (max-width:767px) {
-            .report-form .registro-table td { display:block; width:100% !important; }
-            .report-form .registro-table td:first-child { border-radius:14px 14px 0 0; border-left-width:1px; }
-            .report-form .registro-table td:last-child { border-radius:0 0 14px 14px; border-top:0; }
+        #form1 fieldset:not(:first-of-type){
+            display: none;
         }
     </style>
+<div class="container report-shell">
+    <div class="row">
+        <h3 class="alert alert-info text-center"><?php
+            if($idReporteActual == 0){
+                echo "REPORTE";
+            }else{
+                echo "ACTUALIZACIÓN";
+            }?> DE <?=$temp_letrero; ?></h3>
+    </div>
 
-    <div class="container report-shell">
+    <?php
+    //
+    if($varExitoREP_UPD == 1){
+        ?><div class="row">
+            <h5 class="alert alert-warning text-center">Se ha actualizado correctamente el registro.</h5>
+        </div><?php
+    }
+    //
+    if($texto_error != ""){
+        ?><div class="row">
+            <h5 class="alert alert-danger text-center"><?=$texto_error; ?></h5>
+        </div><?php
+    }
 
-        <h3 class="alert alert-info text-center">REPORTE DE <?= htmlspecialchars($temp_letrero) ?></h3>
-
-        <?php if ($varExitoREP_UPD == 1): ?>
-        <h5 class="alert alert-warning text-center">Se ha actualizado correctamente el registro.</h5>
-        <?php endif; ?>
-        <?php if ($texto_error !== ''): ?>
-        <h5 class="alert alert-danger text-center"><?= htmlspecialchars($texto_error) ?></h5>
-        <?php endif; ?>
-
-        <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="report-form">
-            <input name="fechaReporte" type="hidden" id="fechaReporte" value="<?= htmlspecialchars($fechaReporte) ?>" />
-
-            <!-- -------------------------------------------------------- -->
-            <!-- SECCIÓN: Información General                              -->
-            <!-- -------------------------------------------------------- -->
-            <div class="col-sm-12">
+    //
+    if($errorLogueo == 1){
+        ?><div class="row"><h1><font color="red"><u>ATENCION:</u> NO SE CREO EL INFORME<BR /><u>MOTIVO:</u> YA EXISTE UN INFORME CON ESE VEHÍCULO Y FECHA.<br />POR FAVOR VERIFIQUE.</font></h1></div><?php
+    }
+    //
+    if($error_fatal == 1){
+        //No hacer nada.
+    }else{?>
+    <!-----FORMULARIO DE REGISTO LPP---->
+        <!--<div class="progress">
+            <div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>-->
+        <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="form-horizontal report-form">
+            <input name="fechaReporte" type="hidden" id="fechaReporte" value="<?=$fechaReporte; ?>" />
+            <!--<fieldset>--><div class="col-sm-12">
                 <div class="cont-tit">
                     <div class="hr"><hr></div>
                     <div class="tit-cen">
-                        <h3>Información general</h3>
-                        <p>A continuación por favor ingrese los datos requeridos</p>
+                        <h3 class="text-center">Información general</h3>
+                    <p>A continuación por favor ingrese los datos requeridos</p>
                     </div>
                     <div class="hr"><hr></div>
-                </div>
+                </div> 
                 <div class="form-group">
                     <div class="col-sm-1"></div>
                     <div class="col-sm-2">
                         <strong>Fecha del registro:</strong>
-                        <input name="fechaReporte" type="date" maxlength="250"
-                               value="<?= date('Y-m-d') ?>" max="<?= date('Y-m-d') ?>"
-                               class="form-control" required readonly />
+                        <input name="fechaReporte" type="date" id="fechaReporte" maxlength="250" value="<?=date("Y-m-d"); ?>" max='<?=date("Y-m-d"); ?>' class="form-control"  required readonly  />
                     </div>
                     <div class="col-sm-2">
-                        <?php $mes = (int)date('m'); ?>
+                        <?php $mes = date("m"); ?>
                         <strong>Período:</strong>
-                        <select name="mapeo_cuarto" class="form-control">
-                            <?php if ($mes >= 1  && $mes <= 3):  ?><option value="1"  selected>Q1 (Ene - Mar)</option><?php endif; ?>
-                            <?php if ($mes >= 4  && $mes <= 6):  ?><option value="4"  selected>Q2 (Abr - Jun)</option><?php endif; ?>
-                            <?php if ($mes >= 7  && $mes <= 9):  ?><option value="7"  selected>Q3 (Jul - Sep)</option><?php endif; ?>
-                            <?php if ($mes >= 10 && $mes <= 12): ?><option value="10" selected>Q4 (Oct - Dic)</option><?php endif; ?>
+                        <select name="mapeo_cuarto"  class="form-control">
+                            <?php echo($mes>=1 && $mes<=3)?'<option value="1" selected >Q1 (Ene - Mar)</option>':''; ?>
+                            <?php echo($mes>=4 && $mes<=6)?'<option value="4" selected >Q2 (Abr - Jun)</option>':''; ?>
+                            <?php echo($mes>=7 && $mes<=9)?'<option value="7" selected >Q3 (Jul - Sep)</option>':''; ?>
+                            <?php echo($mes>=10 && $mes<=12)?'<option value="10" selected >Q4 (Oct - Dic)</option>':''; ?>
                         </select>
                     </div>
                     <div class="col-sm-3">
                         <strong>Coordinador de prisión:</strong>
-                        <select name="usua_id" id="usua_id" class="form-control" required>
-                            <option value="<?= (int)$_SESSION['id'] ?>"><?= htmlspecialchars($_SESSION['nombre']) ?></option>
+                        <select required name="usua_id" id="usua_id" class="form-control">
+                            <option value="<?=$_SESSION["id"]; ?>"><?=$_SESSION["nombre"]; ?></option>
                         </select>
                     </div>
                     <div class="col-sm-2">
                         <strong>Cárcel ubicación:</strong>
-                        <select name="sitioReunion" id="rep_carcel" class="form-control" required>
+                        <select required name="sitioReunion" id="rep_carcel" class="form-control">
+                                        
                             <?php
-                            if ($_SESSION['empresa_pd'] != '') {
+                            /*
+                            *   TRAEMOS LOS TIPOS DE SERVICIOS QUE PRESTA (25)
+                            */
+                            if ($_SESSION['empresa_pd'] != "") {
                                 echo '<option value="">Sin especificar</option>';
-                                $empresaPdF = (int) $_SESSION['empresa_pd'];
-                                $sqlC = "SELECT * FROM tbl_regional_ubicacion"
-                                      . ($empresaPdF ? " WHERE reub_reg_fk = $empresaPdF" : '')
-                                      . " ORDER BY reub_reg_fk ASC";
-                                $PSN1->query($sqlC);
-                                while ($PSN1->next_record()) {
-                                    echo '<option value="' . (int)$PSN1->f('reub_id') . '">'
-                                         . htmlspecialchars($PSN1->f('reub_nom')) . '</option>';
+                                $sql = "SELECT * ";
+                                $sql.=" FROM tbl_regional_ubicacion ";
+                                if($_SESSION['empresa_pd'] != 0){
+                                    $sql.=" WHERE reub_reg_fk = ".$_SESSION['empresa_pd'];
                                 }
-                            } else {
+                                $sql.=" ORDER BY reub_reg_fk asc";
+
+                                $PSN1->query($sql);
+                                $numero=$PSN1->num_rows();
+                                if($numero > 0){
+                                    while($PSN1->next_record()){
+                                        ?><option value="<?=$PSN1->f('reub_id'); ?>" <?php
+                                        if($cliente_servicio1 == $PSN1->f('reub_id'))
+                                        {
+                                            ?>selected="selected"<?php
+                                        }
+                                        ?>><?=$PSN1->f('reub_nom'); ?></option><?php
+                                    }
+                                }
+                            }else{
                                 echo '<option value="">Sin regional asignada</option>';
                             }
                             ?>
                         </select>
                     </div>
                 </div>
+
                 <div class="form-group">
                     <div class="col-sm-1"></div>
                     <div id="ubicacion"></div>
                     <div class="col-sm-2">
                         <strong>N° de patios y/o pabellón:</strong>
-                        <input name="pabellon" type="number" maxlength="250"
-                               value="" class="form-control" required />
-                    </div>
+                        <input name="pabellon" type="number" id="pabellon" maxlength="250" value="<?=$pabellon; ?>" class="form-control" required />
+                    </div> 
                 </div>
-            </div>
-
-            <!-- -------------------------------------------------------- -->
-            <!-- SECCIÓN: Información de la Prisión                       -->
-            <!-- -------------------------------------------------------- -->
-            <div class="col-sm-12">
+                <!--<div class="cont-btn cont-flex fl-sbet">
+                    <div class="item-btn"></div>
+                    <div class="item-btn">
+                        <input type="button" name="next" class="next btn btn-success" id="secc-1" value="Siguiente" />
+                    </div>
+                </div>          
+            </fieldset>--></div>
+        <!--INFORMACIÓN DE LA PRISION-->
+            <!--<fieldset>--><div class="col-sm-12">
+                
                 <div class="cont-tit">
                     <div class="hr"><hr></div>
                     <div class="tit-cen">
-                        <h3>Información de la prisión</h3>
+                        <h3 class="text-center">Información de la prisión</h3>
                         <p>A continuación por favor ingrese los datos requeridos</p>
                     </div>
                     <div class="hr"><hr></div>
@@ -1839,73 +3653,253 @@ if ($idReporteActual > 0) {
                     <div class="col-sm-1"></div>
                     <div class="col-sm-3">
                         <strong>Total población que hay en la prisión:</strong>
-                        <input name="asistencia_total" type="number" id="asistencia_total"
-                               min="0" value="" class="form-control" />
-                    </div>
+                        <input name="asistencia_total"  type="number" id="asistencia_total" min="0" value="" class="form-control" />
+                    </div> 
                     <div class="col-sm-2">
                         <strong>Número de prisioneros invitados:</strong>
-                        <input name="asistencia_hom" type="number" id="asistencia_hom"
-                               min="0" value="" class="form-control" />
+                        <input name="asistencia_hom" type="number" id="asistencia_hom" min="0" value="" class="form-control"  />
                     </div>
                     <div class="col-sm-3">
                         <strong>Número de prisioneros que iniciaron el curso:</strong>
-                        <input name="asistencia_muj" type="number" id="asistencia_muj"
-                               min="0" value="" class="form-control" />
-                    </div>
+                        <input name="asistencia_muj" type="number" id="asistencia_muj" min="0" value="" class="form-control" />
+                    </div> 
                     <div class="col-sm-2">
-                        <strong>Número de cursos activos de LPP:</strong>
-                        <input name="asistencia_jov" type="number" id="asistencia_jov"
-                               min="0" value="" class="form-control" readonly />
+                        <strong>Numero de cursos activos de LPP: </strong>
+                        <input name="asistencia_jov" type="number" id="asistencia_jov" min="0" value="" readonly class="form-control"  />
+                    </div>   
+                </div>
+                <!--<div class="cont-btn cont-flex fl-sbet">
+                    <div class="item-btn">
+                        <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
+                    </div>
+                    <div class="item-btn">
+                        <input type="button" name="next" id="archivo1_sig2" class="next btn btn-success" value="Siguiente" />
                     </div>
                 </div>
-            </div>
-
-            <!-- -------------------------------------------------------- -->
-            <!-- SECCIÓN: Registro de Graduados (nuevo)                   -->
-            <!-- -------------------------------------------------------- -->
-            <div class="col-sm-12">
+            </fieldset>--></div>
+        <?php if (false) { ?>
+        <!--REGISTRO DE GRADUADOS--->
+            <!--<fieldset>--><div class="col-sm-12">
                 <div class="cont-tit">
                     <div class="hr"><hr></div>
                     <div class="tit-cen">
-                        <h3>REGISTRO DE GRADUADOS</h3>
+                        <h3 class="text-center">REGISTRO DE GRADUADOS</h3>
                         <p>A continuación por favor ingrese los datos requeridos</p>
                     </div>
                     <div class="hr"><hr></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-12">
-                        <table id="tablaAdd" class="table table-bordered registro-table">
-                            <tbody></tbody>
+                    <div class="col-sm-2"></div>
+                    <div class="col-sm-8">
+                        <script>
+                            $(function(){
+                                var total = 0;
+                                var tar = $(".act_grad_tar").val();
+                                var nom = $(".act_grad_nom").val();
+                                $("#adicionarAdd").prop( "disabled", true );
+                                //$("#asistencia_total").prop('required',true);
+
+                                if (tar == "" || nom == "") {
+                                    $("#adicionarAdd").prop( "disabled", true );
+                                }else{
+                                    $("#adicionarAdd").prop( "disabled", false );
+                                }
+                                
+                                $("#asistencia_hom").change(function(){
+                                    var vtotal = $("#asistencia_hom").val();
+                                    $("#asistencia_muj").attr('max', vtotal);
+                                });
+                                $("#asistencia_total").change(function(){
+                                    var vtotal = $("#asistencia_total").val();
+                                    $("#asistencia_hom").attr('max', (vtotal-1));
+                                });
+                                $("#total").change(function(){
+                                    var totalG = $("#total").val();
+                                    $("#rep_ndis").attr('max', totalG);
+                                });
+                                $("#rep_ndis").change(function(){
+                                    var totalG = $("#total").val();
+                                    $("#rep_ndis").attr('max', totalG);
+                                });
+                                $("#asistencia_muj").change(function(){
+                                    var vtotal = $("#asistencia_muj").val();
+                                    if (total >= vtotal) {
+                                        $("#adicionarAdd").prop( "disabled", true );
+                                    }else{
+                                        $("#adicionarAdd").prop( "disabled", false );
+                                    }
+                                });
+                                
+                                $(".act_grad_nom").change(function(){
+                                    var vtotal = $("#asistencia_muj").val();
+                                    var tar3 = $(".act_grad_tar").val();
+                                    var nom3 = $(".act_grad_nom").val();
+                                    if (tar3 != "" && nom3 !="") {
+                                        if (total < 1) {
+                                            total = total + 1;
+                                        }
+                                        $("#adicionarAdd").prop( "disabled", false );
+                                    }else if (tar3 == "" && nom3 =="") {
+                                        if (total == 1) {
+                                            total = total - 1;
+                                            $(".act_grad_nom").prop('required',false);
+                                            $(".act_grad_tar").prop('required',false);
+                                        }
+                                    }else{
+                                        $("#adicionarAdd").prop( "disabled", true );
+                                    }
+                                    $('#total').val(total);
+                                });
+                                $(".act_grad_tar").change(function(){
+                                    var vtotal = $("#asistencia_muj").val();
+                                    var nom2 = $(".act_grad_nom").val();
+                                    var tar2 = $(".act_grad_tar").val();
+                                    if (nom2 != ""&& tar2 != "") {
+                                        if (total < 1) {
+                                            total = total + 1;
+                                        }
+                                        $("#adicionarAdd").prop( "disabled", false );
+                                    }else if (tar3 == "" && nom3 =="") {
+                                        if (total == 1) {
+                                            total = total - 1;
+                                            $(".act_grad_nom").prop('required',false);
+                                            $(".act_grad_tar").prop('required',false);
+                                        }
+                                    }else{
+                                        $("#adicionarAdd").prop( "disabled", true );
+                                    }
+                                    $('#total').val(total);
+                                });
+
+                                $("#adicionarAdd").on('click',function(){
+                                    var vtotal = $("#asistencia_muj").val();
+                                    var tar2 = $(".act_grad_tar").val();
+                                    var nom2 = $(".act_grad_nom").val();
+                                    if (tar2!="" && nom2!="") {
+                                        $("#tablaAdd tr:last").clone().removeClass('fila-fijaAdd').appendTo("#tablaAdd");
+                                        $("#tablaAdd tr input.act_grad_nom:last").val('');
+                                        $("#tablaAdd tr input.act_grad_tar:last").val('');
+                                        total = total + 1;
+                                    }else{
+                                        alert("Ingrese toda la información antes de agregar otro campo");
+                                    }
+                                    
+                                    if (total >= vtotal) {
+                                        $("#adicionarAdd").prop( "disabled", true );
+                                    }else{
+                                        $("#adicionarAdd").prop( "disabled", false );
+                                    }
+                                    $(".act_grad_nom").prop('required',true);
+                                    $(".act_grad_tar").prop('required',true);
+                                    $('#total').val(total);
+                                    var totalG = $("#total").val();
+                                    $("#rep_ndis").attr('max', totalG);
+                                });
+                                $(document).on("click",".eliminarAdd",function(){
+                                    var vtotal = $("#asistencia_muj").val();
+                                    var parent = $(this).parents().get(0);
+                                    $(parent).remove();
+                                    total = total - 1;
+                                    $('#total').val(total);
+                                    var totalG = $("#total").val();
+                                    $("#rep_ndis").attr('max', (totalG));
+                                    if (total >= vtotal) {
+                                        $("#adicionarAdd").prop( "disabled", true );
+                                    }else{
+                                        $("#adicionarAdd").prop( "disabled", false );
+                                    }
+                                });
+                                
+                            });
+                        </script>
+                        <table id="tablaAdd">
+                            <tr class="fila-fijaAdd">
+                                <td class="col-sm-7">
+                                    <strong>Nombre completo del graduado:</strong>
+                                    <input name="act_grad_nom[]" type="text" id="act_grad_nom" class="act_grad_nom form-control" />
+                                </td>
+                                <td class="col-sm-4">
+                                    <strong>Tarjeta dactilar / N° identificación:</strong>
+                                    <input name="act_grad_tar[]" type="text" id="act_grad_tar" min="0" class="act_grad_tar form-control" />
+                                </td>
+                                <td class="eliminarAdd"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
+                            </tr>
                         </table>
                     </div>
+                    <div class="col-sm-2"></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-12">
-                        <div class="registro-bulk-controls" style="margin-bottom:15px">
-                            <div class="col-sm-6">
-                                <label for="cantidadAdd">¿Cuántos registros desea generar?</label>
-                            </div>
-                            <div class="col-sm-3">
-                                <input type="number" id="cantidadAdd" class="form-control" min="1" placeholder="Ej: 5">
-                            </div>
-                            <div class="col-sm-3" style="display:flex;justify-content:flex-end">
-                                <button id="generarVariasAdd" class="btn btn-primary" type="button">
-                                    <i class="fa fa-list"></i> Generar
-                                </button>
-                            </div>
+                    <div class="col-sm-2"></div>
+                    <div class="col-sm-8">
+                        <div class="col-sm-4"><strong>Número de graduados en LPP en la prisión:</strong> </div>
+                        <div class="col-sm-2">
+                            <input type="text" name="total" id="total" class="form-control" value="" readonly>
                         </div>
-                        <div class="registro-summary">
+                        <div class="col-sm-4"></div>
+                        <div class="col-sm-2">
+                            <center>
+                                <button id="adicionarAdd" class="btn btn-success" type="button" class="boton" ><i class="fas fa-plus"></i>  Adicionar</button>
+                            </center>
+                        </div>
+                    </div>
+                <!--<div class="cont-btn cont-flex fl-sbet">
+                    <div class="item-btn">
+                        <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
+                    </div>
+                    <div class="item-btn">
+                        <input type="button" name="next" id="archivo1_sig" class="next btn btn-success" value="Siguiente" />
+                    </div>
+                </div>
+            </fieldset>--></div>
+        <?php } ?>
+        <!--<fieldset>--><div class="col-sm-12 registro-section registro-graduados">
+            <div class="cont-tit">
+                <div class="hr"><hr></div>
+                <div class="tit-cen">
+                    <h3 class="text-center">REGISTRO DE GRADUADOS</h3>
+                    <p>A continuacion por favor ingrese los datos requeridos</p>
+                </div>
+                <div class="hr"><hr></div>
+            </div>
+            <div class="form-group">
+                <div class="col-sm-12 registro-table-wrap">
+                    <table id="tablaAdd" class="table table-bordered registro-table">
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="col-sm-12">
+                    <div class="registro-bulk-controls" style="margin-bottom: 15px;">
+                        <div class="col-sm-6 registro-bulk-controls__text">
+                            <label for="cantidadAdd">
+                                Cuantos registros desea realizar?
+                            </label>
+                        </div>
+                        <div class="col-sm-3 registro-bulk-controls__value">
+                            <input type="number" id="cantidadAdd" class="form-control" min="1" placeholder="Ej: 5">
+                        </div>
+                        <div class="col-sm-3 registro-bulk-controls__actions">
+                            <button id="generarVariasAdd" class="btn btn-primary btn-block" type="button">
+                                <i class="fa fa-list"></i> Generar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="registro-summary">
+                        <div class="col-sm-6 registro-summary__text">
+                            <strong>Numero de graduados en LPP en la prision:</strong>
+                        </div>
+                        <div class="col-sm-2 registro-summary__value">
+                            <input type="text" name="total" id="total" class="form-control" value="0" readonly>
+                        </div>
+                        <div class="col-sm-4 registro-summary__actions">
                             <div class="col-sm-6">
-                                <strong>Número de graduados en LPP en la prisión:</strong>
-                            </div>
-                            <div class="col-sm-2">
-                                <input type="text" name="total" id="total" class="form-control" value="0" readonly>
-                            </div>
-                            <div class="col-sm-4" style="display:flex;gap:10px;justify-content:flex-end">
-                                <button id="adicionarAdd" class="btn btn-success" type="button">
+                                <button id="adicionarAdd" class="btn btn-success btn-block" type="button">
                                     <i class="fa fa-plus"></i> Adicionar
                                 </button>
-                                <button id="borrarTodoAdd" class="btn btn-danger" type="button">
+                            </div>
+                            <div class="col-sm-6">
+                                <button id="borrarTodoAdd" class="btn btn-danger btn-block" type="button">
                                     <i class="fa fa-trash"></i> Borrar todo
                                 </button>
                             </div>
@@ -1913,177 +3907,422 @@ if ($idReporteActual > 0) {
                     </div>
                 </div>
             </div>
+            <style>
+                #tablaAdd {
+                    width: 100%;
+                    max-width: 100%;
+                }
 
-            <!-- Script tabla graduados (nuevo) -->
+                #tablaAdd td {
+                    vertical-align: top;
+                    padding: 14px;
+                }
+
+                #tablaAdd input {
+                    margin-top: 8px;
+                }
+
+                #tablaAdd .btn-eliminar-fila {
+                    margin-top: 18px;
+                    padding: 6px 10px;
+                    border-radius: 4px;
+                }
+
+                #cantidadAdd {
+                    text-align: center;
+                    font-size: 16px;
+                    font-weight: bold;
+                }
+
+                #generarVariasAdd,
+                #adicionarAdd,
+                #borrarTodoAdd {
+                    white-space: nowrap;
+                }
+
+                @media (min-width: 992px) {
+                    #tablaAdd td:first-child {
+                        width: 58% !important;
+                    }
+
+                    #tablaAdd td:nth-child(2) {
+                        width: 32% !important;
+                    }
+
+                    #tablaAdd td:nth-child(3) {
+                        width: 10% !important;
+                    }
+                }
+            </style>
             <script>
-            $(function () {
-                var STORAGE_KEY_NEW = 'lpp_graduados_nuevo';
-                var storage = window.sessionStorage;
+                $(function () {
+                    var STORAGE_KEY = 'lpp_graduados_nuevo';
+                    var registrosIniciales = [];
+                    var storage = window.sessionStorage;
 
-                function crearFilaNueva() {
-                    return $(
-                        '<tr class="registro-table-row">' +
-                        '<td class="registro-col registro-col--nombre">' +
-                            '<strong>Nombre completo del graduado:</strong>' +
-                            '<input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />' +
-                        '</td>' +
-                        '<td class="registro-col registro-col--identificacion">' +
-                            '<strong>Tarjeta dactilar / N&deg; identificación:</strong>' +
-                            '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
-                        '</td>' +
-                        '<td class="registro-col registro-col--action">' +
-                            '<button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar">' +
-                                '<i class="fa fa-times"></i>' +
-                            '</button>' +
-                        '</td>' +
-                        '</tr>'
-                    );
-                }
+                    function crearFila() {
+                        return $(
+                            '<tr class="fila-fijaAdd registro-table-row">' +
+                                '<td class="registro-col registro-col--nombre">' +
+                                    '<strong>Nombre completo del graduado:</strong>' +
+                                    '<input name="act_grad_nom[]" type="text" class="act_grad_nom form-control" />' +
+                                '</td>' +
+                                '<td class="registro-col registro-col--identificacion">' +
+                                    '<strong>Tarjeta dactilar / N&deg; identificacion:</strong>' +
+                                    '<input name="act_grad_tar[]" type="text" class="act_grad_tar form-control" />' +
+                                '</td>' +
+                                '<td class="registro-col registro-col--action">' +
+                                    '<button type="button" class="btn btn-danger btn-eliminar-fila" title="Eliminar">' +
+                                        '<i class="fa fa-times"></i>' +
+                                    '</button>' +
+                                '</td>' +
+                            '</tr>'
+                        );
+                    }
 
-                function obtenerMaximoN() {
-                    var v = parseInt($('#asistencia_muj').val(), 10);
-                    return (isNaN(v) || v < 1) ? null : v;
-                }
+                    function obtenerMaximoGraduados() {
+                        var maximo = parseInt($('#asistencia_muj').val(), 10);
+                        return isNaN(maximo) || maximo < 1 ? null : maximo;
+                    }
 
-                function datosFilaN($f) {
-                    return { nombre: $.trim($f.find('.act_grad_nom').val()), tarjeta: $.trim($f.find('.act_grad_tar').val()) };
-                }
-                function filaCompletaN($f) { var d = datosFilaN($f); return d.nombre !== '' && d.tarjeta !== ''; }
-                function filaIncompletaN($f) { var d = datosFilaN($f); return (d.nombre !== '' && d.tarjeta === '') || (d.nombre === '' && d.tarjeta !== ''); }
+                    function actualizarLimitesAsistencia() {
+                        var asistenciaTotal = parseInt($('#asistencia_total').val(), 10);
+                        var asistenciaHombres = parseInt($('#asistencia_hom').val(), 10);
 
-                function contarN() {
-                    var n = 0;
-                    $('#tablaAdd tbody tr').each(function () { if (filaCompletaN($(this))) n++; });
-                    return n;
-                }
-                function sincN() { var n = contarN(); $('#total').val(n); $('#rep_ndis').attr('max', n); return n; }
+                        if (!isNaN(asistenciaTotal) && asistenciaTotal >= 0) {
+                            $('#asistencia_hom').attr('max', Math.max(asistenciaTotal - 1, 0));
+                        }
 
-                function guardarN() {
-                    if (!storage) return;
-                    var d = [];
-                    $('#tablaAdd tbody tr').each(function () { d.push(datosFilaN($(this))); });
-                    try { storage.setItem(STORAGE_KEY_NEW, JSON.stringify(d)); } catch(e) {}
-                }
+                        if (!isNaN(asistenciaHombres) && asistenciaHombres >= 0) {
+                            $('#asistencia_muj').attr('max', asistenciaHombres);
+                        }
+                    }
 
-                function obtenerGuardadosN() {
-                    if (!storage) return null;
-                    try { var d = storage.getItem(STORAGE_KEY_NEW); if (!d) return null; d = JSON.parse(d); return Array.isArray(d) ? d : null; }
-                    catch(e) { return null; }
-                }
+                    function obtenerDatosFila($fila) {
+                        return {
+                            nombre: $.trim($fila.find('.act_grad_nom').val()),
+                            tarjeta: $.trim($fila.find('.act_grad_tar').val())
+                        };
+                    }
 
-                function renderizarN(datos) {
-                    var $tb = $('#tablaAdd tbody');
-                    $tb.empty();
-                    if (!Array.isArray(datos) || datos.length === 0) datos = [{nombre:'', tarjeta:''}];
-                    $.each(datos, function(_, item) {
-                        var $f = crearFilaNueva();
-                        $f.find('.act_grad_nom').val(item.nombre  || '');
-                        $f.find('.act_grad_tar').val(item.tarjeta || '');
-                        $tb.append($f);
+                    function filaCompleta($fila) {
+                        var datos = obtenerDatosFila($fila);
+                        return datos.nombre !== '' && datos.tarjeta !== '';
+                    }
+
+                    function filaIncompleta($fila) {
+                        var datos = obtenerDatosFila($fila);
+                        return (datos.nombre !== '' && datos.tarjeta === '') || (datos.nombre === '' && datos.tarjeta !== '');
+                    }
+
+                    function contarCompletos() {
+                        var total = 0;
+                        $('#tablaAdd tbody tr').each(function () {
+                            if (filaCompleta($(this))) {
+                                total++;
+                            }
+                        });
+                        return total;
+                    }
+
+                    function sincronizarTotal() {
+                        var total = contarCompletos();
+                        $('#total').val(total);
+                        $('#rep_ndis').attr('max', total > 0 ? total : 0);
+                        return total;
+                    }
+
+                    function guardarDatos() {
+                        if (!storage) {
+                            return;
+                        }
+
+                        var datos = [];
+                        $('#tablaAdd tbody tr').each(function () {
+                            datos.push(obtenerDatosFila($(this)));
+                        });
+
+                        try {
+                            storage.setItem(STORAGE_KEY, JSON.stringify(datos));
+                        } catch (error) {
+                        }
+                    }
+
+                    function obtenerDatosGuardados() {
+                        if (!storage) {
+                            return null;
+                        }
+
+                        try {
+                            var datos = storage.getItem(STORAGE_KEY);
+                            if (!datos) {
+                                return null;
+                            }
+
+                            datos = JSON.parse(datos);
+                            return Array.isArray(datos) ? datos : null;
+                        } catch (error) {
+                            return null;
+                        }
+                    }
+
+                    function renderizarFilas(datos) {
+                        var $tbody = $('#tablaAdd tbody');
+                        $tbody.empty();
+
+                        if (!Array.isArray(datos) || datos.length === 0) {
+                            datos = [{ nombre: '', tarjeta: '' }];
+                        }
+
+                        $.each(datos, function (_, item) {
+                            var $fila = crearFila();
+                            $fila.find('.act_grad_nom').val(item.nombre || '');
+                            $fila.find('.act_grad_tar').val(item.tarjeta || '');
+                            $tbody.append($fila);
+                        });
+                    }
+
+                    function asegurarMinimoUnaFila() {
+                        if ($('#tablaAdd tbody tr').length === 0) {
+                            renderizarFilas([]);
+                        }
+                    }
+
+                    function hayDatosCapturados() {
+                        var hayDatos = false;
+                        $('#tablaAdd tbody tr').each(function () {
+                            var datos = obtenerDatosFila($(this));
+                            if (datos.nombre !== '' || datos.tarjeta !== '') {
+                                hayDatos = true;
+                                return false;
+                            }
+                        });
+                        return hayDatos;
+                    }
+
+                    function actualizarBotones() {
+                        var maximo = obtenerMaximoGraduados();
+                        var filas = $('#tablaAdd tbody tr').length;
+                        $('#adicionarAdd').prop('disabled', maximo !== null && filas >= maximo);
+                        $('#tablaAdd .btn-eliminar-fila').prop('disabled', false);
+                    }
+
+                    function restaurarDatos() {
+                        var datosGuardados = obtenerDatosGuardados();
+                        renderizarFilas(datosGuardados !== null ? datosGuardados : registrosIniciales);
+                        actualizarLimitesAsistencia();
+                        sincronizarTotal();
+                        actualizarBotones();
+                    }
+
+                    function agregarFila() {
+                        var maximo = obtenerMaximoGraduados();
+                        var filas = $('#tablaAdd tbody tr').length;
+
+                        if (maximo !== null && filas >= maximo) {
+                            alert('No puede registrar mas graduados que prisioneros que iniciaron el curso (' + maximo + ').');
+                            return;
+                        }
+
+                        $('#tablaAdd tbody').append(crearFila());
+                        actualizarBotones();
+                        guardarDatos();
+                    }
+
+                    function generarFilas(cantidad) {
+                        var maximo = obtenerMaximoGraduados();
+                        var filasActuales = $('#tablaAdd tbody tr').length;
+
+                        if (maximo !== null && (filasActuales + cantidad) > maximo) {
+                            alert('No puede generar mas registros que prisioneros que iniciaron el curso (' + maximo + ').');
+                            return;
+                        }
+
+                        for (var i = 0; i < cantidad; i++) {
+                            $('#tablaAdd tbody').append(crearFila());
+                        }
+
+                        sincronizarTotal();
+                        actualizarBotones();
+                        guardarDatos();
+                    }
+
+                    function borrarTodo() {
+                        renderizarFilas([]);
+                        sincronizarTotal();
+                        actualizarBotones();
+                        guardarDatos();
+                    }
+
+                    restaurarDatos();
+
+                    $('#asistencia_hom, #asistencia_total, #asistencia_muj').on('change keyup', function () {
+                        actualizarLimitesAsistencia();
+                        actualizarBotones();
                     });
-                }
 
-                function actualizarBotonesN() {
-                    var max = obtenerMaximoN(), filas = $('#tablaAdd tbody tr').length;
-                    $('#adicionarAdd').prop('disabled', max !== null && filas >= max);
-                }
+                    $(document).on('click', '#adicionarAdd', function (e) {
+                        e.preventDefault();
+                        agregarFila();
+                    });
 
-                function actualizarLimitesN() {
-                    var tot = parseInt($('#asistencia_total').val(), 10);
-                    var hom = parseInt($('#asistencia_hom').val(), 10);
-                    if (!isNaN(tot)) $('#asistencia_hom').attr('max', Math.max(tot - 1, 0));
-                    if (!isNaN(hom)) $('#asistencia_muj').attr('max', hom);
-                }
+                    $(document).on('click', '#generarVariasAdd', function (e) {
+                        e.preventDefault();
 
-                // Inicializar
-                var g = obtenerGuardadosN();
-                renderizarN(g !== null ? g : []);
-                actualizarLimitesN();
-                sincN();
-                actualizarBotonesN();
+                        var cantidad = parseInt($('#cantidadAdd').val(), 10);
+                        if (isNaN(cantidad) || cantidad <= 0) {
+                            alert('Ingrese una cantidad valida mayor a 0.');
+                            $('#cantidadAdd').focus();
+                            return;
+                        }
 
-                $('#asistencia_hom, #asistencia_total, #asistencia_muj').on('change keyup', function () {
-                    actualizarLimitesN(); actualizarBotonesN();
-                    // Calcular cursos activos automáticamente
-                    var cur = parseInt($('#asistencia_muj').val(), 10) || 0;
-                    var res = cur <= 12 ? 1 : Math.ceil(cur / 12);
-                    $('#asistencia_jov').val(res);
+                        generarFilas(cantidad);
+                    });
+
+                    $(document).on('click', '#borrarTodoAdd', function (e) {
+                        e.preventDefault();
+
+                        if (hayDatosCapturados() && !confirm('Esta seguro de borrar todos los registros cargados?')) {
+                            return;
+                        }
+
+                        borrarTodo();
+                    });
+
+                    $(document).on('click', '#tablaAdd .btn-eliminar-fila', function (e) {
+                        e.preventDefault();
+
+                        $(this).closest('tr').remove();
+                        asegurarMinimoUnaFila();
+                        sincronizarTotal();
+                        actualizarBotones();
+                        guardarDatos();
+                    });
+
+                    $(document).on('keyup change blur', '.act_grad_nom, .act_grad_tar', function () {
+                        sincronizarTotal();
+                        actualizarBotones();
+                        guardarDatos();
+                    });
+
+                    $('form').on('submit', function (e) {
+                        var hayIncompletas = false;
+
+                        $('#tablaAdd tbody tr').each(function () {
+                            if (filaIncompleta($(this))) {
+                                hayIncompletas = true;
+                                return false;
+                            }
+                        });
+
+                        if (hayIncompletas) {
+                            e.preventDefault();
+                            alert('Si diligencia una fila de graduados, debe completar tanto el nombre como la identificacion.');
+                            return false;
+                        }
+
+                        sincronizarTotal();
+                    });
                 });
-
-                $(document).on('click', '#adicionarAdd', function (e) {
-                    e.preventDefault();
-                    var max = obtenerMaximoN(), filas = $('#tablaAdd tbody tr').length;
-                    if (max !== null && filas >= max) { alert('No puede registrar más graduados que prisioneros que iniciaron el curso (' + max + ').'); return; }
-                    $('#tablaAdd tbody').append(crearFilaNueva());
-                    actualizarBotonesN(); guardarN();
-                });
-
-                $(document).on('click', '#generarVariasAdd', function (e) {
-                    e.preventDefault();
-                    var cant = parseInt($('#cantidadAdd').val(), 10);
-                    if (isNaN(cant) || cant <= 0) { alert('Ingrese una cantidad válida mayor a 0.'); return; }
-                    var max = obtenerMaximoN(), filas = $('#tablaAdd tbody tr').length;
-                    if (max !== null && (filas + cant) > max) { alert('Excede el máximo de graduados permitidos (' + max + ').'); return; }
-                    for (var i = 0; i < cant; i++) $('#tablaAdd tbody').append(crearFilaNueva());
-                    sincN(); actualizarBotonesN(); guardarN();
-                });
-
-                $(document).on('click', '#borrarTodoAdd', function (e) {
-                    e.preventDefault();
-                    if (!confirm('¿Está seguro de borrar todos los registros?')) return;
-                    renderizarN([]); sincN(); actualizarBotonesN(); guardarN();
-                });
-
-                $(document).on('click', '#tablaAdd .btn-eliminar-fila', function (e) {
-                    e.preventDefault();
-                    $(this).closest('tr').remove();
-                    if ($('#tablaAdd tbody tr').length === 0) renderizarN([]);
-                    sincN(); actualizarBotonesN(); guardarN();
-                });
-
-                $(document).on('keyup change blur', '.act_grad_nom, .act_grad_tar', function () {
-                    sincN(); actualizarBotonesN(); guardarN();
-                });
-
-                $('form').on('submit', function (e) {
-                    var hay = false;
-                    $('#tablaAdd tbody tr').each(function () { if (filaIncompletaN($(this))) { hay = true; return false; } });
-                    if (hay) { e.preventDefault(); alert('Complete nombre e identificación en todas las filas de graduados.'); return false; }
-                    sincN();
-                });
-            });
             </script>
-
-            <!-- -------------------------------------------------------- -->
-            <!-- SECCIÓN: Voluntarios Internos (nuevo)                    -->
-            <!-- -------------------------------------------------------- -->
-            <div class="col-sm-12">
+        </div>
+        <!--REGISTRO DE VOLUNTARIOS INTERNOS-->
+            <!--<fieldset>--><div class="col-sm-12 registro-section registro-internos">
                 <div class="cont-tit">
                     <div class="hr"><hr></div>
                     <div class="tit-cen">
-                        <h3>REGISTRO DE VOLUNTARIOS INTERNOS</h3>
+                        <h3 class="text-center">REGISTRO DE VOLUNTARIOS INTERNOS</h3>
                         <p>A continuación por favor ingrese los datos requeridos</p>
                     </div>
                     <div class="hr"><hr></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-12">
+                    <div class="col-sm-12 registro-table-wrap">
+                        <script>
+                            $(function(){
+                                var total = 0;
+                                var tar = $(".act_vin_tar").val();
+                                var nom = $(".act_vin_nom").val();
+                                if (tar == "" || nom == "") {
+                                    $("#adicionarAdd2").prop( "disabled", true );
+                                }else{
+                                    $("#adicionarAdd2").prop( "disabled", false );
+                                }
+                                $(".act_vin_nom").change(function(){
+                                    var tar3 = $(".act_vin_tar").val();
+                                    var nom3 = $(".act_vin_nom").val();
+                                    if (tar3 != "" && nom3 !="") {
+                                        if (total < 1) {
+                                            total = total + 1;
+                                        }
+                                        $("#adicionarAdd2").prop( "disabled", false );
+                                    }else if (tar3 == "" && nom3 =="") {
+                                        if (total == 1) {
+                                            total = total - 1;
+                                            $(".act_vin_nom").prop('required',false);
+                                            $(".act_vin_tar").prop('required',false);
+                                        }
+                                    }else{
+                                        $("#adicionarAdd2").prop( "disabled", true );
+                                    }
+                                    $('#total2').val(total);
+                                });
+                                $(".act_vin_tar").change(function(){
+                                    var nom2 = $(".act_vin_nom").val();
+                                    var tar2 = $(".act_vin_tar").val();
+                                    if (nom2 != ""&& tar2 != "") {
+                                        if (total < 1) {
+                                            total = total + 1;
+                                        }
+                                        $("#adicionarAdd2").prop( "disabled", false );
+                                    }else if (tar3 == "" && nom3 =="") {
+                                        if (total == 1) {
+                                            total = total - 1;
+                                            $(".act_vin_nom").prop('required',false);
+                                            $(".act_vin_tar").prop('required',false);
+                                        }
+                                    }else{
+                                        $("#adicionarAdd2").prop( "disabled", true );
+                                    }
+                                    $('#total2').val(total);
+                                });
+
+                                $("#adicionarAdd2").on('click',function(){
+                                    var tar2 = $(".act_vin_tar").val();
+                                    var nom2 = $(".act_vin_nom").val();
+                                    if (tar2!="" && nom2!="") {
+                                        $("#tablaAdd2 tbody tr:last").clone().removeClass('fila-fijaAdd2').appendTo("#tablaAdd2 tbody");
+                                        $("#tablaAdd2 tbody tr input.act_vin_nom:last").val('');
+                                        $("#tablaAdd2 tbody tr input.act_vin_tar:last").val('');
+                                        total = total + 1;
+                                    }else{
+                                        alert("Ingrese toda la información antes de agregar otro campo");
+                                    }
+                                    $(".act_vin_nom").prop('required',true);
+                                    $(".act_vin_tar").prop('required',true);
+                                    $('#total2').val(total);
+                                });
+                                $(document).on("click",".eliminarAdd2",function(){
+                                    var parent = $(this).parents().get(0);
+                                    $(parent).remove();
+                                    total = total - 1;
+                                    $('#total2').val(total);
+                                });
+                                
+                            });
+                        </script>
                         <table id="tablaAdd2" class="table table-bordered registro-table">
                             <tbody>
                             <tr class="fila-fijaAdd2 registro-table-row">
                                 <td class="registro-col registro-col--nombre">
-                                    <strong>Nombre completo del siervo facilitador:</strong>
-                                    <input name="act_vin_nom[]" type="text" class="act_vin_nom form-control" />
+                                    <strong>Nombre completo del siervo Facilitador:</strong>
+                                    <input name="act_vin_nom[]" type="text" id="act_vin_nom" class="act_vin_nom form-control" />
                                 </td>
                                 <td class="registro-col registro-col--identificacion">
                                     <strong>Tarjeta dactilar / N° identificación:</strong>
-                                    <input name="act_vin_tar[]" type="text" class="act_vin_tar form-control" />
+                                    <input name="act_vin_tar[]" type="text" id="act_vin_tar" min="0" class="act_vin_tar form-control" />
                                 </td>
-                                <td class="registro-col registro-col--action eliminarAdd2">
-                                    <button type="button" class="btn btn-cir-uno" title="Eliminar">
-                                        <i class="fa fa-times"></i>
-                                    </button>
-                                </td>
+                                <td class="registro-col registro-col--action eliminarAdd2"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                             </tr>
                             </tbody>
                         </table>
@@ -2092,70 +4331,124 @@ if ($idReporteActual > 0) {
                 <div class="form-group">
                     <div class="col-sm-12">
                         <div class="registro-summary">
-                            <div class="col-sm-6">
-                                <strong>Número de voluntarios internos activos en esta prisión:</strong>
-                            </div>
-                            <div class="col-sm-2">
-                                <input type="text" name="total2" id="total2" value="0" class="form-control" readonly>
-                            </div>
-                            <div class="col-sm-4" style="display:flex;justify-content:flex-end">
-                                <button id="adicionarAdd2" class="btn btn-success" type="button">
-                                    <i class="fas fa-plus"></i> Adicionar
-                                </button>
-                            </div>
+                        <div class="col-sm-6 registro-summary__text"><strong>Número de voluntarios internos activos en esta prisión:</strong> </div>
+                        <div class="col-sm-2 registro-summary__value">
+                            <input type="text" name="total2" id="total2" value="" class="form-control" readonly>
+                        </div>
+                        <div class="col-sm-4 registro-summary__actions">
+                            <center>
+                                <button id="adicionarAdd2" class="btn btn-success" type="button" class="boton"><i class="fas fa-plus"></i>  Adicionar</button>
+                            </center>
+                        </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <script>
-            $(function(){
-                var total2n = 0;
-                $(document).on('click', '#adicionarAdd2', function(){
-                    var $clone = $('#tablaAdd2 tbody tr:last').clone();
-                    $clone.find('input').val('');
-                    $clone.appendTo('#tablaAdd2 tbody');
-                    total2n++;
-                    $('#total2').val(total2n);
-                });
-                $(document).on('click', '.eliminarAdd2', function(){
-                    $(this).closest('tr').remove();
-                    total2n = Math.max(0, total2n - 1);
-                    $('#total2').val(total2n);
-                });
-            });
-            </script>
-
-            <!-- -------------------------------------------------------- -->
-            <!-- SECCIÓN: Voluntarios Externos (nuevo)                    -->
-            <!-- -------------------------------------------------------- -->
-            <div class="col-sm-12">
+                <!--<div class="cont-btn cont-flex fl-sbet">
+                    <div class="item-btn">
+                        <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
+                    </div>
+                    <div class="item-btn">
+                        <input type="button" name="next" id="archivo1_sig" class="next btn btn-success" value="Siguiente" />
+                    </div>
+                </div>
+            </fieldset>--></div>
+        <!--REGISTRO DE VOLUNTARIOS EXTERNOS--->
+            <!--<fieldset>--><div class="col-sm-12 registro-section registro-externos">
                 <div class="cont-tit">
                     <div class="hr"><hr></div>
                     <div class="tit-cen">
-                        <h3>REGISTRO DE VOLUNTARIOS EXTERNOS</h3>
+                        <h3 class="text-center">REGISTRO DE VOLUNTARIOS EXTERNOS</h3>
                         <p>A continuación por favor ingrese los datos requeridos</p>
                     </div>
                     <div class="hr"><hr></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-12">
+                    <div class="col-sm-12 registro-table-wrap">
+                        <script>
+                            $(function(){
+                                var total = 0;
+                                var tar = $(".act_vex_tar").val();
+                                var nom = $(".act_vex_nom").val();
+                                if (tar == "" || nom == "") {
+                                    $("#adicionarAdd3").prop( "disabled", true );
+                                }else{
+                                    $("#adicionarAdd3").prop( "disabled", false );
+                                }
+                                $(".act_vex_nom").change(function(){
+                                    var tar3 = $(".act_vex_tar").val();
+                                    var nom3 = $(".act_vex_nom").val();
+                                    if (tar3 != "" && nom3 !="") {
+                                        if (total < 1) {
+                                            total = total + 1;
+                                        }
+                                        $("#adicionarAdd3").prop( "disabled", false );
+                                    }else if (tar3 == "" && nom3 =="") {
+                                        if (total == 1) {
+                                            total = total - 1;
+                                            $(".act_vex_nom").prop('required',false);
+                                            $(".act_vex_tar").prop('required',false);
+                                        }
+                                    }else{
+                                        $("#adicionarAdd3").prop( "disabled", true );
+                                    }
+                                    $('#total3').val(total);
+                                });
+                                $(".act_vex_tar").change(function(){
+                                    var nom2 = $(".act_vex_nom").val();
+                                    var tar2 = $(".act_vex_tar").val();
+                                    if (nom2 != ""&& tar2 != "") {
+                                        if (total < 1) {
+                                            total = total + 1;
+                                        }
+                                        $("#adicionarAdd3").prop( "disabled", false );
+                                    }else if (tar3 == "" && nom3 =="") {
+                                        if (total == 1) {
+                                            total = total - 1;
+                                            $(".act_vex_nom").prop('required',false);
+                                            $(".act_vex_tar").prop('required',false);
+                                        }
+                                    }else{
+                                        $("#adicionarAdd3").prop( "disabled", true );
+                                    }
+                                    $('#total3').val(total);
+                                });
+
+                                $("#adicionarAdd3").on('click',function(){
+                                    var tar2 = $(".act_vex_tar").val();
+                                    var nom2 = $(".act_vex_nom").val();
+                                    if (tar2!="" && nom2!="") {
+                                        $("#tablaAdd3 tbody tr:last").clone().removeClass('fila-fijaAdd3').appendTo("#tablaAdd3 tbody");
+                                        $("#tablaAdd3 tbody tr input.act_vex_nom:last").val('');
+                                        $("#tablaAdd3 tbody tr input.act_vex_tar:last").val('');
+                                        total = total + 1;
+                                    }else{
+                                        alert("Ingrese toda la información antes de agregar otro campo");
+                                    }
+                                    $(".act_vex_nom").prop('required',true);
+                                    $(".act_vex_tar").prop('required',true);
+                                    $('#total3').val(total);
+                                });
+                                $(document).on("click",".eliminarAdd3",function(){
+                                    var parent = $(this).parents().get(0);
+                                    $(parent).remove();
+                                    total = total - 1;
+                                    $('#total3').val(total);
+                                });
+                                
+                            });
+                        </script>
                         <table id="tablaAdd3" class="table table-bordered registro-table">
                             <tbody>
                             <tr class="fila-fijaAdd3 registro-table-row">
                                 <td class="registro-col registro-col--nombre">
                                     <strong>Nombre completo del entrenador:</strong>
-                                    <input name="act_vex_nom[]" type="text" class="act_vex_nom form-control" />
+                                    <input name="act_vex_nom[]" type="text" id="act_vex_nom" class="act_vex_nom form-control"  />
                                 </td>
                                 <td class="registro-col registro-col--identificacion">
                                     <strong>N° identificación:</strong>
-                                    <input name="act_vex_tar[]" type="text" class="act_vex_tar form-control" />
+                                    <input name="act_vex_tar[]" type="text" id="act_vex_tar" min="0" class="act_vex_tar form-control" />
                                 </td>
-                                <td class="registro-col registro-col--action eliminarAdd3">
-                                    <button type="button" class="btn btn-cir-uno" title="Eliminar">
-                                        <i class="fa fa-times"></i>
-                                    </button>
-                                </td>
+                                <td class="registro-col registro-col--action eliminarAdd3"><button type="button" class="btn btn-cir-uno usua-col" title="Eliminar"><i class="fa fa-times"></i></button></td>
                             </tr>
                             </tbody>
                         </table>
@@ -2164,164 +4457,571 @@ if ($idReporteActual > 0) {
                 <div class="form-group">
                     <div class="col-sm-12">
                         <div class="registro-summary">
-                            <div class="col-sm-6">
-                                <strong>Número de voluntarios externos para esta prisión:</strong>
-                            </div>
-                            <div class="col-sm-2">
-                                <input type="text" name="total3" id="total3" value="0" class="form-control" readonly>
-                            </div>
-                            <div class="col-sm-4" style="display:flex;justify-content:flex-end">
-                                <button id="adicionarAdd3" class="btn btn-success" type="button">
-                                    <i class="fas fa-plus"></i> Adicionar
-                                </button>
-                            </div>
+                        <div class="col-sm-6 registro-summary__text"><strong>Número de voluntarios externos para esta prisión:</strong> </div>
+                        <div class="col-sm-2 registro-summary__value">
+                            <input type="text" name="total3" id="total3" value="" class="form-control" readonly>
+                        </div>
+                        <div class="col-sm-4 registro-summary__actions">
+                            <center>
+                                <button id="adicionarAdd3" class="btn btn-success" type="button" class="boton" ><i class="fas fa-plus"></i>  Adicionar</button>
+                            </center>
+                        </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <script>
-            $(function(){
-                var total3n = 0;
-                $(document).on('click', '#adicionarAdd3', function(){
-                    var $clone = $('#tablaAdd3 tbody tr:last').clone();
-                    $clone.find('input').val('');
-                    $clone.appendTo('#tablaAdd3 tbody');
-                    total3n++;
-                    $('#total3').val(total3n);
-                });
-                $(document).on('click', '.eliminarAdd3', function(){
-                    $(this).closest('tr').remove();
-                    total3n = Math.max(0, total3n - 1);
-                    $('#total3').val(total3n);
-                });
-            });
-            </script>
-
-            <!-- -------------------------------------------------------- -->
-            <!-- SECCIÓN: Testimonio + Foto (nuevo)                       -->
-            <!-- -------------------------------------------------------- -->
-            <div class="col-sm-12">
+                <!--<div class="cont-btn cont-flex fl-sbet">
+                    <div class="item-btn">
+                        <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
+                    </div>
+                    <div class="item-btn">
+                        <input type="button" name="next" id="archivo1_sig" class="next btn btn-success" value="Siguiente" />
+                    </div>
+                </div>
+            </fieldset>--></div>
+        <!---TESTIMONIO--->
+            <!--<fieldset>--><div class="col-sm-12">
                 <div class="cont-tit">
                     <div class="hr"><hr></div>
                     <div class="tit-cen">
-                        <h3>Método de verificación</h3>
-                        <h5>Testimonio y foto</h5>
+                        <h3 class="text-center">Método de verificación</h3>
+                        <h5>testimonio</h5>
                     </div>
                     <div class="hr"><hr></div>
                 </div>
                 <div class="form-group">
                     <div class="col-sm-3"></div>
                     <div class="col-sm-3">
-                        <strong>Número de discípulos que pasaron a C&amp;M:</strong>
-                        <input name="rep_ndis" type="number" id="rep_ndis" min="0" value="0" class="form-control" />
+                        <strong>Número de discípulos que pasaron a C&M:</strong>
+                        <input name="rep_ndis" type="number" id="rep_ndis" min="0" value="<?=$rep_ndis; ?>" class="form-control" />
                     </div>
                     <div class="col-sm-3">
-                        <strong>Costo de recursos gestionados ($):</strong>
-                        <input name="rep_entr" type="number" id="rep_entr" min="0" value="0" class="form-control" />
+                        <strong>Costo de recursos gestionados($):</strong>
+                        <input name="rep_entr" type="number" id="rep_entr" min="0" value="<?= $rep_entr; ?>" class="form-control" />
                     </div>
                 </div>
                 <div class="form-group">
                     <div class="col-sm-3"></div>
                     <div class="col-sm-3">
-                        <strong>Testimonio (archivo):</strong>
-                        <input name="archivo2" type="file" id="archivo2" class="form-control" required />
+                        <strong>Testimonio:</strong>
+                        <input name="archivo2" type="file" id="archivo2" class="form-control " required />
                     </div>
                     <div class="col-sm-3">
                         <strong>Foto:</strong>
-                        <input name="archivo1" type="file" id="archivo1" class="form-control"
-                               accept="image/png,image/jpeg,image/gif" />
+                        <input name="archivo1" type="file" id="archivo1" class="form-control"  accept="image/png, image/jpeg,  image/jpg, image/gif />
                     </div>
+                    <div class="col-sm-1"></div>
                 </div>
-                <div class="cont-btn">
+                <div class="cont-btn cont-flex fl-cent">
+                    <!--<div class="item-btn">
+                        <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
+                    </div>-->
                     <div class="item-btn">
                         <input type="submit" name="button" value="Guardar" class="btn btn-success">
                     </div>
                 </div>
-            </div>
+            <!--</fieldset>--></div> 
+            <!-- FOTOGRAFIA
+            <fieldset>
+                <div class="cont-tit">
+                    <div class="hr"><hr></div>
+                        <div class="tit-cen">
+                            <h3 class="text-center">Método de verificación</h3>
+                            <h5>FOTO</h5>
+                            <p>A continuación por favor ingrese los datos requeridos</p>
+                        </div>
+                        <div class="hr"><hr></div>
+                    </div>
+                    <div class="form-group">
+                        <div class="col-sm-3"></div>
+                        <div class="col-sm-6">
+                            <input name="archivo1" type="file" id="archivo1" class="form-control" />
+                        </div>
+                        <div class="col-sm-3"></div>
+                    </div>
+                    <div class="cont-btn cont-flex fl-sbet">
+                        <div class="item-btn">
+                            <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
+                        </div>
+                        <div class="item-btn">
+                            <input type="submit" name="button" value="Guardar" class="btn btn-success">
+                        </div>
+                    </div>
+                </div>
+            </fieldset>-->
+            <input type="submit" name="button-hidden" id="button-hidden" style="display:none">
+            <input type="hidden" name="funcion" id="funcion" value="" />
+            <input type="hidden" name="generacion" id="generacion" value="<?=$generacionActual; ?>" />
+        </form>
+    <script language="javascript">
+        var current = 1,current_step,next_step,steps;
+        //
+        function generarForm(){
+            //Completo el formulario  
+            if(true){
 
-            <input type="hidden" name="funcion"    id="funcion"    value="" />
-            <input type="hidden" name="generacion" id="generacion" value="<?= htmlspecialchars($generacionActual) ?>" />
-
-        </form><!-- /form inserción -->
-
-        <!-- JS del formulario de inserción -->
-        <script>
-        function generarFormNuevo() {
-            if (confirm("Esta acción guardará los cambios en el sistema. ¿Está seguro que desea continuar?")) {
-                $(':input[type="submit"]').prop('disabled', true);
-                document.getElementById('funcion').value = "<?= htmlspecialchars($temp_accionForm) ?>";
-                return true;
+                <?php
+                
+                if($generacionActual == "INTRA" ){
+                    ?>
+                    
+                    
+                    if(parseInt(document.getElementById("final_asistencia_total").value) < 3){
+                        alert("La asistencia total no puede ser menor a 3 personas");
+                        return false;
+                    }else{
+                        return true;
+                    }
+                    
+                    <?php
+                }else{
+                    ?>
+                    
+                    if(confirm("Esta accion guardara los cambios en el sistema, ¿esta seguro que desea continuar?")){
+                    $(':input[type="submit"]').prop('disabled', true);
+                    document.getElementById('funcion').value = "<?=$temp_accionForm; ?>";
+                    }else{
+                        return false;
+                    }
+                    
+                    <?php
+                }
+                ?>
+            }else{
+                return false;
             }
-            return false;
         }
+        
+        //
+        function init(){
+            document.getElementById('form1').onsubmit = function(){
+                    return generarForm();
+            }
 
-        window.addEventListener('load', function () {
-            document.getElementById('form1').onsubmit = function () {
-                return generarFormNuevo();
-            };
-        });
-        </script>
+            
+            function sumar(){
+                var asistencia_hom = 0;
+                var asistencia_muj = 0;
+                var asistencia_jov = 0;
+                var asistencia_nin = 0;
+                var desiciones = 0;
+                //
+                if(document.getElementById("asistencia_hom").value != ""){
+                    var asistencia_hom = document.getElementById("asistencia_hom").value;
+                }
+                if(document.getElementById("asistencia_muj").value != ""){
+                    var asistencia_muj = document.getElementById("asistencia_muj").value;
+                }
+                if(document.getElementById("asistencia_muj").value != ""){
+                    var asistencia_muj = document.getElementById("asistencia_muj").value;
+                }
+                //
+                if(document.getElementById("asistencia_jov").value != ""){
+                    var asistencia_jov = document.getElementById("asistencia_jov").value;
+                }
+                if(document.getElementById("asistencia_nin").value != ""){
+                    var asistencia_nin = document.getElementById("asistencia_nin").value;
+                }
+                if(document.getElementById("asistencia_total").value != ""){
+                    var asistencia_total = document.getElementById("asistencia_total").value;
+                }
+                
+                document.getElementById("final_asistencia_total").value = parseInt(asistencia_total);
+                //
+                
 
-    </div><!-- /report-shell inserción -->
+                document.getElementById("final_asistencia_hom").value = parseInt(asistencia_hom);
+                document.getElementById("final_asistencia_muj").value = parseInt(asistencia_muj);
+                document.getElementById("final_asistencia_jov").value = parseInt(asistencia_jov);
+                document.getElementById("final_asistencia_nin").value = parseInt(asistencia_nin);
+                
+                
+                
+                document.getElementById("final_bautizados").value = parseInt(bautizados) + 1;
+                document.getElementById("final_discipulado").value = parseInt(var_suma) - 1;
+                //
+                document.getElementById("final_bautizadosPeriodo").value = parseInt(bautizadosPeriodo);
+                
+                //document.getElementById("final_desiciones").value = parseInt(var_suma) - 1; //Antigua logica
+                document.getElementById("final_desiciones").value = parseInt(desiciones);
+                document.getElementById("final_preparandose").value = parseInt(var_suma) - 1 - parseInt(bautizadosPeriodo);                
+            }
+            
+            <?php
+            if($varExitoREP == 1)
+            {
+                ?>alert("Se ha colocado correctamente el ACCESO, espere mientras es dirigido.");
+                window.location.href = "index.php?doc=admin_usu4&id=<?=$ultimoId;?>";<?php
+            }
+            ?>
+        }
+        
 
-<?php
-} else {
-    echo "No debería estar aquí.";
+        window.onload = function(){
+            init();
+        }
+    </script>
+
+        
+        <?php
+    }
+}   //FIN DEL IF DE REDIRIGIR SI YA INSERTO EL REGISTRO
+else{
+    echo "No deberia estar aquí.";
 }
 ?>
+<?php if ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) {?>
+    <script type="text/javascript">
+        $("input").attr('disabled','disabled');
+        $("textarea").attr('disabled','disabled');
+        $("select").attr('disabled','disabled');
+        $(".eliminarAdd").prop( "disabled", true );
+        $(".eliminarAdd2").prop( "disabled", true );
+        $(".eliminarAdd3").prop( "disabled", true );
+        $(".btn-eliminar-fila").prop("disabled", true);
+        $("#adicionarAdd").prop('disabled', true);
+        $("#generarVariasAdd").prop('disabled', true);
+        $("#borrarTodoAdd").prop('disabled', true);
+        $("#btn-check").prop('disabled', false);
+    </script>
+<?php } ?> 
+<script type="text/javascript">
+    $(document).ready(function(){
+        recargaLista();
+        $('#rep_carcel').change(function(){
+            recargaLista();
+        });
+        recargaListaDpto();
+        $('#departamento').change(function(){
+            recargaListaDpto();
+        });
+        $('#asistencia_muj').change(function(){
 
-<!-- ================================================================ -->
-<!-- BLOQUEO SOLO LECTURA (perfil 168 o reporte vencido)              -->
-<!-- ================================================================ -->
-<?php if ($_SESSION['perfil'] == '168' || (isset($fechLimite) && isset($fechaReporte) && $fechLimite > $fechaReporte)): ?>
-<script>
-$(function(){
-    $('input, textarea, select').not('[type="hidden"]').attr('disabled', 'disabled');
-    $('.eliminarAdd, .eliminarAdd2, .eliminarAdd3, .btn-eliminar-fila').prop('disabled', true);
-    $('#adicionarAdd, #adicionarAdd2, #adicionarAdd3, #generarVariasAdd, #borrarTodoAdd').prop('disabled', true);
-});
+            var cursos = $('#asistencia_muj').val();
+            var resul = cursos/12;
+            var mod = resul%2;
+            if (mod != 0) {
+                resul = Math.trunc(resul)+1;
+            }
+            if (cursos<=12) {
+                resul = 1;
+            }
+            $('#asistencia_jov').val(resul);
+        });
+    })
 </script>
-<?php endif; ?>
-
-<!-- ================================================================ -->
-<!-- AJAX: carga de municipios y ubicación de cárcel                  -->
-<!-- ================================================================ -->
-<script>
-$(document).ready(function(){
-    // Recarga ubicación al cambiar cárcel
-    function recargaLista(){
-        var id = $('#rep_carcel').val();
-        if (!id) { $('#ubicacion').html(''); return; }
-        $.ajax({
-            type: 'POST',
-            url:  'datos_carcel_ubicacion.php',
-            data: { id_carcel: id },
-            success: function(r){ $('#ubicacion').html(r); }
-        });
-    }
-    recargaLista();
-    $('#rep_carcel').on('change', recargaLista);
-
-    // Recarga municipios al cambiar departamento
+<script type="text/javascript">
     function recargaListaDpto(){
-        var id = $('#departamento').val();
-        if (!id) return;
+        $.ajax({
+            type: "POST",
+            url: "datos_ubicacion.php",
+            data: "id_depa=" + $('#departamento').val(),
+            success: function(r){
+                $('#municipio').html(r);
+            }
+        })
+    }
+</script>
+<script type="text/javascript">
+    function recargaLista(){
+        $.ajax({
+            type: "POST",
+            url: "datos_carcel_ubicacion.php",
+            data: "id_carcel=" + $('#rep_carcel').val(),
+            success: function(r){
+                $('#ubicacion').html(r);
+            }
+        })
+    }
+</script>
+
+<!-- ============================================================
+     MEJORAS DE RESILIENCIA DEL FORMULARIO LPP
+     1. Autoguardado en localStorage (cada 30 seg y en cada cambio)
+     2. Keepalive de sesión (ping cada 10 min para evitar timeout)
+     3. Detección de pérdida de conexión con aviso visual
+     ============================================================ -->
+<style>
+    #lpp-status-bar {
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        z-index: 9999;
+        padding: 8px 16px;
+        font-size: 13px;
+        font-weight: bold;
+        text-align: center;
+        display: none;
+        transition: background 0.3s;
+    }
+    #lpp-status-bar.guardado   { background:#28a745; color:#fff; display:block; }
+    #lpp-status-bar.offline    { background:#dc3545; color:#fff; display:block; }
+    #lpp-status-bar.restaurado { background:#17a2b8; color:#fff; display:block; }
+    #lpp-status-bar.guardando  { background:#ffc107; color:#333; display:block; }
+    #lpp-recuperar-banner {
+        display:none; background:#fff3cd; border:1px solid #ffc107;
+        padding:10px 16px; margin:10px 0; border-radius:4px;
+        font-size:13px;
+    }
+</style>
+
+<div id="lpp-status-bar"></div>
+<div id="lpp-recuperar-banner">
+    ⚠️ Se encontraron datos guardados anteriormente sin enviar.
+    <button type="button" class="btn btn-sm btn-warning" onclick="lppRestaurarDatos()">Restaurar datos</button>
+    <button type="button" class="btn btn-sm btn-default" onclick="lppDescartarDatos()">Descartar</button>
+</div>
+
+<script type="text/javascript">
+(function(){
+    /* ---- Configuración ---- */
+    var FORM_ID             = 'form1';
+    var STORAGE_KEY         = 'lpp_autosave_' + (window.location.search || 'nuevo');
+    var SAVE_INTERVAL       = 30000;    // 30 segundos
+    var KEEPALIVE_INTERVAL  = 600000;   // 10 minutos
+    var statusBar           = document.getElementById('lpp-status-bar');
+    var recuperarBanner     = document.getElementById('lpp-recuperar-banner');
+    var saveTimer, hideTimer;
+    var formularioEnviado   = false;
+
+    /* ============================================================
+       TABLAS DINÁMICAS
+       tablaAdd  → graduados      (act_grad_nom / act_grad_tar)
+       tablaAdd2 → bautizados     (act_vin_nom  / act_vin_tar)
+       tablaAdd3 → decisiones     (act_vex_nom  / act_vex_tar)
+    ============================================================ */
+    var TABLAS = [
+        { tablaId: 'tablaAdd',  claseNom: 'act_grad_nom', claseTar: 'act_grad_tar' },
+        { tablaId: 'tablaAdd2', claseNom: 'act_vin_nom',  claseTar: 'act_vin_tar'  },
+        { tablaId: 'tablaAdd3', claseNom: 'act_vex_nom',  claseTar: 'act_vex_tar'  }
+    ];
+
+    /* ---- Utilidades de UI ---- */
+    function mostrarEstado(msg, clase, duracion) {
+        clearTimeout(hideTimer);
+        statusBar.textContent = msg;
+        statusBar.className   = clase;
+        if (duracion) {
+            hideTimer = setTimeout(function(){ statusBar.style.display = 'none'; }, duracion);
+        }
+    }
+
+    /* ---- Serializar campos normales del formulario ---- */
+    function obtenerDatosFormulario() {
+        var form = document.getElementById(FORM_ID);
+        if (!form) return null;
+        var datos = {};
+        var elementos = form.querySelectorAll('input, select, textarea');
+        for (var i = 0; i < elementos.length; i++) {
+            var el = elementos[i];
+            /* Saltar archivos, botones y campos de tablas dinámicas (se guardan aparte) */
+            if (!el.name || el.type === 'file' || el.type === 'submit' || el.type === 'button') continue;
+            if (el.classList.contains('act_grad_nom') || el.classList.contains('act_grad_tar') ||
+                el.classList.contains('act_vin_nom')  || el.classList.contains('act_vin_tar')  ||
+                el.classList.contains('act_vex_nom')  || el.classList.contains('act_vex_tar')) continue;
+            if (el.type === 'checkbox' || el.type === 'radio') {
+                if (el.checked) datos[el.name] = el.value;
+            } else {
+                datos[el.name] = el.value;
+            }
+        }
+        return datos;
+    }
+
+    /* ---- Serializar tablas dinámicas ---- */
+    function obtenerDatosTablas() {
+        var resultado = {};
+        for (var t = 0; t < TABLAS.length; t++) {
+            var cfg   = TABLAS[t];
+            var tabla = document.getElementById(cfg.tablaId);
+            if (!tabla) continue;
+            var filas = [];
+            var inputsNom = tabla.querySelectorAll('input.' + cfg.claseNom);
+            var inputsTar = tabla.querySelectorAll('input.' + cfg.claseTar);
+            for (var i = 0; i < inputsNom.length; i++) {
+                filas.push({
+                    nom: inputsNom[i] ? inputsNom[i].value : '',
+                    tar: inputsTar[i] ? inputsTar[i].value : ''
+                });
+            }
+            resultado[cfg.tablaId] = filas;
+        }
+        return resultado;
+    }
+
+    /* ---- Restaurar campos normales ---- */
+    function restaurarCamposNormales(datos) {
+        var form = document.getElementById(FORM_ID);
+        if (!form) return;
+        var elementos = form.querySelectorAll('input, select, textarea');
+        for (var i = 0; i < elementos.length; i++) {
+            var el = elementos[i];
+            if (!el.name || el.type === 'file' || el.type === 'submit' || el.type === 'button') continue;
+            if (datos.hasOwnProperty(el.name)) {
+                if (el.type === 'checkbox' || el.type === 'radio') {
+                    el.checked = (el.value === datos[el.name]);
+                } else {
+                    el.value = datos[el.name];
+                }
+            }
+        }
+        /* Recalcular totales y selectores dependientes */
+        $('#asistencia_muj').trigger('change');
+        $('#rep_carcel').trigger('change');
+        $('#departamento').trigger('change');
+    }
+
+    /* ---- Restaurar una tabla dinámica ---- */
+    function restaurarTabla(cfg, filas) {
+        var tabla = document.getElementById(cfg.tablaId);
+        if (!tabla || !filas || filas.length === 0) return;
+
+        /* Obtener la fila plantilla (primera fila) */
+        var filaPlantilla = tabla.querySelector('tr');
+        if (!filaPlantilla) return;
+
+        /* Eliminar todas las filas excepto la primera */
+        var todasFilas = tabla.querySelectorAll('tr');
+        for (var i = todasFilas.length - 1; i >= 1; i--) {
+            todasFilas[i].parentNode.removeChild(todasFilas[i]);
+        }
+
+        /* Rellenar la primera fila con el primer registro */
+        var primerNom = tabla.querySelector('input.' + cfg.claseNom);
+        var primerTar = tabla.querySelector('input.' + cfg.claseTar);
+        if (primerNom) primerNom.value = filas[0].nom || '';
+        if (primerTar) primerTar.value = filas[0].tar || '';
+
+        /* Clonar filas para el resto de registros */
+        for (var j = 1; j < filas.length; j++) {
+            var nuevaFila = filaPlantilla.cloneNode(true);
+            nuevaFila.classList.remove('fila-fijaAdd', 'fila-fijaAdd2', 'fila-fijaAdd3');
+            var inputNom = nuevaFila.querySelector('input.' + cfg.claseNom);
+            var inputTar = nuevaFila.querySelector('input.' + cfg.claseTar);
+            if (inputNom) inputNom.value = filas[j].nom || '';
+            if (inputTar) inputTar.value = filas[j].tar || '';
+
+            /* Agregar la fila al tbody si existe, o directamente a la tabla */
+            var tbody = tabla.querySelector('tbody');
+            if (tbody) tbody.appendChild(nuevaFila);
+            else tabla.appendChild(nuevaFila);
+        }
+    }
+
+    /* ---- Autoguardado completo ---- */
+    function lppGuardar() {
+        try {
+            var datos  = obtenerDatosFormulario();
+            var tablas = obtenerDatosTablas();
+            if (!datos) return;
+            mostrarEstado('💾 Guardando borrador...', 'guardando');
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ts: Date.now(),
+                datos: datos,
+                tablas: tablas
+            }));
+            mostrarEstado('✔ Borrador guardado automáticamente', 'guardado', 3000);
+        } catch(e) { /* localStorage puede no estar disponible */ }
+    }
+
+    /* ---- Restaurar todo ---- */
+    window.lppRestaurarDatos = function() {
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            var obj = JSON.parse(raw);
+
+            /* 1. Restaurar campos normales */
+            if (obj.datos) restaurarCamposNormales(obj.datos);
+
+            /* 2. Restaurar tablas dinámicas */
+            if (obj.tablas) {
+                for (var t = 0; t < TABLAS.length; t++) {
+                    var cfg = TABLAS[t];
+                    if (obj.tablas[cfg.tablaId]) {
+                        restaurarTabla(cfg, obj.tablas[cfg.tablaId]);
+                    }
+                }
+            }
+
+            recuperarBanner.style.display = 'none';
+            mostrarEstado('✔ Datos restaurados correctamente (incluye graduados, bautizados y decisiones)', 'restaurado', 5000);
+        } catch(e) {
+            mostrarEstado('⚠ Error al restaurar los datos', 'offline', 4000);
+        }
+    };
+
+    window.lppDescartarDatos = function() {
+        try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+        recuperarBanner.style.display = 'none';
+    };
+
+    /* ---- Keepalive de sesión ---- */
+    function keepAlive() {
         $.ajax({
             type: 'POST',
-            url:  'datos_ubicacion.php',
-            data: { id_depa: id },
-            success: function(r){ $('#municipio').html(r); }
+            url: window.location.href,
+            data: { funcion: 'keepalive_ping' },
+            error: function() { /* silencioso */ }
         });
     }
-    recargaListaDpto();
-    $('#departamento').on('change', recargaListaDpto);
 
-    // Calcular cursos activos al cambiar prisioneros que iniciaron
-    $('#asistencia_muj').on('change', function(){
-        var cur = parseInt($(this).val(), 10) || 0;
-        var res = cur <= 0 ? 0 : (cur <= 12 ? 1 : Math.ceil(cur / 12));
-        $('#asistencia_jov').val(res);
+    /* ---- Detección online / offline ---- */
+    function onOffline() {
+        mostrarEstado('⚠ Sin conexión — los datos están guardados localmente y no se perderán', 'offline');
+        lppGuardar();
+    }
+    function onOnline() {
+        mostrarEstado('✔ Conexión restaurada', 'restaurado', 4000);
+    }
+
+    /* ---- Inicialización ---- */
+    $(document).ready(function(){
+
+        /* Verificar si hay datos guardados */
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                var obj  = JSON.parse(raw);
+                var mins = Math.round((Date.now() - obj.ts) / 60000);
+                recuperarBanner.style.display = 'block';
+                recuperarBanner.querySelector('button').textContent =
+                    'Restaurar datos (guardado hace ' + mins + ' min)';
+                var form = document.getElementById(FORM_ID);
+                if (form) form.parentNode.insertBefore(recuperarBanner, form);
+            }
+        } catch(e) {}
+
+        /* Escuchar cambios en el formulario y en las tablas dinámicas */
+        $('#' + FORM_ID).on('change input', function(){
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(lppGuardar, 2000);
+        });
+        /* Delegación de eventos para inputs dentro de las tablas dinámicas */
+        $(document).on('input change', '#tablaAdd input, #tablaAdd2 input, #tablaAdd3 input', function(){
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(lppGuardar, 2000);
+        });
+
+        /* Autoguardado periódico */
+        setInterval(lppGuardar, SAVE_INTERVAL);
+
+        /* Keepalive de sesión */
+        setInterval(keepAlive, KEEPALIVE_INTERVAL);
+
+        /* Eventos de red */
+        window.addEventListener('offline', onOffline);
+        window.addEventListener('online',  onOnline);
+
+        /* Al enviar, limpiar el borrador */
+        $('#' + FORM_ID).on('submit', function(){
+            formularioEnviado = true;
+            try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+        });
+
+        /* Último guardado de emergencia al cerrar/recargar */
+        window.addEventListener('beforeunload', function(){
+            if (!formularioEnviado) lppGuardar();
+        });
     });
-});
+
+})();
 </script>

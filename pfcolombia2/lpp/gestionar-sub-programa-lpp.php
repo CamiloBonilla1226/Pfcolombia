@@ -33,8 +33,9 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     $prisioneros_invitados = soloNumeros($_POST['prisioneros_invitados']);
     $prisioneros_iniciaron = soloNumeros($_POST['prisioneros_iniciaron']);
     $cursos_activos        = soloNumeros($_POST['cursos_activos']);
-    $total_graduados           = soloNumeros($_POST['total_graduados']);
+    $total_graduados            = soloNumeros($_POST['total_graduados']);
     $total_voluntarios_internos = soloNumeros($_POST['total_voluntarios_internos']);
+    $total_voluntarios_externos = soloNumeros($_POST['total_voluntarios_externos']);
 
     if ($fecha_reporte === '' || $carcel_id == 0) {
         $error_datos = 1;
@@ -46,7 +47,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     usuario_id, carcel_id, programa_id, fecha_reporte,
                     periodo_trimestre, pabellon, poblacion_total,
                     prisioneros_invitados, prisioneros_iniciaron, cursos_activos,
-                    total_graduados, total_voluntarios_internos
+                    total_graduados, total_voluntarios_internos, total_voluntarios_externos
                 ) VALUES (
                     ".(int)$_SESSION['id'].",
                     ".(int)$carcel_id.",
@@ -59,7 +60,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     ".(int)$prisioneros_iniciaron.",
                     ".(int)$cursos_activos.",
                     ".(int)$total_graduados.",
-                    ".(int)$total_voluntarios_internos."
+                    ".(int)$total_voluntarios_internos.",
+                    ".(int)$total_voluntarios_externos."
                 )";
         $PSN->query($sql);
         $ultimoId = $PSN->ultimoId();
@@ -95,6 +97,25 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 $iden = eliminarInvalidos($iden_int[$i] ?? '');
                 if ($nom === '') continue;
                 $PSN->query("INSERT INTO reporte_interno_lpp
+                                (id_reporte_lpp, nombre, identificacion, fecha_registro)
+                             VALUES
+                                (" . (int)$ultimoId . ",
+                                 '" . $nom  . "',
+                                 '" . $iden . "',
+                                 '" . $fecha_hoy . "')");
+            }
+        }
+
+        /* ---- Guardar voluntarios externos ---- */
+        if ($ultimoId > 0 && !empty($_POST['externo_nombre'])) {
+            $nombres_ext = $_POST['externo_nombre'];
+            $iden_ext    = $_POST['externo_identificacion'];
+            $fecha_hoy   = date('Y-m-d');
+            foreach ($nombres_ext as $i => $nombre) {
+                $nom  = eliminarInvalidos($nombre);
+                $iden = eliminarInvalidos($iden_ext[$i] ?? '');
+                if ($nom === '') continue;
+                $PSN->query("INSERT INTO reporte_externo_lpp
                                 (id_reporte_lpp, nombre, identificacion, fecha_registro)
                              VALUES
                                 (" . (int)$ultimoId . ",
@@ -691,6 +712,55 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 
         </div><!-- /seccion 4 -->
 
+        <!-- ================================================
+             SECCIÓN 5 — REGISTRO DE VOLUNTARIOS EXTERNOS
+             ================================================ -->
+        <div class="seccion">
+            <div class="cont-tit">
+                <div class="hr"><hr></div>
+                <div class="tit-cen">
+                    <h3>Registro de voluntarios externos</h3>
+                    <h5>Voluntarios externos que apoyan el programa</h5>
+                </div>
+                <div class="hr"><hr></div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table-graduados" id="tabla-externos">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nombre completo del voluntario externo</th>
+                            <th>Tarjeta dactilar / N° identificación</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="body-externos"></tbody>
+                </table>
+            </div>
+
+            <div class="cont-agregar">
+                <button type="button" class="btn btn-agregar" id="btn-agregar-externo">
+                    + Agregar voluntario externo
+                </button>
+                <span class="sep-agregar">|</span>
+                <span class="lbl-generar">¿Cuántos registros deseas generar?</span>
+                <input type="number" id="cant-generar-externo" class="inp-generar" min="1" max="100" placeholder="N°" />
+                <button type="button" class="btn btn-agregar" id="btn-generar-externo">Generar</button>
+                <span class="sep-agregar">|</span>
+                <button type="button" class="btn btn-eliminar-todo" id="btn-eliminar-todo-externo">
+                    &#128465; Eliminar todo
+                </button>
+            </div>
+
+            <div class="cont-total-graduados">
+                <span class="lbl-total-grad">Total de voluntarios externos completos:</span>
+                <input type="number" id="total_externos_vis" class="inp-total-grad" readonly value="0" />
+                <input type="hidden" name="total_voluntarios_externos" id="total_voluntarios_externos" value="0" />
+            </div>
+
+        </div><!-- /seccion 5 -->
+
         <!-- Botones -->
         <div class="cont-btn">
             <input type="button"
@@ -944,6 +1014,103 @@ $(document).ready(function () {
     });
 
     /* ----------------------------------------------------------
+       5. Tabla de voluntarios externos — misma lógica que internos
+    ---------------------------------------------------------- */
+    var contadorExternos = 0;
+
+    function actualizarNumeracionExternos() {
+        $('#body-externos tr').each(function (i) {
+            $(this).find('td:first').text(i + 1);
+        });
+    }
+
+    function crearFilaExterno() {
+        contadorExternos++;
+        return '<tr>' +
+            '<td>' + contadorExternos + '</td>' +
+            '<td><input type="text" class="inp-tabla ext-nombre" name="externo_nombre[]" placeholder="Nombre completo" /></td>' +
+            '<td><input type="text" class="inp-tabla ext-identificacion" name="externo_identificacion[]" placeholder="N° identificación" /></td>' +
+            '<td><button type="button" class="btn-eliminar-fila btn-elim-externo" title="Eliminar">&#10005;</button></td>' +
+        '</tr>';
+    }
+
+    function agregarFilaExterno(enfocar) {
+        $('#body-externos').append(crearFilaExterno());
+        actualizarNumeracionExternos();
+        if (enfocar !== false) $('#body-externos tr:last .ext-nombre').focus();
+    }
+
+    function puedeEliminarExterno() {
+        return $('#body-externos tr').length > 1;
+    }
+
+    function actualizarBotonesEliminarExterno() {
+        if (puedeEliminarExterno()) {
+            $('.btn-elim-externo').prop('disabled', false).css('opacity', '1');
+        } else {
+            $('.btn-elim-externo').prop('disabled', true).css('opacity', '0.3');
+        }
+    }
+
+    function actualizarTotalExternos() {
+        var completos = 0;
+        $('#body-externos tr').each(function () {
+            var nom  = $(this).find('.ext-nombre').val().trim();
+            var iden = $(this).find('.ext-identificacion').val().trim();
+            if (nom !== '' && iden !== '') completos++;
+        });
+        $('#total_externos_vis').val(completos);
+        $('#total_voluntarios_externos').val(completos);
+    }
+
+    /* Inicializar con 1 fila */
+    agregarFilaExterno(false);
+    actualizarBotonesEliminarExterno();
+    actualizarTotalExternos();
+
+    $('#btn-agregar-externo').on('click', function () {
+        agregarFilaExterno(true);
+        actualizarBotonesEliminarExterno();
+        actualizarTotalExternos();
+    });
+
+    $('#btn-generar-externo').on('click', function () {
+        var cant = parseInt($('#cant-generar-externo').val(), 10);
+        if (isNaN(cant) || cant < 1) {
+            alert('Ingresa un número válido mayor a 0.');
+            $('#cant-generar-externo').focus();
+            return;
+        }
+        for (var i = 0; i < cant; i++) agregarFilaExterno(false);
+        actualizarBotonesEliminarExterno();
+        actualizarTotalExternos();
+        $('#body-externos .ext-nombre').filter(function () { return $(this).val() === ''; }).first().focus();
+        $('#cant-generar-externo').val('');
+    });
+
+    $('#btn-eliminar-todo-externo').on('click', function () {
+        var total = $('#body-externos tr').length;
+        if (!confirm('¿Estás seguro de que deseas eliminar todos los ' + total + ' registros de voluntarios externos? Esta acción no se puede deshacer.')) return;
+        $('#body-externos').empty();
+        contadorExternos = 0;
+        agregarFilaExterno(false);
+        actualizarBotonesEliminarExterno();
+        actualizarTotalExternos();
+    });
+
+    $('#body-externos').on('click', '.btn-elim-externo', function () {
+        if (!puedeEliminarExterno()) return;
+        $(this).closest('tr').remove();
+        actualizarNumeracionExternos();
+        actualizarBotonesEliminarExterno();
+        actualizarTotalExternos();
+    });
+
+    $('#body-externos').on('input', '.ext-nombre, .ext-identificacion', function () {
+        actualizarTotalExternos();
+    });
+
+    /* ----------------------------------------------------------
        4. Cursos activos — ceil(iniciaron / 12), mínimo 1
     ---------------------------------------------------------- */
     $('#prisioneros_iniciaron').on('input change', function () {
@@ -1046,6 +1213,27 @@ $(document).ready(function () {
                     $(this).find('.grad-identificacion').focus();
                     return false;
                 }
+            });
+            return false;
+        }
+
+        /* Validar externos: filas incompletas (mínimo 0, pero si hay datos deben estar completos) */
+        var extCompletos = 0;
+        var extIncompletos = 0;
+        $('#body-externos tr').each(function () {
+            var nom  = $(this).find('.ext-nombre').val().trim();
+            var iden = $(this).find('.ext-identificacion').val().trim();
+            if (nom !== '' && iden !== '') { extCompletos++; }
+            else if (nom !== '' || iden !== '') { extIncompletos++; }
+        });
+        if (extIncompletos > 0) {
+            e.preventDefault();
+            alert('Hay ' + extIncompletos + ' fila(s) de voluntarios externos con datos incompletos. Completa ambos campos o elimínalas.');
+            $('#body-externos tr').each(function () {
+                var nom  = $(this).find('.ext-nombre').val().trim();
+                var iden = $(this).find('.ext-identificacion').val().trim();
+                if (nom === '' && iden !== '') { $(this).find('.ext-nombre').focus(); return false; }
+                if (iden === '' && nom !== '') { $(this).find('.ext-identificacion').focus(); return false; }
             });
             return false;
         }
