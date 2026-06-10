@@ -288,178 +288,273 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     .report-form .btn-success { background: #1f3547; color: #fff; }
     .report-form .btn-info    { background: #4b5b68; color: #fff; }
 
-    /* Tabla de graduados */
+    /* ── Tabla de registros (graduados / internos / externos) ── */
+    .table-wrap {
+        border: 1px solid #dde3ea;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 0;
+    }
     .table-graduados {
         width: 100%;
         border-collapse: collapse;
-        margin-bottom: 14px;
-        font-size: 13px;
+        font-size: 13.5px;
+    }
+    .table-graduados thead tr {
+        background: linear-gradient(135deg, #243746 0%, #344f64 100%);
     }
     .table-graduados thead th {
-        background: #f0f4f8;
-        color: #1e2d3a;
+        color: #e8eef4;
         font-weight: 700;
-        font-size: 12px;
-        letter-spacing: .04em;
+        font-size: 11.5px;
+        letter-spacing: .06em;
         text-transform: uppercase;
-        padding: 11px 14px;
-        border-bottom: 2px solid #d0dbe5;
+        padding: 13px 16px;
         text-align: left;
+        border: none;
     }
-    .table-graduados thead th:first-child { width: 44px; text-align: center; }
-    .table-graduados thead th:last-child  { width: 44px; }
+    .table-graduados thead th:first-child { width: 52px; text-align: center; }
+    .table-graduados thead th:last-child  { width: 52px; text-align: center; }
 
     .table-graduados tbody tr {
-        border-bottom: 1px solid #e8ecf0;
+        border-bottom: 1px solid #edf0f4;
         transition: background .12s;
     }
-    .table-graduados tbody tr:hover { background: #f8fafc; }
+    .table-graduados tbody tr:last-child { border-bottom: none; }
+    .table-graduados tbody tr:hover { background: #f4f7fb; }
     .table-graduados tbody td {
-        padding: 8px 10px;
+        padding: 10px 14px;
         vertical-align: middle;
     }
     .table-graduados tbody td:first-child {
         text-align: center;
-        color: #7a8a99;
         font-weight: 700;
         font-size: 12px;
-        width: 44px;
+        color: #8fa3b4;
+        width: 52px;
+        background: #f8fafc;
+        border-right: 1px solid #edf0f4;
     }
-    .table-graduados tbody td:last-child { width: 44px; text-align: center; }
+    .table-graduados tbody td:last-child {
+        width: 52px;
+        text-align: center;
+        background: #fafafa;
+        border-left: 1px solid #edf0f4;
+    }
 
     .table-graduados .inp-tabla {
         width: 100%;
-        padding: 8px 11px;
+        padding: 9px 13px;
         border-radius: 8px;
-        border: 1px solid #cfd5db;
+        border: 1px solid #d0d8e0;
         background: #fff;
         font-size: 13px;
         color: #1f2933;
-        height: 38px;
+        height: 40px;
         transition: border-color .15s, box-shadow .15s;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,.04);
     }
     .table-graduados .inp-tabla:focus {
         border-color: #334e68;
-        box-shadow: 0 0 0 3px rgba(51,78,104,.10);
+        box-shadow: 0 0 0 3px rgba(51,78,104,.12), inset 0 1px 2px rgba(0,0,0,.04);
         outline: none;
+        background: #fafcff;
     }
 
     .btn-eliminar-fila {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
         background: none;
-        border: none;
-        color: #c0392b;
-        font-size: 18px;
+        border: 1px solid transparent;
+        color: #b0bec8;
+        font-size: 15px;
         font-weight: 700;
         cursor: pointer;
-        padding: 4px 8px;
-        border-radius: 6px;
-        transition: background .12s;
+        border-radius: 7px;
+        transition: background .12s, color .12s, border-color .12s;
         line-height: 1;
     }
-    .btn-eliminar-fila:hover { background: #fdf3f3; }
+    .btn-eliminar-fila:hover {
+        background: #fdf3f3;
+        color: #c0392b;
+        border-color: #f5c6c3;
+    }
 
     .sin-registros td {
         text-align: center;
         color: #8a9bac;
         font-style: italic;
-        padding: 20px;
+        padding: 24px;
     }
 
-    .cont-agregar {
-        margin-top: 10px;
+    /* ── Barra de controles ── */
+    .barra-controles {
+        margin-top: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .barra-fila {
         display: flex;
         align-items: center;
         flex-wrap: wrap;
         gap: 10px;
     }
+    .barra-fila + .barra-fila {
+        padding-top: 10px;
+        border-top: 1px dashed #dde4ec;
+    }
     .btn-agregar {
-        background: #f0f4f8;
-        border: 1px dashed #9ab0c4;
-        color: #2d4a62;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f0f5fb;
+        border: 1.5px dashed #8fb0cc;
+        color: #1e3a52;
         border-radius: 9px;
         padding: 9px 20px;
         font-size: 13px;
         font-weight: 700;
         cursor: pointer;
-        transition: background .14s, border-color .14s;
+        transition: background .14s, border-color .14s, box-shadow .14s;
         white-space: nowrap;
     }
-    .btn-agregar:hover { background: #e2eaf2; border-color: #6b8fa8; }
+    .btn-agregar:hover {
+        background: #ddeaf5;
+        border-color: #4d82a8;
+        box-shadow: 0 3px 8px rgba(30,58,82,.10);
+    }
     .sep-agregar {
-        color: #c0ccd8;
-        font-size: 18px;
+        color: #d0d9e2;
+        font-size: 20px;
         line-height: 1;
+        user-select: none;
+    }
+    .grupo-generar {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #f7f9fb;
+        border: 1px solid #dde4ec;
+        border-radius: 9px;
+        padding: 6px 14px 6px 12px;
     }
     .lbl-generar {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 700;
-        color: #3a5068;
+        color: #4a6070;
         white-space: nowrap;
+        letter-spacing: .02em;
     }
     .inp-generar {
-        width: 70px;
-        padding: 8px 10px;
-        border-radius: 8px;
-        border: 1px solid #cfd5db;
+        width: 62px;
+        padding: 6px 8px;
+        border-radius: 7px;
+        border: 1px solid #cfd8e0;
+        background: #fff;
         font-size: 13px;
         color: #1f2933;
-        height: 38px;
+        height: 34px;
         text-align: center;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,.04);
     }
     .inp-generar:focus {
         border-color: #334e68;
         box-shadow: 0 0 0 3px rgba(51,78,104,.10);
         outline: none;
     }
-    .btn-eliminar-todo {
-        background: #fdf3f3;
-        border: 1px dashed #c0392b;
-        color: #c0392b;
-        border-radius: 9px;
-        padding: 9px 16px;
-        font-size: 13px;
+    .btn-generar-inline {
+        background: #1f3547;
+        border: none;
+        color: #fff;
+        border-radius: 7px;
+        padding: 6px 14px;
+        font-size: 12px;
         font-weight: 700;
         cursor: pointer;
-        transition: background .14s;
+        height: 34px;
+        transition: background .14s, box-shadow .14s;
         white-space: nowrap;
     }
-    .btn-eliminar-todo:hover { background: #fae0de; }
+    .btn-generar-inline:hover { background: #2c4d68; box-shadow: 0 3px 8px rgba(15,23,42,.15); }
+    .btn-eliminar-todo {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: transparent;
+        border: 1.5px dashed #d9a09a;
+        color: #a33028;
+        border-radius: 9px;
+        padding: 9px 16px;
+        font-size: 12.5px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background .14s, border-color .14s;
+        white-space: nowrap;
+        margin-left: auto;
+    }
+    .btn-eliminar-todo:hover { background: #fdf3f3; border-color: #c0392b; }
 
-    .cont-total-graduados {
+    /* ── Tarjeta de total ── */
+    .card-total {
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+        margin-top: 18px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #c8d6e0;
+        box-shadow: 0 4px 12px rgba(15,23,42,.07);
+    }
+    .card-total-label {
+        padding: 12px 20px;
+        background: #eef3f8;
+        border-right: 1px solid #c8d6e0;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #344f64;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    .card-total-badge {
+        padding: 10px 22px;
+        background: #1f3547;
         display: flex;
         align-items: center;
-        gap: 10px;
-        margin-top: 12px;
-        padding: 10px 14px;
-        background: #f0f4f8;
-        border: 1px solid #d0dbe5;
-        border-radius: 10px;
-        width: fit-content;
+        justify-content: center;
+        min-width: 58px;
     }
-    .lbl-total-grad {
-        font-size: 13px;
+    .card-total-badge input {
+        background: transparent;
+        border: none;
+        color: #ffffff;
+        font-size: 22px;
         font-weight: 700;
-        color: #1e2d3a;
-        white-space: nowrap;
-    }
-    .inp-total-grad {
-        width: 70px;
-        padding: 7px 10px;
-        border-radius: 8px;
-        border: 1px solid #b0c4d4;
-        background: #ffffff;
-        font-size: 15px;
-        font-weight: 700;
-        color: #1f3547;
         text-align: center;
-        height: 38px;
+        width: 52px;
         cursor: default;
+        outline: none;
+        padding: 0;
+        line-height: 1;
+        /* ocultar spinners */
+        -moz-appearance: textfield;
     }
+    .card-total-badge input::-webkit-outer-spin-button,
+    .card-total-badge input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
     @media (max-width: 767px) {
         .cont-tit { flex-direction: column; gap: 8px; }
         .cont-tit .tit-cen { width: 100%; white-space: normal; }
         .report-form .btn { width: 100%; }
+        .barra-fila { flex-direction: column; align-items: flex-start; }
+        .btn-eliminar-todo { margin-left: 0; width: 100%; justify-content: center; }
+        .grupo-generar { width: 100%; }
+        .card-total { width: 100%; }
+        .card-total-badge { flex: 1; justify-content: center; }
     }
 </style>
 
@@ -625,7 +720,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="hr"><hr></div>
             </div>
 
-            <div class="table-responsive">
+            <div class="table-wrap">
                 <table class="table-graduados" id="tabla-graduados">
                     <thead>
                         <tr>
@@ -635,31 +730,34 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                             <th></th>
                         </tr>
                     </thead>
-                    <tbody id="body-graduados">
-                        <!-- La primera fila se genera automáticamente -->
-                    </tbody>
+                    <tbody id="body-graduados"></tbody>
                 </table>
             </div>
 
-            <div class="cont-agregar">
-                <button type="button" class="btn btn-agregar" id="btn-agregar-graduado">
-                    + Agregar graduado
-                </button>
-                <span class="sep-agregar">|</span>
-                <span class="lbl-generar">¿Cuántos registros deseas generar?</span>
-                <input type="number" id="cant-generar" class="inp-generar" min="1" max="100" placeholder="N°" />
-                <button type="button" class="btn btn-agregar" id="btn-generar">Generar</button>
-                <span class="sep-agregar">|</span>
-                <button type="button" class="btn btn-eliminar-todo" id="btn-eliminar-todo">
-                    &#128465; Eliminar todo
-                </button>
+            <div class="barra-controles">
+                <div class="barra-fila">
+                    <button type="button" class="btn-agregar" id="btn-agregar-graduado">
+                        &#43; Agregar graduado
+                    </button>
+                    <span class="sep-agregar">|</span>
+                    <div class="grupo-generar">
+                        <span class="lbl-generar">Generar registros:</span>
+                        <input type="number" id="cant-generar" class="inp-generar" min="1" max="100" placeholder="N°" />
+                        <button type="button" class="btn-generar-inline" id="btn-generar">Generar</button>
+                    </div>
+                    <button type="button" class="btn-eliminar-todo" id="btn-eliminar-todo">
+                        &#128465; Eliminar todo
+                    </button>
+                </div>
             </div>
 
-            <div class="cont-total-graduados">
-                <span class="lbl-total-grad">Total de graduados completos:</span>
-                <input type="number" id="total_graduados_vis" class="inp-total-grad" readonly value="0" />
-                <input type="hidden" name="total_graduados" id="total_graduados" value="0" />
+            <div class="card-total">
+                <span class="card-total-label">Graduados registrados</span>
+                <div class="card-total-badge">
+                    <input type="number" id="total_graduados_vis" readonly value="0" />
+                </div>
             </div>
+            <input type="hidden" name="total_graduados" id="total_graduados" value="0" />
 
         </div><!-- /seccion 3 -->
 
@@ -676,7 +774,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="hr"><hr></div>
             </div>
 
-            <div class="table-responsive">
+            <div class="table-wrap">
                 <table class="table-graduados" id="tabla-internos">
                     <thead>
                         <tr>
@@ -690,25 +788,30 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 </table>
             </div>
 
-            <div class="cont-agregar">
-                <button type="button" class="btn btn-agregar" id="btn-agregar-interno">
-                    + Agregar voluntario interno
-                </button>
-                <span class="sep-agregar">|</span>
-                <span class="lbl-generar">¿Cuántos registros deseas generar?</span>
-                <input type="number" id="cant-generar-interno" class="inp-generar" min="1" max="100" placeholder="N°" />
-                <button type="button" class="btn btn-agregar" id="btn-generar-interno">Generar</button>
-                <span class="sep-agregar">|</span>
-                <button type="button" class="btn btn-eliminar-todo" id="btn-eliminar-todo-interno">
-                    &#128465; Eliminar todo
-                </button>
+            <div class="barra-controles">
+                <div class="barra-fila">
+                    <button type="button" class="btn-agregar" id="btn-agregar-interno">
+                        &#43; Agregar voluntario interno
+                    </button>
+                    <span class="sep-agregar">|</span>
+                    <div class="grupo-generar">
+                        <span class="lbl-generar">Generar registros:</span>
+                        <input type="number" id="cant-generar-interno" class="inp-generar" min="1" max="100" placeholder="N°" />
+                        <button type="button" class="btn-generar-inline" id="btn-generar-interno">Generar</button>
+                    </div>
+                    <button type="button" class="btn-eliminar-todo" id="btn-eliminar-todo-interno">
+                        &#128465; Eliminar todo
+                    </button>
+                </div>
             </div>
 
-            <div class="cont-total-graduados">
-                <span class="lbl-total-grad">Total de voluntarios internos completos:</span>
-                <input type="number" id="total_internos_vis" class="inp-total-grad" readonly value="0" />
-                <input type="hidden" name="total_voluntarios_internos" id="total_voluntarios_internos" value="0" />
+            <div class="card-total">
+                <span class="card-total-label">Voluntarios internos registrados</span>
+                <div class="card-total-badge">
+                    <input type="number" id="total_internos_vis" readonly value="0" />
+                </div>
             </div>
+            <input type="hidden" name="total_voluntarios_internos" id="total_voluntarios_internos" value="0" />
 
         </div><!-- /seccion 4 -->
 
@@ -725,7 +828,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="hr"><hr></div>
             </div>
 
-            <div class="table-responsive">
+            <div class="table-wrap">
                 <table class="table-graduados" id="tabla-externos">
                     <thead>
                         <tr>
@@ -739,25 +842,30 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 </table>
             </div>
 
-            <div class="cont-agregar">
-                <button type="button" class="btn btn-agregar" id="btn-agregar-externo">
-                    + Agregar voluntario externo
-                </button>
-                <span class="sep-agregar">|</span>
-                <span class="lbl-generar">¿Cuántos registros deseas generar?</span>
-                <input type="number" id="cant-generar-externo" class="inp-generar" min="1" max="100" placeholder="N°" />
-                <button type="button" class="btn btn-agregar" id="btn-generar-externo">Generar</button>
-                <span class="sep-agregar">|</span>
-                <button type="button" class="btn btn-eliminar-todo" id="btn-eliminar-todo-externo">
-                    &#128465; Eliminar todo
-                </button>
+            <div class="barra-controles">
+                <div class="barra-fila">
+                    <button type="button" class="btn-agregar" id="btn-agregar-externo">
+                        &#43; Agregar voluntario externo
+                    </button>
+                    <span class="sep-agregar">|</span>
+                    <div class="grupo-generar">
+                        <span class="lbl-generar">Generar registros:</span>
+                        <input type="number" id="cant-generar-externo" class="inp-generar" min="1" max="100" placeholder="N°" />
+                        <button type="button" class="btn-generar-inline" id="btn-generar-externo">Generar</button>
+                    </div>
+                    <button type="button" class="btn-eliminar-todo" id="btn-eliminar-todo-externo">
+                        &#128465; Eliminar todo
+                    </button>
+                </div>
             </div>
 
-            <div class="cont-total-graduados">
-                <span class="lbl-total-grad">Total de voluntarios externos completos:</span>
-                <input type="number" id="total_externos_vis" class="inp-total-grad" readonly value="0" />
-                <input type="hidden" name="total_voluntarios_externos" id="total_voluntarios_externos" value="0" />
+            <div class="card-total">
+                <span class="card-total-label">Voluntarios externos registrados</span>
+                <div class="card-total-badge">
+                    <input type="number" id="total_externos_vis" readonly value="0" />
+                </div>
             </div>
+            <input type="hidden" name="total_voluntarios_externos" id="total_voluntarios_externos" value="0" />
 
         </div><!-- /seccion 5 -->
 
