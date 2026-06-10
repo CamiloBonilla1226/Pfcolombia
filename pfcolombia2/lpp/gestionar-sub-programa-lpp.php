@@ -58,6 +58,28 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 )";
         $PSN->query($sql);
         $ultimoId = $PSN->ultimoId();
+
+        /* ---- Guardar graduados ---- */
+        if ($ultimoId > 0 && !empty($_POST['grad_nombre'])) {
+            $nombres         = $_POST['grad_nombre'];
+            $identificaciones = $_POST['grad_identificacion'];
+            $fecha_hoy       = date('Y-m-d');
+
+            foreach ($nombres as $i => $nombre) {
+                $nom  = eliminarInvalidos($nombre);
+                $iden = eliminarInvalidos($identificaciones[$i] ?? '');
+                if ($nom === '') continue;
+
+                $PSN->query("INSERT INTO reporte_graduado_lpp
+                                (id_reporte_lpp, nombre, identificacion, fecha_registro)
+                             VALUES
+                                (" . (int)$ultimoId . ",
+                                 '" . $nom  . "',
+                                 '" . $iden . "',
+                                 '" . $fecha_hoy . "')");
+            }
+        }
+
         $varExito = 1;
     }
 }
@@ -221,11 +243,103 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     .report-form .btn-success { background: #1f3547; color: #fff; }
     .report-form .btn-info    { background: #4b5b68; color: #fff; }
 
+    /* Tabla de graduados */
+    .table-graduados {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 14px;
+        font-size: 13px;
+    }
+    .table-graduados thead th {
+        background: #f0f4f8;
+        color: #1e2d3a;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        padding: 11px 14px;
+        border-bottom: 2px solid #d0dbe5;
+        text-align: left;
+    }
+    .table-graduados thead th:first-child { width: 44px; text-align: center; }
+    .table-graduados thead th:last-child  { width: 44px; }
+
+    .table-graduados tbody tr {
+        border-bottom: 1px solid #e8ecf0;
+        transition: background .12s;
+    }
+    .table-graduados tbody tr:hover { background: #f8fafc; }
+    .table-graduados tbody td {
+        padding: 8px 10px;
+        vertical-align: middle;
+    }
+    .table-graduados tbody td:first-child {
+        text-align: center;
+        color: #7a8a99;
+        font-weight: 700;
+        font-size: 12px;
+        width: 44px;
+    }
+    .table-graduados tbody td:last-child { width: 44px; text-align: center; }
+
+    .table-graduados .inp-tabla {
+        width: 100%;
+        padding: 8px 11px;
+        border-radius: 8px;
+        border: 1px solid #cfd5db;
+        background: #fff;
+        font-size: 13px;
+        color: #1f2933;
+        height: 38px;
+        transition: border-color .15s, box-shadow .15s;
+    }
+    .table-graduados .inp-tabla:focus {
+        border-color: #334e68;
+        box-shadow: 0 0 0 3px rgba(51,78,104,.10);
+        outline: none;
+    }
+
+    .btn-eliminar-fila {
+        background: none;
+        border: none;
+        color: #c0392b;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: background .12s;
+        line-height: 1;
+    }
+    .btn-eliminar-fila:hover { background: #fdf3f3; }
+
+    .sin-registros td {
+        text-align: center;
+        color: #8a9bac;
+        font-style: italic;
+        padding: 20px;
+    }
+
+    .cont-agregar {
+        margin-top: 4px;
+    }
+    .btn-agregar {
+        background: #f0f4f8;
+        border: 1px dashed #9ab0c4;
+        color: #2d4a62;
+        border-radius: 9px;
+        padding: 9px 20px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background .14s, border-color .14s;
+    }
+    .btn-agregar:hover { background: #e2eaf2; border-color: #6b8fa8; }
+
     @media (max-width: 767px) {
         .cont-tit { flex-direction: column; gap: 8px; }
         .cont-tit .tit-cen { width: 100%; white-space: normal; }
         .report-form .btn { width: 100%; }
-        .bloque-ubicacion .campo-ubi { min-width: 100%; }
     }
 </style>
 
@@ -378,6 +492,43 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 
         </div><!-- /seccion 2 -->
 
+        <!-- ================================================
+             SECCIÓN 3 — REGISTRO DE GRADUADOS
+             ================================================ -->
+        <div class="seccion">
+            <div class="cont-tit">
+                <div class="hr"><hr></div>
+                <div class="tit-cen">
+                    <h3>Registro de graduados</h3>
+                    <h5>Listado de prisioneros graduados del programa</h5>
+                </div>
+                <div class="hr"><hr></div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table-graduados" id="tabla-graduados">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nombre completo del graduado</th>
+                            <th>Tarjeta dactilar / N° identificación</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="body-graduados">
+                        <!-- Las filas se agregan dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="cont-agregar">
+                <button type="button" class="btn btn-agregar" id="btn-agregar-graduado">
+                    + Agregar graduado
+                </button>
+            </div>
+
+        </div><!-- /seccion 3 -->
+
         <!-- Botones -->
         <div class="cont-btn">
             <input type="button"
@@ -419,7 +570,58 @@ $(document).ready(function () {
     });
 
     /* ----------------------------------------------------------
-       2. Cursos activos — ceil(iniciaron / 12), mínimo 1
+       2. Tabla de graduados — agregar / eliminar filas
+    ---------------------------------------------------------- */
+    var contadorGraduados = 0;
+
+    function filaVacia() {
+        return '<tr><td colspan="4" class="sin-registros"><em>No hay graduados registrados. Haz clic en "Agregar graduado".</em></td></tr>';
+    }
+
+    function actualizarNumeracion() {
+        $('#body-graduados tr:not(.sin-registros)').each(function (i) {
+            $(this).find('td:first').text(i + 1);
+        });
+    }
+
+    function agregarFilaGraduado() {
+        contadorGraduados++;
+        var idx = contadorGraduados;
+
+        // Quitar fila vacía si existe
+        $('#body-graduados .sin-registros').closest('tr').remove();
+
+        var fila = '<tr data-idx="' + idx + '">' +
+            '<td>' + idx + '</td>' +
+            '<td><input type="text" class="inp-tabla grad-nombre" name="grad_nombre[]" placeholder="Nombre completo" required /></td>' +
+            '<td><input type="text" class="inp-tabla grad-identificacion" name="grad_identificacion[]" placeholder="N° identificación" required /></td>' +
+            '<td><button type="button" class="btn-eliminar-fila" title="Eliminar">&#10005;</button></td>' +
+        '</tr>';
+
+        $('#body-graduados').append(fila);
+        // Foco en el nombre de la fila recién agregada
+        $('#body-graduados tr:last .grad-nombre').focus();
+    }
+
+    // Inicializar tabla vacía
+    $('#body-graduados').html(filaVacia());
+
+    // Botón agregar
+    $('#btn-agregar-graduado').on('click', function () {
+        agregarFilaGraduado();
+    });
+
+    // Eliminar fila (delegado)
+    $('#body-graduados').on('click', '.btn-eliminar-fila', function () {
+        $(this).closest('tr').remove();
+        actualizarNumeracion();
+        if ($('#body-graduados tr').length === 0) {
+            $('#body-graduados').html(filaVacia());
+        }
+    });
+
+    /* ----------------------------------------------------------
+       3. Cursos activos — ceil(iniciaron / 12), mínimo 1
     ---------------------------------------------------------- */
     $('#prisioneros_iniciaron').on('input change', function () {
         var iniciaron = parseInt($(this).val(), 10);
