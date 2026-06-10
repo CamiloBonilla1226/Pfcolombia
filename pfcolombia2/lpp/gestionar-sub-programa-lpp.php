@@ -19,6 +19,22 @@ $empresa_pd = isset($_SESSION['empresa_pd']) ? $_SESSION['empresa_pd'] : '';
 /* ============================================================
    PROCESAMIENTO
    ============================================================ */
+
+/* Comprime imágenes al moverlas al servidor */
+function compressImage($source, $destination, $quality) {
+    $info = getimagesize($source);
+    if ($info['mime'] === 'image/jpeg') {
+        $image = imagecreatefromjpeg($source);
+    } elseif ($info['mime'] === 'image/gif') {
+        $image = imagecreatefromgif($source);
+    } elseif ($info['mime'] === 'image/png') {
+        $image = imagecreatefrompng($source);
+    } else {
+        return false;
+    }
+    return imagejpeg($image, $destination, $quality);
+}
+
 $varExito    = 0;
 $error_datos = 0;
 $texto_error = '';
@@ -39,6 +55,10 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     $discipulos_pasaron_cm      = soloNumeros($_POST['discipulos_pasaron_cm']);
     $costo_recursos             = soloNumeros($_POST['costo_recursos']);
 
+    /* Archivos */
+    $ext_foto       = extension_archivo($_FILES['archivo_foto']['name']       ?? '');
+    $ext_testimonio = extension_archivo($_FILES['archivo_testimonio']['name'] ?? '');
+
     if ($fecha_reporte === '' || $carcel_id == 0) {
         $error_datos = 1;
         $texto_error = 'La fecha y la cárcel son requeridas.';
@@ -50,7 +70,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     periodo_trimestre, pabellon, poblacion_total,
                     prisioneros_invitados, prisioneros_iniciaron, cursos_activos,
                     total_graduados, total_voluntarios_internos, total_voluntarios_externos,
-                    discipulos_pasaron_cm, costo_recursos
+                    discipulos_pasaron_cm, costo_recursos,
+                    archivo_foto, archivo_testimonio
                 ) VALUES (
                     ".(int)$_SESSION['id'].",
                     ".(int)$carcel_id.",
@@ -66,7 +87,9 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     ".(int)$total_voluntarios_internos.",
                     ".(int)$total_voluntarios_externos.",
                     ".(int)$discipulos_pasaron_cm.",
-                    ".(int)$costo_recursos."
+                    ".(int)$costo_recursos.",
+                    '".$ext_foto."',
+                    '".$ext_testimonio."'
                 )";
         $PSN->query($sql);
         $ultimoId = $PSN->ultimoId();
@@ -127,6 +150,29 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                                  '" . $nom  . "',
                                  '" . $iden . "',
                                  '" . $fecha_hoy . "')");
+            }
+        }
+
+        /* ---- Mover archivos al servidor ---- */
+        if ($ultimoId > 0) {
+
+            /* Foto de grupo (imagen) */
+            if ($ext_foto !== '') {
+                $rutaOrigen  = $_FILES['archivo_foto']['tmp_name'];
+                $rutaDestino = 'archivos/evi_' . $ultimoId . '_foto.' . $ext_foto;
+                $imgExts = ['png', 'jpg', 'jpeg', 'gif'];
+                if (in_array($ext_foto, $imgExts)) {
+                    compressImage($rutaOrigen, $rutaDestino, 80);
+                } else {
+                    move_uploaded_file($rutaOrigen, $rutaDestino);
+                }
+            }
+
+            /* Testimonio (word / pdf / doc) */
+            if ($ext_testimonio !== '') {
+                $rutaOrigen  = $_FILES['archivo_testimonio']['tmp_name'];
+                $rutaDestino = 'archivos/evi_' . $ultimoId . '_testimonio.' . $ext_testimonio;
+                move_uploaded_file($rutaOrigen, $rutaDestino);
             }
         }
 
@@ -863,6 +909,24 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 
             </div>
 
+            <div class="form-group row fila-form">
+
+                <div class="col-sm-5">
+                    <strong>Foto de grupo:</strong>
+                    <small style="display:block;color:#6b7f8e;margin-bottom:6px;">Formatos permitidos: JPG, JPEG, PNG, GIF</small>
+                    <input type="file" name="archivo_foto" id="archivo_foto"
+                           class="form-control" accept=".jpg,.jpeg,.png,.gif" />
+                </div>
+
+                <div class="col-sm-5">
+                    <strong>Testimonio:</strong>
+                    <small style="display:block;color:#6b7f8e;margin-bottom:6px;">Formatos permitidos: PDF, DOC, DOCX</small>
+                    <input type="file" name="archivo_testimonio" id="archivo_testimonio"
+                           class="form-control" accept=".pdf,.doc,.docx" />
+                </div>
+
+            </div>
+
         </div><!-- /seccion 6 -->
 
         <!-- Botones -->
@@ -1355,6 +1419,32 @@ $(document).ready(function () {
                 if (iden === '' && nom !== '') { $(this).find('.ext-identificacion').focus(); return false; }
             });
             return false;
+        }
+
+        /* Validar archivo foto (si se sube, debe ser imagen) */
+        var fotoInput = $('#archivo_foto')[0];
+        if (fotoInput && fotoInput.files.length > 0) {
+            var fotoExt = fotoInput.files[0].name.split('.').pop().toLowerCase();
+            var fotoPermitidos = ['jpg', 'jpeg', 'png', 'gif'];
+            if (fotoPermitidos.indexOf(fotoExt) === -1) {
+                e.preventDefault();
+                alert('El archivo de Foto de grupo debe ser una imagen (JPG, JPEG, PNG o GIF).');
+                $('#archivo_foto').focus();
+                return false;
+            }
+        }
+
+        /* Validar archivo testimonio (si se sube, debe ser pdf/doc/docx) */
+        var testInput = $('#archivo_testimonio')[0];
+        if (testInput && testInput.files.length > 0) {
+            var testExt = testInput.files[0].name.split('.').pop().toLowerCase();
+            var testPermitidos = ['pdf', 'doc', 'docx'];
+            if (testPermitidos.indexOf(testExt) === -1) {
+                e.preventDefault();
+                alert('El archivo de Testimonio debe ser PDF, DOC o DOCX.');
+                $('#archivo_testimonio').focus();
+                return false;
+            }
         }
 
         if (confirm('¿Está seguro de que desea guardar este reporte?')) {
