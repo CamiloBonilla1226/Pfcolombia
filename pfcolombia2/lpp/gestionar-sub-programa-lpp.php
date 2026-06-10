@@ -567,6 +567,123 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         .card-total { width: 100%; }
         .card-total-badge { flex: 1; justify-content: center; }
     }
+
+    /* ── Sección Método de verificación ── */
+    .verif-indicadores {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+    .verif-card {
+        flex: 1;
+        min-width: 220px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        background: #f7f9fb;
+        border: 1px solid #d8e2eb;
+        border-radius: 12px;
+        padding: 16px 20px;
+    }
+    .verif-card-icon {
+        font-size: 28px;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+    .verif-card-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .verif-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: #24313d;
+        letter-spacing: .02em;
+        line-height: 1.4;
+    }
+    .verif-input {
+        width: 100%;
+        padding: 9px 13px;
+        border-radius: 9px;
+        border: 1px solid #cfd5db;
+        background: #ffffff;
+        color: #1f2933;
+        font-size: 18px;
+        font-weight: 700;
+        height: 46px;
+        text-align: center;
+        transition: border-color .15s, box-shadow .15s;
+        -moz-appearance: textfield;
+    }
+    .verif-input::-webkit-outer-spin-button,
+    .verif-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .verif-input:focus {
+        border-color: #334e68;
+        box-shadow: 0 0 0 3px rgba(51,78,104,.10);
+        outline: none;
+    }
+
+    .verif-adjuntos {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+    .verif-upload-card {
+        flex: 1;
+        min-width: 240px;
+        border: 1px solid #d8e2eb;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .verif-upload-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 11px 16px;
+        background: #f0f4f8;
+        border-bottom: 1px solid #d8e2eb;
+    }
+    .verif-upload-icon { font-size: 18px; line-height: 1; }
+    .verif-upload-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #1e2d3a;
+    }
+    .verif-upload-body {
+        padding: 14px 16px 12px;
+        background: #ffffff;
+    }
+    .verif-file-input {
+        display: block;
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px dashed #9ab0c4;
+        background: #f7f9fb;
+        font-size: 13px;
+        color: #3a5068;
+        cursor: pointer;
+        transition: border-color .14s, background .14s;
+    }
+    .verif-file-input:hover { border-color: #6b8fa8; background: #eef4f9; }
+    .verif-upload-hint {
+        margin: 7px 0 0;
+        font-size: 11px;
+        color: #7a8e9c;
+        font-weight: 600;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    @media (max-width: 767px) {
+        .verif-indicadores,
+        .verif-adjuntos { flex-direction: column; }
+        .verif-card,
+        .verif-upload-card { min-width: 0; width: 100%; }
+    }
 </style>
 
 <div class="container report-shell">
@@ -893,36 +1010,58 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="hr"><hr></div>
             </div>
 
-            <div class="form-group row fila-form">
+            <!-- Indicadores numéricos -->
+            <div class="verif-indicadores">
 
-                <div class="col-sm-4">
-                    <strong>Número de discípulos que pasaron a C&amp;M:</strong>
-                    <input type="number" name="discipulos_pasaron_cm" id="discipulos_pasaron_cm"
-                           class="form-control" min="0" value="0" required />
+                <div class="verif-card">
+                    <div class="verif-card-icon">&#127891;</div>
+                    <div class="verif-card-body">
+                        <label class="verif-label" for="discipulos_pasaron_cm">
+                            Discípulos que pasaron a C&amp;M
+                        </label>
+                        <input type="number" name="discipulos_pasaron_cm" id="discipulos_pasaron_cm"
+                               class="verif-input" min="0" value="0" required />
+                    </div>
                 </div>
 
-                <div class="col-sm-4">
-                    <strong>Costo de recursos gestionados ($):</strong>
-                    <input type="number" name="costo_recursos" id="costo_recursos"
-                           class="form-control" min="0" value="0" required />
+                <div class="verif-card">
+                    <div class="verif-card-icon">&#128176;</div>
+                    <div class="verif-card-body">
+                        <label class="verif-label" for="costo_recursos">
+                            Costo de recursos gestionados ($)
+                        </label>
+                        <input type="number" name="costo_recursos" id="costo_recursos"
+                               class="verif-input" min="0" value="0" required />
+                    </div>
                 </div>
 
             </div>
 
-            <div class="form-group row fila-form">
+            <!-- Archivos adjuntos -->
+            <div class="verif-adjuntos">
 
-                <div class="col-sm-5">
-                    <strong>Foto de grupo:</strong>
-                    <small style="display:block;color:#6b7f8e;margin-bottom:6px;">Formatos permitidos: JPG, JPEG, PNG, GIF</small>
-                    <input type="file" name="archivo_foto" id="archivo_foto"
-                           class="form-control" accept=".jpg,.jpeg,.png,.gif" />
+                <div class="verif-upload-card">
+                    <div class="verif-upload-header">
+                        <span class="verif-upload-icon">&#128247;</span>
+                        <span class="verif-upload-title">Foto de grupo</span>
+                    </div>
+                    <div class="verif-upload-body">
+                        <input type="file" name="archivo_foto" id="archivo_foto"
+                               class="verif-file-input" accept=".jpg,.jpeg,.png,.gif" />
+                        <p class="verif-upload-hint">JPG, JPEG, PNG, GIF</p>
+                    </div>
                 </div>
 
-                <div class="col-sm-5">
-                    <strong>Testimonio:</strong>
-                    <small style="display:block;color:#6b7f8e;margin-bottom:6px;">Formatos permitidos: PDF, DOC, DOCX</small>
-                    <input type="file" name="archivo_testimonio" id="archivo_testimonio"
-                           class="form-control" accept=".pdf,.doc,.docx" />
+                <div class="verif-upload-card">
+                    <div class="verif-upload-header">
+                        <span class="verif-upload-icon">&#128196;</span>
+                        <span class="verif-upload-title">Testimonio</span>
+                    </div>
+                    <div class="verif-upload-body">
+                        <input type="file" name="archivo_testimonio" id="archivo_testimonio"
+                               class="verif-file-input" accept=".pdf,.doc,.docx" />
+                        <p class="verif-upload-hint">PDF, DOC, DOCX</p>
+                    </div>
                 </div>
 
             </div>
