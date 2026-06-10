@@ -6,7 +6,7 @@
 
 $PSN = new DBbase_Sql;
 
-$webArchivo  = 'lpp';
+$webArchivo   = 'lpp';
 $temp_letrero = 'LA PEREGRINACIÓN DEL PRISIONERO (LPP)';
 
 /* ============================================================
@@ -21,7 +21,7 @@ if (!function_exists('requestValue')) {
 /* ============================================================
    PROCESAMIENTO DEL FORMULARIO
    ============================================================ */
-$varExito   = 0;
+$varExito    = 0;
 $error_datos = 0;
 $texto_error = '';
 
@@ -38,7 +38,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     $poblacion_total       = soloNumeros($_POST['poblacion_total']);
     $prisioneros_invitados = soloNumeros($_POST['prisioneros_invitados']);
     $prisioneros_iniciaron = soloNumeros($_POST['prisioneros_iniciaron']);
-    $cursos_activos        = soloNumeros($_POST['cursos_activos']);   // calculado en JS
+    $cursos_activos        = soloNumeros($_POST['cursos_activos']);
 
     /* ---- Validaciones básicas ---- */
     if ($fecha_reporte === '' || $carcel_id == 0) {
@@ -120,7 +120,6 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         box-shadow: 0 8px 22px rgba(15,23,42,.04);
     }
 
-    /* Título de sección */
     .cont-tit {
         display: flex;
         align-items: center;
@@ -152,7 +151,6 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         text-transform: uppercase;
     }
 
-    /* Etiquetas y controles */
     .report-form strong {
         display: block;
         margin-bottom: 7px;
@@ -184,23 +182,14 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     .report-form .form-control[readonly] {
         background: #f4f5f6;
         color: #5f6b76;
+        cursor: not-allowed;
     }
 
-    /* Info de cárcel */
-    #info-carcel {
-        display: none;
-        margin-top: 14px;
-        padding: 14px 18px;
-        background: #f0f4f8;
-        border: 1px solid #d0dbe5;
-        border-radius: 10px;
-        font-size: 13px;
-        color: #2d3f50;
+    /* Bloque info cárcel — igual que el original: div#ubicacion debajo del select */
+    #ubicacion {
+        margin-top: 10px;
     }
-    #info-carcel p { margin: 4px 0; }
-    #info-carcel strong { display: inline; font-size: 13px; }
 
-    /* Botones */
     .report-form .btn {
         border-radius: 10px;
         padding: 11px 22px;
@@ -302,7 +291,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <!-- Cárcel ubicación -->
                 <div class="col-sm-3">
                     <strong>Cárcel ubicación:</strong>
-                    <select name="carcel_id" id="carcel_id" class="form-control" required>
+                    <select name="carcel_id" id="rep_carcel" class="form-control" required>
                         <option value="">Seleccione una cárcel...</option>
                         <?php
                         if (!empty($_SESSION['empresa_pd'])) {
@@ -321,13 +310,9 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                         }
                         ?>
                     </select>
-
-                    <!-- Info de la cárcel seleccionada -->
-                    <div id="info-carcel">
-                        <p><strong>Departamento:</strong> <span id="info-departamento">—</span></p>
-                        <p><strong>Municipio:</strong>    <span id="info-municipio">—</span></p>
-                        <p><strong>Dirección:</strong>    <span id="info-direccion">—</span></p>
-                    </div>
+                    <!-- El endpoint datos_carcel_ubicacion.php inyecta aquí
+                         el HTML con departamento, municipio y dirección -->
+                    <div id="ubicacion"></div>
                 </div>
 
                 <!-- Número de patios -->
@@ -337,7 +322,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                            name="pabellon"
                            id="pabellon"
                            class="form-control"
-                           min="0"
+                           min="1"
                            value=""
                            required />
                 </div>
@@ -367,7 +352,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                            name="poblacion_total"
                            id="poblacion_total"
                            class="form-control"
-                           min="0"
+                           min="1"
                            value=""
                            required />
                 </div>
@@ -379,7 +364,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                            name="prisioneros_invitados"
                            id="prisioneros_invitados"
                            class="form-control"
-                           min="0"
+                           min="1"
                            value=""
                            required />
                 </div>
@@ -391,7 +376,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                            name="prisioneros_iniciaron"
                            id="prisioneros_iniciaron"
                            class="form-control"
-                           min="0"
+                           min="1"
                            value=""
                            required />
                 </div>
@@ -403,7 +388,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                            name="cursos_activos"
                            id="cursos_activos"
                            class="form-control"
-                           min="0"
+                           min="1"
                            value=""
                            readonly />
                 </div>
@@ -434,61 +419,84 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 <!-- ============================================================
      JAVASCRIPT
      ============================================================ -->
-<script>
+<script type="text/javascript">
 $(document).ready(function () {
 
     /* ----------------------------------------------------------
-       1. Calcular cursos activos al cambiar prisioneros_iniciaron
-       Lógica: ceil(iniciaron / 12), mínimo 1 si iniciaron > 0
+       1. Cárcel — igual que el original:
+          - Al cargar la página se llama recargaLista() de entrada
+          - Al cambiar el select se vuelve a llamar
+          - El resultado HTML se inyecta en div#ubicacion
+    ---------------------------------------------------------- */
+    function recargaLista() {
+        $.ajax({
+            type   : 'POST',
+            url    : 'datos_carcel_ubicacion.php',
+            data   : 'id_carcel=' + $('#rep_carcel').val(),
+            success: function (r) {
+                $('#ubicacion').html(r);
+            }
+        });
+    }
+
+    recargaLista();
+
+    $('#rep_carcel').change(function () {
+        recargaLista();
+    });
+
+    /* ----------------------------------------------------------
+       2. Cursos activos — misma lógica del original:
+          ceil(iniciaron / 12), mínimo 1 si iniciaron > 0
     ---------------------------------------------------------- */
     $('#prisioneros_iniciaron').on('input change', function () {
         var iniciaron = parseInt($(this).val(), 10);
         var cursos    = 0;
 
         if (!isNaN(iniciaron) && iniciaron > 0) {
-            cursos = Math.ceil(iniciaron / 12);
-            if (cursos < 1) cursos = 1;
-        }
-
-        $('#cursos_activos').val(cursos);
-    });
-
-    /* ----------------------------------------------------------
-       2. Cargar info de la cárcel seleccionada (departamento,
-          municipio y dirección) via AJAX — igual que el original
-    ---------------------------------------------------------- */
-    $('#carcel_id').on('change', function () {
-        var id = $(this).val();
-
-        if (!id) {
-            $('#info-carcel').hide();
-            return;
-        }
-
-        $.ajax({
-            type   : 'POST',
-            url    : 'datos_carcel_ubicacion.php',
-            data   : { id_carcel: id },
-            success: function (respuesta) {
-                /* El endpoint original devuelve HTML con los datos.
-                   Lo parseamos para extraer los valores y mostrarlos
-                   en nuestro bloque de info. */
-                $('#info-carcel').html(respuesta).show();
-            },
-            error: function () {
-                $('#info-carcel').hide();
+            var resul = iniciaron / 12;
+            var mod   = resul % 2;
+            if (mod !== 0) {
+                resul = Math.trunc(resul) + 1;
             }
-        });
+            if (iniciaron <= 12) {
+                resul = 1;
+            }
+            cursos = resul;
+        }
+
+        $('#cursos_activos').val(cursos > 0 ? cursos : '');
     });
 
     /* ----------------------------------------------------------
-       3. Validación antes de enviar
+       3. Validación numérica — todos los campos número deben
+          ser enteros positivos > 0 antes de enviar
     ---------------------------------------------------------- */
     $('#form1').on('submit', function (e) {
-        var carcel = $('#carcel_id').val();
+
+        var camposNumericos = [
+            { id: 'pabellon',              label: 'N° de patios y/o pabellón' },
+            { id: 'poblacion_total',       label: 'Total población' },
+            { id: 'prisioneros_invitados', label: 'Prisioneros invitados' },
+            { id: 'prisioneros_iniciaron', label: 'Prisioneros que iniciaron el curso' }
+        ];
+
+        for (var i = 0; i < camposNumericos.length; i++) {
+            var campo = camposNumericos[i];
+            var val   = parseInt($('#' + campo.id).val(), 10);
+            if (isNaN(val) || val < 1) {
+                e.preventDefault();
+                alert('El campo "' + campo.label + '" debe ser un número mayor a 0.');
+                $('#' + campo.id).focus();
+                return false;
+            }
+        }
+
+        var carcel = $('#rep_carcel').val();
         if (!carcel || carcel === '') {
             e.preventDefault();
             alert('Por favor seleccione una cárcel.');
+            $('#rep_carcel').focus();
             return false;
         }
 
