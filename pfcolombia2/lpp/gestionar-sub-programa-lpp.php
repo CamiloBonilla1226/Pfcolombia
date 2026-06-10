@@ -33,6 +33,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     $prisioneros_invitados = soloNumeros($_POST['prisioneros_invitados']);
     $prisioneros_iniciaron = soloNumeros($_POST['prisioneros_iniciaron']);
     $cursos_activos        = soloNumeros($_POST['cursos_activos']);
+    $total_graduados       = soloNumeros($_POST['total_graduados']);
 
     if ($fecha_reporte === '' || $carcel_id == 0) {
         $error_datos = 1;
@@ -43,7 +44,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         $sql = "INSERT INTO reporte_lpp (
                     usuario_id, carcel_id, programa_id, fecha_reporte,
                     periodo_trimestre, pabellon, poblacion_total,
-                    prisioneros_invitados, prisioneros_iniciaron, cursos_activos
+                    prisioneros_invitados, prisioneros_iniciaron, cursos_activos,
+                    total_graduados
                 ) VALUES (
                     ".(int)$_SESSION['id'].",
                     ".(int)$carcel_id.",
@@ -54,7 +56,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     ".(int)$poblacion_total.",
                     ".(int)$prisioneros_invitados.",
                     ".(int)$prisioneros_iniciaron.",
-                    ".(int)$cursos_activos."
+                    ".(int)$cursos_activos.",
+                    ".(int)$total_graduados."
                 )";
         $PSN->query($sql);
         $ultimoId = $PSN->ultimoId();
