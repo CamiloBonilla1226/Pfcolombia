@@ -321,7 +321,11 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     }
 
     .cont-agregar {
-        margin-top: 4px;
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
     }
     .btn-agregar {
         background: #f0f4f8;
@@ -333,8 +337,35 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         font-weight: 700;
         cursor: pointer;
         transition: background .14s, border-color .14s;
+        white-space: nowrap;
     }
     .btn-agregar:hover { background: #e2eaf2; border-color: #6b8fa8; }
+    .sep-agregar {
+        color: #c0ccd8;
+        font-size: 18px;
+        line-height: 1;
+    }
+    .lbl-generar {
+        font-size: 13px;
+        font-weight: 700;
+        color: #3a5068;
+        white-space: nowrap;
+    }
+    .inp-generar {
+        width: 70px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid #cfd5db;
+        font-size: 13px;
+        color: #1f2933;
+        height: 38px;
+        text-align: center;
+    }
+    .inp-generar:focus {
+        border-color: #334e68;
+        box-shadow: 0 0 0 3px rgba(51,78,104,.10);
+        outline: none;
+    }
 
     @media (max-width: 767px) {
         .cont-tit { flex-direction: column; gap: 8px; }
@@ -516,7 +547,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                         </tr>
                     </thead>
                     <tbody id="body-graduados">
-                        <!-- Las filas se agregan dinámicamente -->
+                        <!-- La primera fila se genera automáticamente -->
                     </tbody>
                 </table>
             </div>
@@ -525,6 +556,10 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <button type="button" class="btn btn-agregar" id="btn-agregar-graduado">
                     + Agregar graduado
                 </button>
+                <span class="sep-agregar">|</span>
+                <span class="lbl-generar">¿Cuántos registros deseas generar?</span>
+                <input type="number" id="cant-generar" class="inp-generar" min="1" max="100" placeholder="N°" />
+                <button type="button" class="btn btn-agregar" id="btn-generar">Generar</button>
             </div>
 
         </div><!-- /seccion 3 -->
@@ -574,50 +609,80 @@ $(document).ready(function () {
     ---------------------------------------------------------- */
     var contadorGraduados = 0;
 
-    function filaVacia() {
-        return '<tr><td colspan="4" class="sin-registros"><em>No hay graduados registrados. Haz clic en "Agregar graduado".</em></td></tr>';
-    }
-
     function actualizarNumeracion() {
-        $('#body-graduados tr:not(.sin-registros)').each(function (i) {
+        $('#body-graduados tr').each(function (i) {
             $(this).find('td:first').text(i + 1);
         });
     }
 
-    function agregarFilaGraduado() {
+    function crearFila() {
         contadorGraduados++;
-        var idx = contadorGraduados;
-
-        // Quitar fila vacía si existe
-        $('#body-graduados .sin-registros').closest('tr').remove();
-
-        var fila = '<tr data-idx="' + idx + '">' +
-            '<td>' + idx + '</td>' +
-            '<td><input type="text" class="inp-tabla grad-nombre" name="grad_nombre[]" placeholder="Nombre completo" required /></td>' +
-            '<td><input type="text" class="inp-tabla grad-identificacion" name="grad_identificacion[]" placeholder="N° identificación" required /></td>' +
-            '<td><button type="button" class="btn-eliminar-fila" title="Eliminar">&#10005;</button></td>' +
+        return '<tr>' +
+            '<td>' + contadorGraduados + '</td>' +
+            '<td><input type="text" class="inp-tabla grad-nombre" name="grad_nombre[]" placeholder="Nombre completo" /></td>' +
+            '<td><input type="text" class="inp-tabla grad-identificacion" name="grad_identificacion[]" placeholder="N° identificación" /></td>' +
+            '<td>' +
+                '<button type="button" class="btn-eliminar-fila" title="Eliminar">&#10005;</button>' +
+            '</td>' +
         '</tr>';
-
-        $('#body-graduados').append(fila);
-        // Foco en el nombre de la fila recién agregada
-        $('#body-graduados tr:last .grad-nombre').focus();
     }
 
-    // Inicializar tabla vacía
-    $('#body-graduados').html(filaVacia());
+    function agregarFila(enfocar) {
+        $('#body-graduados').append(crearFila());
+        actualizarNumeracion();
+        if (enfocar !== false) {
+            $('#body-graduados tr:last .grad-nombre').focus();
+        }
+    }
 
-    // Botón agregar
+    function puedeEliminar() {
+        /* Solo se puede eliminar si hay más de 1 fila */
+        return $('#body-graduados tr').length > 1;
+    }
+
+    function actualizarBotonesEliminar() {
+        if (puedeEliminar()) {
+            $('.btn-eliminar-fila').prop('disabled', false).css('opacity', '1');
+        } else {
+            $('.btn-eliminar-fila').prop('disabled', true).css('opacity', '0.3');
+        }
+    }
+
+    /* Inicializar con 1 fila obligatoria */
+    agregarFila(false);
+    actualizarBotonesEliminar();
+
+    /* Botón agregar una fila */
     $('#btn-agregar-graduado').on('click', function () {
-        agregarFilaGraduado();
+        agregarFila(true);
+        actualizarBotonesEliminar();
     });
 
-    // Eliminar fila (delegado)
+    /* Generador masivo */
+    $('#btn-generar').on('click', function () {
+        var cant = parseInt($('#cant-generar').val(), 10);
+        if (isNaN(cant) || cant < 1) {
+            alert('Ingresa un número válido mayor a 0.');
+            $('#cant-generar').focus();
+            return;
+        }
+        for (var i = 0; i < cant; i++) {
+            agregarFila(false);
+        }
+        actualizarBotonesEliminar();
+        /* Enfocar el primer campo vacío generado */
+        $('#body-graduados .grad-nombre').filter(function () {
+            return $(this).val() === '';
+        }).first().focus();
+        $('#cant-generar').val('');
+    });
+
+    /* Eliminar fila (delegado) — mínimo 1 fila siempre */
     $('#body-graduados').on('click', '.btn-eliminar-fila', function () {
+        if (!puedeEliminar()) return;
         $(this).closest('tr').remove();
         actualizarNumeracion();
-        if ($('#body-graduados tr').length === 0) {
-            $('#body-graduados').html(filaVacia());
-        }
+        actualizarBotonesEliminar();
     });
 
     /* ----------------------------------------------------------
@@ -659,6 +724,45 @@ $(document).ready(function () {
                 $('#' + numericos[i].id).focus();
                 return false;
             }
+        }
+
+        /* Validar graduados: mínimo 1 completo (nombre + identificación) */
+        var gradCompletos = 0;
+        var gradIncompletos = 0;
+        $('#body-graduados tr').each(function () {
+            var nom  = $(this).find('.grad-nombre').val().trim();
+            var iden = $(this).find('.grad-identificacion').val().trim();
+            if (nom !== '' && iden !== '') {
+                gradCompletos++;
+            } else if (nom !== '' || iden !== '') {
+                gradIncompletos++;
+            }
+        });
+
+        if (gradCompletos === 0) {
+            e.preventDefault();
+            alert('Debes registrar al menos un graduado con nombre e identificación completos.');
+            $('#body-graduados .grad-nombre').first().focus();
+            return false;
+        }
+
+        if (gradIncompletos > 0) {
+            e.preventDefault();
+            alert('Hay ' + gradIncompletos + ' fila(s) de graduados con datos incompletos. Completa ambos campos o elimínalas.');
+            /* Enfocar la primera incompleta */
+            $('#body-graduados tr').each(function () {
+                var nom  = $(this).find('.grad-nombre').val().trim();
+                var iden = $(this).find('.grad-identificacion').val().trim();
+                if (nom === '' && iden !== '') {
+                    $(this).find('.grad-nombre').focus();
+                    return false;
+                }
+                if (iden === '' && nom !== '') {
+                    $(this).find('.grad-identificacion').focus();
+                    return false;
+                }
+            });
+            return false;
         }
 
         if (confirm('¿Está seguro de que desea guardar este reporte?')) {
