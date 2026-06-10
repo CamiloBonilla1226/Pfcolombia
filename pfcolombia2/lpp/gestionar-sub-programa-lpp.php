@@ -36,6 +36,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     $total_graduados            = soloNumeros($_POST['total_graduados']);
     $total_voluntarios_internos = soloNumeros($_POST['total_voluntarios_internos']);
     $total_voluntarios_externos = soloNumeros($_POST['total_voluntarios_externos']);
+    $discipulos_pasaron_cm      = soloNumeros($_POST['discipulos_pasaron_cm']);
+    $costo_recursos             = soloNumeros($_POST['costo_recursos']);
 
     if ($fecha_reporte === '' || $carcel_id == 0) {
         $error_datos = 1;
@@ -47,7 +49,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     usuario_id, carcel_id, programa_id, fecha_reporte,
                     periodo_trimestre, pabellon, poblacion_total,
                     prisioneros_invitados, prisioneros_iniciaron, cursos_activos,
-                    total_graduados, total_voluntarios_internos, total_voluntarios_externos
+                    total_graduados, total_voluntarios_internos, total_voluntarios_externos,
+                    discipulos_pasaron_cm, costo_recursos
                 ) VALUES (
                     ".(int)$_SESSION['id'].",
                     ".(int)$carcel_id.",
@@ -61,7 +64,9 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     ".(int)$cursos_activos.",
                     ".(int)$total_graduados.",
                     ".(int)$total_voluntarios_internos.",
-                    ".(int)$total_voluntarios_externos."
+                    ".(int)$total_voluntarios_externos.",
+                    ".(int)$discipulos_pasaron_cm.",
+                    ".(int)$costo_recursos."
                 )";
         $PSN->query($sql);
         $ultimoId = $PSN->ultimoId();
@@ -289,113 +294,88 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     .report-form .btn-info    { background: #4b5b68; color: #fff; }
 
     /* ── Tabla de registros (graduados / internos / externos) ── */
-    .table-wrap {
-        border: 1px solid #dde3ea;
-        border-radius: 12px;
-        overflow: hidden;
-        margin-bottom: 0;
-    }
     .table-graduados {
         width: 100%;
         border-collapse: collapse;
-        font-size: 13.5px;
-    }
-    .table-graduados thead tr {
-        background: linear-gradient(135deg, #243746 0%, #344f64 100%);
+        margin-bottom: 14px;
+        font-size: 13px;
     }
     .table-graduados thead th {
-        color: #e8eef4;
+        background: #f0f4f8;
+        color: #1e2d3a;
         font-weight: 700;
-        font-size: 11.5px;
-        letter-spacing: .06em;
+        font-size: 12px;
+        letter-spacing: .04em;
         text-transform: uppercase;
-        padding: 13px 16px;
+        padding: 11px 14px;
+        border-bottom: 2px solid #d0dbe5;
         text-align: left;
-        border: none;
     }
-    .table-graduados thead th:first-child { width: 52px; text-align: center; }
-    .table-graduados thead th:last-child  { width: 52px; text-align: center; }
+    .table-graduados thead th:first-child { width: 44px; text-align: center; }
+    .table-graduados thead th:last-child  { width: 44px; }
 
     .table-graduados tbody tr {
-        border-bottom: 1px solid #edf0f4;
+        border-bottom: 1px solid #e8ecf0;
         transition: background .12s;
     }
-    .table-graduados tbody tr:last-child { border-bottom: none; }
-    .table-graduados tbody tr:hover { background: #f4f7fb; }
+    .table-graduados tbody tr:hover { background: #f8fafc; }
     .table-graduados tbody td {
-        padding: 10px 14px;
+        padding: 10px 12px;
         vertical-align: middle;
     }
     .table-graduados tbody td:first-child {
         text-align: center;
+        color: #7a8a99;
         font-weight: 700;
         font-size: 12px;
-        color: #8fa3b4;
-        width: 52px;
-        background: #f8fafc;
-        border-right: 1px solid #edf0f4;
+        width: 44px;
     }
-    .table-graduados tbody td:last-child {
-        width: 52px;
-        text-align: center;
-        background: #fafafa;
-        border-left: 1px solid #edf0f4;
-    }
+    .table-graduados tbody td:last-child { width: 44px; text-align: center; }
 
     .table-graduados .inp-tabla {
         width: 100%;
-        padding: 9px 13px;
+        padding: 8px 11px;
         border-radius: 8px;
-        border: 1px solid #d0d8e0;
+        border: 1px solid #cfd5db;
         background: #fff;
         font-size: 13px;
         color: #1f2933;
-        height: 40px;
+        height: 38px;
         transition: border-color .15s, box-shadow .15s;
-        box-shadow: inset 0 1px 2px rgba(0,0,0,.04);
     }
     .table-graduados .inp-tabla:focus {
         border-color: #334e68;
-        box-shadow: 0 0 0 3px rgba(51,78,104,.12), inset 0 1px 2px rgba(0,0,0,.04);
+        box-shadow: 0 0 0 3px rgba(51,78,104,.10);
         outline: none;
-        background: #fafcff;
     }
 
     .btn-eliminar-fila {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 30px;
-        height: 30px;
         background: none;
-        border: 1px solid transparent;
-        color: #b0bec8;
-        font-size: 15px;
+        border: none;
+        color: #c0392b;
+        font-size: 18px;
         font-weight: 700;
         cursor: pointer;
-        border-radius: 7px;
-        transition: background .12s, color .12s, border-color .12s;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: background .12s;
         line-height: 1;
     }
-    .btn-eliminar-fila:hover {
-        background: #fdf3f3;
-        color: #c0392b;
-        border-color: #f5c6c3;
-    }
+    .btn-eliminar-fila:hover { background: #fdf3f3; }
 
     .sin-registros td {
         text-align: center;
         color: #8a9bac;
         font-style: italic;
-        padding: 24px;
+        padding: 20px;
     }
 
     /* ── Barra de controles ── */
     .barra-controles {
-        margin-top: 16px;
+        margin-top: 14px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 0;
     }
     .barra-fila {
         display: flex;
@@ -404,34 +384,27 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         gap: 10px;
     }
     .barra-fila + .barra-fila {
+        margin-top: 10px;
         padding-top: 10px;
         border-top: 1px dashed #dde4ec;
     }
     .btn-agregar {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: #f0f5fb;
-        border: 1.5px dashed #8fb0cc;
-        color: #1e3a52;
+        background: #f0f4f8;
+        border: 1px dashed #9ab0c4;
+        color: #2d4a62;
         border-radius: 9px;
         padding: 9px 20px;
         font-size: 13px;
         font-weight: 700;
         cursor: pointer;
-        transition: background .14s, border-color .14s, box-shadow .14s;
+        transition: background .14s, border-color .14s;
         white-space: nowrap;
     }
-    .btn-agregar:hover {
-        background: #ddeaf5;
-        border-color: #4d82a8;
-        box-shadow: 0 3px 8px rgba(30,58,82,.10);
-    }
+    .btn-agregar:hover { background: #e2eaf2; border-color: #6b8fa8; }
     .sep-agregar {
-        color: #d0d9e2;
-        font-size: 20px;
+        color: #c0ccd8;
+        font-size: 18px;
         line-height: 1;
-        user-select: none;
     }
     .grupo-generar {
         display: inline-flex;
@@ -440,26 +413,23 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         background: #f7f9fb;
         border: 1px solid #dde4ec;
         border-radius: 9px;
-        padding: 6px 14px 6px 12px;
+        padding: 5px 12px 5px 10px;
     }
     .lbl-generar {
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 700;
-        color: #4a6070;
+        color: #3a5068;
         white-space: nowrap;
-        letter-spacing: .02em;
     }
     .inp-generar {
         width: 62px;
         padding: 6px 8px;
-        border-radius: 7px;
-        border: 1px solid #cfd8e0;
-        background: #fff;
+        border-radius: 8px;
+        border: 1px solid #cfd5db;
         font-size: 13px;
         color: #1f2933;
         height: 34px;
         text-align: center;
-        box-shadow: inset 0 1px 2px rgba(0,0,0,.04);
     }
     .inp-generar:focus {
         border-color: #334e68;
@@ -467,80 +437,75 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         outline: none;
     }
     .btn-generar-inline {
-        background: #1f3547;
-        border: none;
-        color: #fff;
-        border-radius: 7px;
+        background: #f0f4f8;
+        border: 1px dashed #9ab0c4;
+        color: #2d4a62;
+        border-radius: 8px;
         padding: 6px 14px;
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 700;
         cursor: pointer;
         height: 34px;
-        transition: background .14s, box-shadow .14s;
+        transition: background .14s, border-color .14s;
         white-space: nowrap;
     }
-    .btn-generar-inline:hover { background: #2c4d68; box-shadow: 0 3px 8px rgba(15,23,42,.15); }
+    .btn-generar-inline:hover { background: #e2eaf2; border-color: #6b8fa8; }
     .btn-eliminar-todo {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: transparent;
-        border: 1.5px dashed #d9a09a;
-        color: #a33028;
+        background: #fdf3f3;
+        border: 1px dashed #c0392b;
+        color: #c0392b;
         border-radius: 9px;
         padding: 9px 16px;
-        font-size: 12.5px;
+        font-size: 13px;
         font-weight: 700;
         cursor: pointer;
-        transition: background .14s, border-color .14s;
+        transition: background .14s;
         white-space: nowrap;
         margin-left: auto;
     }
-    .btn-eliminar-todo:hover { background: #fdf3f3; border-color: #c0392b; }
+    .btn-eliminar-todo:hover { background: #fae0de; }
 
     /* ── Tarjeta de total ── */
     .card-total {
         display: inline-flex;
-        align-items: center;
-        gap: 0;
-        margin-top: 18px;
-        border-radius: 12px;
+        align-items: stretch;
+        margin-top: 16px;
+        border-radius: 10px;
         overflow: hidden;
-        border: 1px solid #c8d6e0;
-        box-shadow: 0 4px 12px rgba(15,23,42,.07);
+        border: 1px solid #d0dbe5;
+        box-shadow: 0 4px 10px rgba(15,23,42,.06);
     }
     .card-total-label {
-        padding: 12px 20px;
-        background: #eef3f8;
-        border-right: 1px solid #c8d6e0;
+        padding: 11px 18px;
+        background: #f0f4f8;
+        border-right: 1px solid #d0dbe5;
         font-size: 12.5px;
         font-weight: 700;
-        color: #344f64;
-        letter-spacing: .03em;
-        text-transform: uppercase;
+        color: #1e2d3a;
         white-space: nowrap;
+        display: flex;
+        align-items: center;
     }
     .card-total-badge {
-        padding: 10px 22px;
-        background: #1f3547;
+        padding: 8px 20px;
+        background: #ffffff;
         display: flex;
         align-items: center;
         justify-content: center;
-        min-width: 58px;
+        min-width: 60px;
     }
     .card-total-badge input {
         background: transparent;
         border: none;
-        color: #ffffff;
-        font-size: 22px;
+        color: #1f3547;
+        font-size: 20px;
         font-weight: 700;
         text-align: center;
-        width: 52px;
+        width: 48px;
         cursor: default;
         outline: none;
         padding: 0;
         line-height: 1;
-        /* ocultar spinners */
         -moz-appearance: textfield;
     }
     .card-total-badge input::-webkit-outer-spin-button,
@@ -720,7 +685,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="hr"><hr></div>
             </div>
 
-            <div class="table-wrap">
+            <div class="table-responsive">
                 <table class="table-graduados" id="tabla-graduados">
                     <thead>
                         <tr>
@@ -774,7 +739,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="hr"><hr></div>
             </div>
 
-            <div class="table-wrap">
+            <div class="table-responsive">
                 <table class="table-graduados" id="tabla-internos">
                     <thead>
                         <tr>
@@ -828,7 +793,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="hr"><hr></div>
             </div>
 
-            <div class="table-wrap">
+            <div class="table-responsive">
                 <table class="table-graduados" id="tabla-externos">
                     <thead>
                         <tr>
@@ -868,6 +833,37 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
             <input type="hidden" name="total_voluntarios_externos" id="total_voluntarios_externos" value="0" />
 
         </div><!-- /seccion 5 -->
+
+        <!-- ================================================
+             SECCIÓN 6 — MÉTODO DE VERIFICACIÓN
+             ================================================ -->
+        <div class="seccion">
+            <div class="cont-tit">
+                <div class="hr"><hr></div>
+                <div class="tit-cen">
+                    <h3>Método de verificación</h3>
+                    <h5>Indicadores de seguimiento del programa</h5>
+                </div>
+                <div class="hr"><hr></div>
+            </div>
+
+            <div class="form-group row fila-form">
+
+                <div class="col-sm-4">
+                    <strong>Número de discípulos que pasaron a C&amp;M:</strong>
+                    <input type="number" name="discipulos_pasaron_cm" id="discipulos_pasaron_cm"
+                           class="form-control" min="0" value="0" required />
+                </div>
+
+                <div class="col-sm-4">
+                    <strong>Costo de recursos gestionados ($):</strong>
+                    <input type="number" name="costo_recursos" id="costo_recursos"
+                           class="form-control" min="0" value="0" required />
+                </div>
+
+            </div>
+
+        </div><!-- /seccion 6 -->
 
         <!-- Botones -->
         <div class="cont-btn">
@@ -1255,6 +1251,21 @@ $(document).ready(function () {
                 e.preventDefault();
                 alert('El campo "' + numericos[i].label + '" debe ser un número mayor a 0.');
                 $('#' + numericos[i].id).focus();
+                return false;
+            }
+        }
+
+        /* Validar método de verificación: >= 0 */
+        var verificacion = [
+            { id: 'discipulos_pasaron_cm', label: 'Número de discípulos que pasaron a C&M' },
+            { id: 'costo_recursos',        label: 'Costo de recursos gestionados' }
+        ];
+        for (var j = 0; j < verificacion.length; j++) {
+            var vval = parseInt($('#' + verificacion[j].id).val(), 10);
+            if (isNaN(vval) || vval < 0) {
+                e.preventDefault();
+                alert('El campo "' + verificacion[j].label + '" debe ser un número mayor o igual a 0.');
+                $('#' + verificacion[j].id).focus();
                 return false;
             }
         }
