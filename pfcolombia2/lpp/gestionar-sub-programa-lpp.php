@@ -33,7 +33,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     $prisioneros_invitados = soloNumeros($_POST['prisioneros_invitados']);
     $prisioneros_iniciaron = soloNumeros($_POST['prisioneros_iniciaron']);
     $cursos_activos        = soloNumeros($_POST['cursos_activos']);
-    $total_graduados       = soloNumeros($_POST['total_graduados']);
+    $total_graduados           = soloNumeros($_POST['total_graduados']);
+    $total_voluntarios_internos = soloNumeros($_POST['total_voluntarios_internos']);
 
     if ($fecha_reporte === '' || $carcel_id == 0) {
         $error_datos = 1;
@@ -45,7 +46,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     usuario_id, carcel_id, programa_id, fecha_reporte,
                     periodo_trimestre, pabellon, poblacion_total,
                     prisioneros_invitados, prisioneros_iniciaron, cursos_activos,
-                    total_graduados
+                    total_graduados, total_voluntarios_internos
                 ) VALUES (
                     ".(int)$_SESSION['id'].",
                     ".(int)$carcel_id.",
@@ -57,7 +58,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     ".(int)$prisioneros_invitados.",
                     ".(int)$prisioneros_iniciaron.",
                     ".(int)$cursos_activos.",
-                    ".(int)$total_graduados."
+                    ".(int)$total_graduados.",
+                    ".(int)$total_voluntarios_internos."
                 )";
         $PSN->query($sql);
         $ultimoId = $PSN->ultimoId();
@@ -74,6 +76,25 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 if ($nom === '') continue;
 
                 $PSN->query("INSERT INTO reporte_graduado_lpp
+                                (id_reporte_lpp, nombre, identificacion, fecha_registro)
+                             VALUES
+                                (" . (int)$ultimoId . ",
+                                 '" . $nom  . "',
+                                 '" . $iden . "',
+                                 '" . $fecha_hoy . "')");
+            }
+        }
+
+        /* ---- Guardar voluntarios internos ---- */
+        if ($ultimoId > 0 && !empty($_POST['interno_nombre'])) {
+            $nombres_int = $_POST['interno_nombre'];
+            $iden_int    = $_POST['interno_identificacion'];
+            $fecha_hoy   = date('Y-m-d');
+            foreach ($nombres_int as $i => $nombre) {
+                $nom  = eliminarInvalidos($nombre);
+                $iden = eliminarInvalidos($iden_int[$i] ?? '');
+                if ($nom === '') continue;
+                $PSN->query("INSERT INTO reporte_interno_lpp
                                 (id_reporte_lpp, nombre, identificacion, fecha_registro)
                              VALUES
                                 (" . (int)$ultimoId . ",
@@ -621,6 +642,55 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 
         </div><!-- /seccion 3 -->
 
+        <!-- ================================================
+             SECCIÓN 4 — REGISTRO DE VOLUNTARIOS INTERNOS
+             ================================================ -->
+        <div class="seccion">
+            <div class="cont-tit">
+                <div class="hr"><hr></div>
+                <div class="tit-cen">
+                    <h3>Registro de voluntarios internos</h3>
+                    <h5>Siervos facilitadores del programa</h5>
+                </div>
+                <div class="hr"><hr></div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table-graduados" id="tabla-internos">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nombre completo del voluntario interno</th>
+                            <th>Tarjeta dactilar / N° identificación</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="body-internos"></tbody>
+                </table>
+            </div>
+
+            <div class="cont-agregar">
+                <button type="button" class="btn btn-agregar" id="btn-agregar-interno">
+                    + Agregar voluntario interno
+                </button>
+                <span class="sep-agregar">|</span>
+                <span class="lbl-generar">¿Cuántos registros deseas generar?</span>
+                <input type="number" id="cant-generar-interno" class="inp-generar" min="1" max="100" placeholder="N°" />
+                <button type="button" class="btn btn-agregar" id="btn-generar-interno">Generar</button>
+                <span class="sep-agregar">|</span>
+                <button type="button" class="btn btn-eliminar-todo" id="btn-eliminar-todo-interno">
+                    &#128465; Eliminar todo
+                </button>
+            </div>
+
+            <div class="cont-total-graduados">
+                <span class="lbl-total-grad">Total de voluntarios internos completos:</span>
+                <input type="number" id="total_internos_vis" class="inp-total-grad" readonly value="0" />
+                <input type="hidden" name="total_voluntarios_internos" id="total_voluntarios_internos" value="0" />
+            </div>
+
+        </div><!-- /seccion 4 -->
+
         <!-- Botones -->
         <div class="cont-btn">
             <input type="button"
@@ -777,7 +847,104 @@ $(document).ready(function () {
     actualizarTotalGraduados();
 
     /* ----------------------------------------------------------
-       3. Cursos activos — ceil(iniciaron / 12), mínimo 1
+       3. Tabla de voluntarios internos — misma lógica que graduados
+    ---------------------------------------------------------- */
+    var contadorInternos = 0;
+
+    function actualizarNumeracionInternos() {
+        $('#body-internos tr').each(function (i) {
+            $(this).find('td:first').text(i + 1);
+        });
+    }
+
+    function crearFilaInterno() {
+        contadorInternos++;
+        return '<tr>' +
+            '<td>' + contadorInternos + '</td>' +
+            '<td><input type="text" class="inp-tabla int-nombre" name="interno_nombre[]" placeholder="Nombre completo" /></td>' +
+            '<td><input type="text" class="inp-tabla int-identificacion" name="interno_identificacion[]" placeholder="N° identificación" /></td>' +
+            '<td><button type="button" class="btn-eliminar-fila btn-elim-interno" title="Eliminar">&#10005;</button></td>' +
+        '</tr>';
+    }
+
+    function agregarFilaInterno(enfocar) {
+        $('#body-internos').append(crearFilaInterno());
+        actualizarNumeracionInternos();
+        if (enfocar !== false) $('#body-internos tr:last .int-nombre').focus();
+    }
+
+    function puedeEliminarInterno() {
+        return $('#body-internos tr').length > 1;
+    }
+
+    function actualizarBotonesEliminarInterno() {
+        if (puedeEliminarInterno()) {
+            $('.btn-elim-interno').prop('disabled', false).css('opacity', '1');
+        } else {
+            $('.btn-elim-interno').prop('disabled', true).css('opacity', '0.3');
+        }
+    }
+
+    function actualizarTotalInternos() {
+        var completos = 0;
+        $('#body-internos tr').each(function () {
+            var nom  = $(this).find('.int-nombre').val().trim();
+            var iden = $(this).find('.int-identificacion').val().trim();
+            if (nom !== '' && iden !== '') completos++;
+        });
+        $('#total_internos_vis').val(completos);
+        $('#total_voluntarios_internos').val(completos);
+    }
+
+    /* Inicializar con 1 fila */
+    agregarFilaInterno(false);
+    actualizarBotonesEliminarInterno();
+    actualizarTotalInternos();
+
+    $('#btn-agregar-interno').on('click', function () {
+        agregarFilaInterno(true);
+        actualizarBotonesEliminarInterno();
+        actualizarTotalInternos();
+    });
+
+    $('#btn-generar-interno').on('click', function () {
+        var cant = parseInt($('#cant-generar-interno').val(), 10);
+        if (isNaN(cant) || cant < 1) {
+            alert('Ingresa un número válido mayor a 0.');
+            $('#cant-generar-interno').focus();
+            return;
+        }
+        for (var i = 0; i < cant; i++) agregarFilaInterno(false);
+        actualizarBotonesEliminarInterno();
+        actualizarTotalInternos();
+        $('#body-internos .int-nombre').filter(function () { return $(this).val() === ''; }).first().focus();
+        $('#cant-generar-interno').val('');
+    });
+
+    $('#btn-eliminar-todo-interno').on('click', function () {
+        var total = $('#body-internos tr').length;
+        if (!confirm('¿Estás seguro de que deseas eliminar todos los ' + total + ' registros de voluntarios internos? Esta acción no se puede deshacer.')) return;
+        $('#body-internos').empty();
+        contadorInternos = 0;
+        agregarFilaInterno(false);
+        actualizarBotonesEliminarInterno();
+        actualizarTotalInternos();
+    });
+
+    $('#body-internos').on('click', '.btn-elim-interno', function () {
+        if (!puedeEliminarInterno()) return;
+        $(this).closest('tr').remove();
+        actualizarNumeracionInternos();
+        actualizarBotonesEliminarInterno();
+        actualizarTotalInternos();
+    });
+
+    $('#body-internos').on('input', '.int-nombre, .int-identificacion', function () {
+        actualizarTotalInternos();
+    });
+
+    /* ----------------------------------------------------------
+       4. Cursos activos — ceil(iniciaron / 12), mínimo 1
     ---------------------------------------------------------- */
     $('#prisioneros_iniciaron').on('input change', function () {
         var iniciaron = parseInt($(this).val(), 10);
@@ -815,6 +982,33 @@ $(document).ready(function () {
                 $('#' + numericos[i].id).focus();
                 return false;
             }
+        }
+
+        /* Validar internos: mínimo 1 completo */
+        var intCompletos = 0;
+        var intIncompletos = 0;
+        $('#body-internos tr').each(function () {
+            var nom  = $(this).find('.int-nombre').val().trim();
+            var iden = $(this).find('.int-identificacion').val().trim();
+            if (nom !== '' && iden !== '') { intCompletos++; }
+            else if (nom !== '' || iden !== '') { intIncompletos++; }
+        });
+        if (intCompletos === 0) {
+            e.preventDefault();
+            alert('Debes registrar al menos un voluntario interno con nombre e identificación completos.');
+            $('#body-internos .int-nombre').first().focus();
+            return false;
+        }
+        if (intIncompletos > 0) {
+            e.preventDefault();
+            alert('Hay ' + intIncompletos + ' fila(s) de voluntarios internos con datos incompletos. Completa ambos campos o elimínalas.');
+            $('#body-internos tr').each(function () {
+                var nom  = $(this).find('.int-nombre').val().trim();
+                var iden = $(this).find('.int-identificacion').val().trim();
+                if (nom === '' && iden !== '') { $(this).find('.int-nombre').focus(); return false; }
+                if (iden === '' && nom !== '') { $(this).find('.int-identificacion').focus(); return false; }
+            });
+            return false;
         }
 
         /* Validar graduados: mínimo 1 completo (nombre + identificación) */
