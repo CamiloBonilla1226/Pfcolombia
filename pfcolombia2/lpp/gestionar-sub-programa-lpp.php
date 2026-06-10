@@ -16,29 +16,38 @@ if (!function_exists('requestValue')) {
 }
 
 /* ============================================================
+   empresa_pd viene directo de sesión (igual que el sistema original)
+   ============================================================ */
+$empresa_pd = isset($_SESSION['empresa_pd']) ? $_SESSION['empresa_pd'] : '';
+
+/* ============================================================
    PETICIÓN AJAX — info de la cárcel seleccionada
    ============================================================ */
 if (isset($_POST['accion']) && $_POST['accion'] === 'info_carcel') {
     $id_carcel = (int)$_POST['id_carcel'];
 
     $sql = "SELECT
-                ru.reub_nom  AS nombre,
-                ru.reub_dir  AS direccion,
-                m.municipio  AS municipio,
-                d.departamento AS departamento
+                ru.reub_nom        AS nombre,
+                ru.reub_dir        AS direccion,
+                ru.reub_mun_fk     AS id_municipio,
+                m.municipio        AS municipio,
+                m.departamento_id  AS id_departamento,
+                d.departamento     AS departamento
             FROM tbl_regional_ubicacion AS ru
-            LEFT JOIN dane_municipios     AS m ON m.id_municipio  = ru.reub_mun_fk
-            LEFT JOIN dane_departamentos  AS d ON d.id_departamento = m.departamento_id
+            LEFT JOIN dane_municipios    AS m ON m.id_municipio    = ru.reub_mun_fk
+            LEFT JOIN dane_departamentos AS d ON d.id_departamento = m.departamento_id
             WHERE ru.reub_id = " . $id_carcel;
 
     $PSN->query($sql);
 
     if ($PSN->num_rows() > 0 && $PSN->next_record()) {
         echo json_encode([
-            'ok'           => true,
-            'departamento' => $PSN->f('departamento'),
-            'municipio'    => $PSN->f('municipio'),
-            'direccion'    => $PSN->f('direccion'),
+            'ok'             => true,
+            'departamento'   => $PSN->f('departamento'),
+            'id_departamento'=> $PSN->f('id_departamento'),
+            'municipio'      => $PSN->f('municipio'),
+            'id_municipio'   => $PSN->f('id_municipio'),
+            'direccion'      => $PSN->f('direccion'),
         ]);
     } else {
         echo json_encode(['ok' => false]);
@@ -313,28 +322,27 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                     <select name="carcel_id" id="carcel_id" class="form-control" required>
                         <option value="">Seleccione una cárcel...</option>
                         <?php
-                        if (!empty($_SESSION['empresa_pd'])) {
-                            $sql_c = "SELECT reub_id, reub_nom
-                                      FROM tbl_regional_ubicacion
-                                      WHERE reub_reg_fk = " . (int)$_SESSION['empresa_pd'] . "
-                                      ORDER BY reub_nom ASC";
+                        if ($empresa_pd != '') {
+                            echo '<option value="">Sin especificar</option>';
+                            $sql_c = "SELECT * FROM tbl_regional_ubicacion";
+                            if ($empresa_pd != 0) {
+                                $sql_c .= " WHERE reub_reg_fk = " . (int)$empresa_pd;
+                            }
+                            $sql_c .= " ORDER BY reub_nom ASC";
                             $PSN->query($sql_c);
-                            while ($PSN->next_record()) {
-                                echo '<option value="' . $PSN->f('reub_id') . '">'
-                                   . htmlspecialchars($PSN->f('reub_nom'))
-                                   . '</option>';
+                            if ($PSN->num_rows() > 0) {
+                                while ($PSN->next_record()) {
+                                    echo '<option value="' . $PSN->f('reub_id') . '">' . $PSN->f('reub_nom') . '</option>';
+                                }
                             }
                         } else {
                             echo '<option value="">Sin regional asignada</option>';
                         }
                         ?>
                     </select>
-                    <!-- Se muestra al seleccionar una cárcel -->
-                    <div id="info-carcel">
-                        <b>Departamento:</b> <span id="ic-departamento">—</span><br>
-                        <b>Municipio:</b>    <span id="ic-municipio">—</span><br>
-                        <b>Dirección:</b>    <span id="ic-direccion">—</span>
-                    </div>
+                    <!-- El HTML con departamento, municipio y dirección
+                         lo inyecta datos_carcel_ubicacion.php aquí, igual que el original -->
+                    <div id="ubicacion"></div>
                 </div>
 
                 <div class="col-sm-2">
@@ -346,6 +354,38 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                            min="1"
                            value=""
                            required />
+                </div>
+
+            </div><!-- /.form-group fila 1 -->
+
+            <!-- Fila 2: Departamento, Municipio, Dirección (solo lectura, igual que el original) -->
+            <div class="form-group row">
+                <div class="col-sm-1"></div>
+                <div class="col-sm-3">
+                    <strong>Departamento:</strong>
+                    <select id="departamento" name="departamento" class="form-control">
+                        <option value="">— Seleccione departamento —</option>
+                        <?php
+                        $PSN->query("SELECT id_departamento, departamento FROM dane_departamentos ORDER BY departamento ASC");
+                        while ($PSN->next_record()) {
+                            echo '<option value="' . $PSN->f('id_departamento') . '">' . $PSN->f('departamento') . '</option>';
+                        }
+                        ?>
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <strong>Municipio:</strong>
+                    <select id="municipio" name="municipio_vis" class="form-control">
+                        <option value="">— Seleccione municipio —</option>
+                    </select>
+                </div>
+                <div class="col-sm-4">
+                    <strong>Dirección de la cárcel:</strong>
+                    <input type="text"
+                           id="direccion_carcel"
+                           class="form-control"
+                           readonly
+                           placeholder="Se carga al seleccionar la cárcel" />
                 </div>
 
             </div>
@@ -432,16 +472,51 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 $(document).ready(function () {
 
     /* ----------------------------------------------------------
-       1. Info de la cárcel — consulta directa a las tablas
-          tbl_regional_ubicacion + dane_municipios + dane_departamentos
-          mediante AJAX al mismo archivo con accion=info_carcel
+       1. Cárcel — exactamente igual que el original:
+          recargaLista() llama a datos_carcel_ubicacion.php
+          e inyecta el resultado en div#ubicacion
     ---------------------------------------------------------- */
-    function cargarInfoCarcel(id) {
+    function recargaLista() {
+        $.ajax({
+            type   : 'POST',
+            url    : 'datos_carcel_ubicacion.php',
+            data   : 'id_carcel=' + $('#carcel_id').val(),
+            success: function (r) {
+                $('#ubicacion').html(r);
+                /* Extraer la dirección del HTML devuelto y ponerla
+                   en el campo dirección (si el endpoint la incluye) */
+            }
+        });
+    }
+
+    /* ----------------------------------------------------------
+       2. Municipios — igual que el original:
+          recargaListaDpto() llama a datos_ubicacion.php
+          e inyecta opciones en select#municipio
+    ---------------------------------------------------------- */
+    function recargaListaDpto() {
+        $.ajax({
+            type   : 'POST',
+            url    : 'datos_ubicacion.php',
+            data   : 'id_depa=' + $('#departamento').val(),
+            success: function (r) {
+                $('#municipio').html(r);
+            }
+        });
+    }
+
+    /* Al cargar la página y al cambiar la cárcel */
+    recargaLista();
+    $('#carcel_id').on('change', function () {
+        recargaLista();
+
+        /* Además llenamos dirección desde los datos de la cárcel
+           consultando directamente vía AJAX al mismo archivo */
+        var id = $(this).val();
         if (!id) {
-            $('#info-carcel').hide();
+            $('#direccion_carcel').val('');
             return;
         }
-
         $.ajax({
             type    : 'POST',
             url     : window.location.href,
@@ -449,31 +524,30 @@ $(document).ready(function () {
             dataType: 'json',
             success : function (data) {
                 if (data.ok) {
-                    $('#ic-departamento').text(data.departamento || '—');
-                    $('#ic-municipio').text(data.municipio    || '—');
-                    $('#ic-direccion').text(data.direccion    || '—');
-                    $('#info-carcel').show();
-                } else {
-                    $('#info-carcel').hide();
+                    $('#direccion_carcel').val(data.direccion || '');
+                    /* Seleccionar departamento y disparar carga de municipios */
+                    $('#departamento').val(data.id_departamento).trigger('change');
+                    /* Esperar a que carguen los municipios y luego seleccionar */
+                    setTimeout(function () {
+                        $('#municipio').val(data.id_municipio);
+                    }, 600);
                 }
-            },
-            error: function () {
-                $('#info-carcel').hide();
             }
         });
-    }
+    });
 
-    $('#carcel_id').on('change', function () {
-        cargarInfoCarcel($(this).val());
+    /* Al cambiar departamento */
+    recargaListaDpto();
+    $('#departamento').on('change', function () {
+        recargaListaDpto();
     });
 
     /* ----------------------------------------------------------
-       2. Cursos activos — misma lógica del original
+       3. Cursos activos — misma lógica del original
     ---------------------------------------------------------- */
     $('#prisioneros_iniciaron').on('input change', function () {
         var iniciaron = parseInt($(this).val(), 10);
         var cursos    = '';
-
         if (!isNaN(iniciaron) && iniciaron > 0) {
             var resul = iniciaron / 12;
             var mod   = resul % 2;
@@ -481,12 +555,11 @@ $(document).ready(function () {
             if (iniciaron <= 12) resul = 1;
             cursos = resul;
         }
-
         $('#cursos_activos').val(cursos);
     });
 
     /* ----------------------------------------------------------
-       3. Validación antes de enviar
+       4. Validación antes de enviar
     ---------------------------------------------------------- */
     $('#form1').on('submit', function (e) {
 
