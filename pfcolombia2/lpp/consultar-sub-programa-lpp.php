@@ -365,7 +365,7 @@ else{
     
     if(isset($_REQUEST["idUsuario"]) && $_REQUEST["idUsuario"] != "" && soloNumeros($_REQUEST["idUsuario"]) != ""){
         $buscar_idUsuario = soloNumeros($_REQUEST["idUsuario"]);
-        $sqlFiltro .= " AND sat_reportes.idUsuario = '".$buscar_idUsuario."'";
+        $sqlFiltro .= " AND RL.usuario_id = '".$buscar_idUsuario."'";
     }
 
     // Optimizar filtros de zona/regional con subconsultas
@@ -373,10 +373,10 @@ else{
     if(isset($_REQUEST["empresa_sitio_cor"]) && $_REQUEST["empresa_sitio_cor"] != "") {
         $buscar_zona = soloNumeros($_REQUEST["empresa_sitio_cor"]);
         if($buscar_zona != "") {
-            $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE UE.idUsuario = sat_reportes.idUsuario AND C.idSec = '".$buscar_zona."')";
+            $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE UE.idUsuario = RL.usuario_id AND C.idSec = '".$buscar_zona."')";
         }
     } else if (!isset($_REQUEST["empresa_sitio_cor"]) && $_SESSION["id_zona"]!="" && $_SESSION["id_zona"]!=0) {
-        $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE UE.idUsuario = sat_reportes.idUsuario AND C.idSec = '".$_SESSION["id_zona"]."')";
+        $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE UE.idUsuario = RL.usuario_id AND C.idSec = '".$_SESSION["id_zona"]."')";
         $_REQUEST["empresa_sitio_cor"] = $_SESSION["id_zona"];
         $buscar_zona = $_SESSION["id_zona"];
     }
@@ -385,24 +385,24 @@ else{
     if(isset($_REQUEST["empresa_pd"]) && $_REQUEST["empresa_pd"] != "") {
         $buscar_regional = soloNumeros($_REQUEST["empresa_pd"]);
         if($buscar_regional != "") {
-            $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE WHERE UE.idUsuario = sat_reportes.idUsuario AND UE.empresa_pd = '".$buscar_regional."')";
+            $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE WHERE UE.idUsuario = RL.usuario_id AND UE.empresa_pd = '".$buscar_regional."')";
         }
     } else if (!isset($_REQUEST["empresa_pd"]) && $_SESSION["empresa_pd"]!="" && $_SESSION["empresa_pd"]!=0) {
         $buscar_regional = soloNumeros($_SESSION["empresa_pd"]);
-        $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE WHERE UE.idUsuario = sat_reportes.idUsuario AND UE.empresa_pd = '".$_SESSION["empresa_pd"]."')";
+        $sqlFiltro .= " AND EXISTS (SELECT 1 FROM usuario_empresa UE WHERE UE.idUsuario = RL.usuario_id AND UE.empresa_pd = '".$_SESSION["empresa_pd"]."')";
         $_REQUEST["empresa_pd"] = $_SESSION["empresa_pd"];
     }
     
     if(isset($_REQUEST["sitioReunion"]) && $_REQUEST["sitioReunion"] != "" && soloNumeros($_REQUEST["sitioReunion"]) != ""){
         $buscar_prision = soloNumeros($_REQUEST["sitioReunion"]);
-        $sqlFiltro .= " AND sat_reportes.sitioReunion = ".$buscar_prision."";
+        $sqlFiltro .= " AND RL.carcel_id = ".$buscar_prision."";
     } else {
         $buscar_prision = isset($_REQUEST["sitioReunion"]) ? $_REQUEST["sitioReunion"] : "";
     }
     
     if(isset($_REQUEST["rep_qua"]) && $_REQUEST["rep_qua"] != "" && soloNumeros($_REQUEST["rep_qua"]) != ""){
         $buscar_periodo = soloNumeros($_REQUEST["rep_qua"]);
-        $sqlFiltro .= " AND sat_reportes.mapeo_cuarto = '".$buscar_periodo."'";
+        $sqlFiltro .= " AND RL.periodo_trimestre = '".$buscar_periodo."'";
     } else {
         $buscar_periodo = isset($_REQUEST["rep_qua"]) ? $_REQUEST["rep_qua"] : "";
     }
@@ -410,29 +410,29 @@ else{
     if(isset($_REQUEST["rep_inex"]) && eliminarInvalidos($_REQUEST["rep_inex"]) != ""){
         $tipo = eliminarInvalidos($_REQUEST["rep_inex"]);
         if ($tipo == 2) {
-            $sqlFiltro .= " AND sat_reportes.sitioReunion = 0 ";
+            $sqlFiltro .= " AND RL.carcel_id = 0 ";
         }else{
-            $sqlFiltro .= " AND sat_reportes.sitioReunion <> 0 ";
+            $sqlFiltro .= " AND RL.carcel_id <> 0 ";
         }    
     }else{
         $_REQUEST["rep_inex"] = "";
     }
     if(isset($_REQUEST["fechaInicial"]) && eliminarInvalidos($_REQUEST["fechaInicial"]) != ""){
         $fechaInicial = eliminarInvalidos($_REQUEST["fechaInicial"]);
-        $sqlFiltro .= " AND sat_reportes.fechaReporte >= '".$fechaInicial."'";
+        $sqlFiltro .= " AND RL.fecha_reporte >= '".$fechaInicial."'";
     } else {
         $fechaInicial = $_REQUEST["fechaInicial"];
     }
     
     if(isset($_REQUEST["fechaFinal"]) && eliminarInvalidos($_REQUEST["fechaFinal"]) != ""){
         $fechaFinal = eliminarInvalidos($_REQUEST["fechaFinal"]);
-        $sqlFiltro .= " AND sat_reportes.fechaReporte <= '".$fechaFinal."'";
+        $sqlFiltro .= " AND RL.fecha_reporte <= '".$fechaFinal."'";
     } else {
         $fechaFinal = $_REQUEST["fechaFinal"];
     }
     
     // Conteo optimizado - consulta simple
-    $sql = "SELECT count(*) as conteo FROM sat_reportes WHERE sat_reportes.rep_tip = 307 ".$sqlFiltro;
+    $sql = "SELECT count(*) as conteo FROM reporte_lpp AS RL WHERE 1=1 ".$sqlFiltro;
     $PSN1->query($sql);
     $total_registros = 0;
     if($PSN1->num_rows() > 0){
@@ -443,38 +443,38 @@ else{
     $total_paginas = ceil($total_registros / $registros);
     
     // Paso 1: Obtener solo los IDs necesarios para la página (RÁPIDO)
-    $sql_ids = "SELECT sat_reportes.id FROM sat_reportes WHERE sat_reportes.rep_tip = 307 ".$sqlFiltro." ORDER BY sat_reportes.fechaReporte DESC, sat_reportes.id DESC LIMIT ".$inicio.", ".$registros;
+    $sql_ids = "SELECT RL.id_lpp FROM reporte_lpp AS RL WHERE 1=1 ".$sqlFiltro." ORDER BY RL.fecha_reporte DESC, RL.id_lpp DESC LIMIT ".$inicio.", ".$registros;
     $PSN_ids = new DBbase_Sql;
     $PSN_ids->query($sql_ids);
     $report_ids = [];
     while($PSN_ids->next_record()){
-        $report_ids[] = $PSN_ids->f('id');
+        $report_ids[] = $PSN_ids->f('id_lpp');
     } 
 
     // Paso 2: Solo si hay IDs, obtener los datos completos (RÁPIDO)
     if (count($report_ids) > 0) {
         $sql = "SELECT 
-        sat_reportes.id,
-        sat_reportes.pabellon,
-        sat_reportes.asistencia_total,
-        sat_reportes.asistencia_hom,
-        sat_reportes.asistencia_muj,
-        sat_reportes.asistencia_jov,
-        sat_reportes.asistencia_nin,
-        sat_reportes.bautizados,
-        sat_reportes.desiciones,
-        sat_reportes.rep_ndis,
-        sat_reportes.ext1,
-        sat_reportes.ext2,
-        U.nombre as nombreUsuario,
+        RL.id_lpp AS id,
+        RL.pabellon,
+        RL.poblacion_total      AS asistencia_total,
+        RL.prisioneros_invitados AS asistencia_hom,
+        RL.prisioneros_iniciaron AS asistencia_muj,
+        RL.cursos_activos        AS asistencia_jov,
+        RL.total_graduados       AS asistencia_nin,
+        RL.total_voluntarios_internos AS bautizados,
+        RL.total_voluntarios_externos AS desiciones,
+        RL.discipulos_pasaron_cm AS rep_ndis,
+        RL.archivo_foto  AS ext1,
+        RL.archivo_testimonio AS ext2,
+        U.nombre AS nombreUsuario,
         RU.reub_nom,
         C.descripcion AS regional
-        FROM sat_reportes 
-        LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario 
-        LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion
-        LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk 
-        WHERE sat_reportes.id IN (" . implode(',', $report_ids) . ") 
-        ORDER BY sat_reportes.fechaReporte DESC, sat_reportes.id DESC";
+        FROM reporte_lpp AS RL
+        LEFT JOIN usuario AS U ON U.id = RL.usuario_id
+        LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RL.carcel_id
+        LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk
+        WHERE RL.id_lpp IN (" . implode(',', $report_ids) . ") 
+        ORDER BY RL.fecha_reporte DESC, RL.id_lpp DESC";
         
         $PSN1->query($sql);
     } else {
