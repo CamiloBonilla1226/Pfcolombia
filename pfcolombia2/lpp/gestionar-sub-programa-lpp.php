@@ -59,9 +59,42 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
     $ext_foto       = extension_archivo($_FILES['archivo_foto']['name']       ?? '');
     $ext_testimonio = extension_archivo($_FILES['archivo_testimonio']['name'] ?? '');
 
+    /* Validaciones de respaldo (por si se evita el JS) */
     if ($fecha_reporte === '' || $carcel_id == 0) {
         $error_datos = 1;
         $texto_error = 'La fecha y la cárcel son requeridas.';
+    }
+
+    /* Minimo 1 voluntario interno con nombre e identificacion */
+    if ($error_datos == 0) {
+        $internos_validos = 0;
+        if (!empty($_POST['interno_nombre'])) {
+            foreach ($_POST['interno_nombre'] as $idx => $nom_int) {
+                $n = eliminarInvalidos($nom_int);
+                $d = eliminarInvalidos($_POST['interno_identificacion'][$idx] ?? '');
+                if ($n !== '' && $d !== '') $internos_validos++;
+            }
+        }
+        if ($internos_validos === 0) {
+            $error_datos = 1;
+            $texto_error = 'Debes registrar al menos un voluntario interno con nombre e identificación.';
+        }
+    }
+
+    /* Minimo 1 voluntario externo con nombre e identificacion */
+    if ($error_datos == 0) {
+        $externos_validos = 0;
+        if (!empty($_POST['externo_nombre'])) {
+            foreach ($_POST['externo_nombre'] as $idx => $nom_ext) {
+                $n = eliminarInvalidos($nom_ext);
+                $d = eliminarInvalidos($_POST['externo_identificacion'][$idx] ?? '');
+                if ($n !== '' && $d !== '') $externos_validos++;
+            }
+        }
+        if ($externos_validos === 0) {
+            $error_datos = 1;
+            $texto_error = 'Debes registrar al menos un voluntario externo con nombre e identificación.';
+        }
     }
 
     if ($error_datos == 0) {
@@ -1815,21 +1848,34 @@ $(document).ready(function () {
             }
         }
 
-        /* ---- Externos: si hay datos deben estar completos ---- */
-        var extIncomp = 0;
+        /* ---- Externos: minimo 1 completo (igual que internos) ---- */
+        var extCompletos = 0;
         $('#body-externos tr').each(function () {
             var nom  = $(this).find('.ext-nombre').val().trim();
             var iden = $(this).find('.ext-identificacion').val().trim();
-            if ((nom !== '' || iden !== '') && (nom === '' || iden === '')) {
-                extIncomp++;
+            if (nom !== '' && iden !== '') {
+                extCompletos++;
+            } else if (nom !== '' || iden !== '') {
                 if (nom === '')  { marcarError($(this).find('.ext-nombre'),          'Nombre requerido.'); }
                 if (iden === '') { marcarError($(this).find('.ext-identificacion'),  'Identificación requerida.'); }
             }
         });
-        if (extIncomp > 0) {
-            var msg7 = 'Hay ' + extIncomp + ' fila(s) de voluntarios externos con datos incompletos.';
+        if (extCompletos === 0) {
+            var msg7 = 'Debes registrar al menos un voluntario externo con nombre e identificación completos.';
+            marcarError($('#body-externos .ext-nombre').first(), msg7);
             agregarAlPanel(msg7, $('#body-externos .ext-nombre').first());
             hayError = true;
+        } else {
+            var extIncomp = $('#body-externos tr').filter(function () {
+                var n = $(this).find('.ext-nombre').val().trim();
+                var d = $(this).find('.ext-identificacion').val().trim();
+                return (n !== '' || d !== '') && (n === '' || d === '');
+            }).length;
+            if (extIncomp > 0) {
+                var msg7b = 'Hay ' + extIncomp + ' fila(s) de voluntarios externos con datos incompletos.';
+                agregarAlPanel(msg7b, $('#body-externos .ext-nombre').first());
+                hayError = true;
+            }
         }
 
         /* ---- Restriccion 4a: foto obligatoria ---- */
