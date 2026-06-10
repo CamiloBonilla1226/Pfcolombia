@@ -680,6 +680,57 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         .verif-card,
         .verif-upload-card { min-width: 0; width: 100%; }
     }
+
+    /* -- Estilos de validacion visual -- */
+    .field-error {
+        border-color: #c0392b !important;
+        box-shadow: 0 0 0 3px rgba(192,57,43,.15) !important;
+        background: #fff8f8 !important;
+    }
+    .inp-tabla.field-error {
+        border-color: #c0392b !important;
+        box-shadow: 0 0 0 3px rgba(192,57,43,.15) !important;
+        background: #fff8f8 !important;
+    }
+    .verif-file-input.field-error,
+    .verif-upload-card.field-error {
+        border-color: #c0392b !important;
+        background: #fff8f8 !important;
+    }
+    .field-error-msg {
+        display: block;
+        margin-top: 5px;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #c0392b;
+        letter-spacing: .02em;
+    }
+    #panel-errores {
+        display: none;
+        background: #fdf3f3;
+        border: 1px solid #e8b4b0;
+        border-left: 4px solid #c0392b;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+    }
+    #panel-errores .panel-titulo {
+        font-size: 13px;
+        font-weight: 700;
+        color: #7a1f1e;
+        margin-bottom: 8px;
+    }
+    #panel-errores ul { margin: 0; padding-left: 18px; }
+    #panel-errores ul li {
+        font-size: 12.5px;
+        color: #7a1f1e;
+        margin-bottom: 4px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: underline dotted;
+    }
+    #panel-errores ul li:last-child { margin-bottom: 0; }
+    #panel-errores ul li:hover { color: #c0392b; }
 </style>
 
 <div class="container report-shell">
@@ -697,6 +748,8 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
             </a>
         </div>
     <?php else: ?>
+
+    <div id="panel-errores"><div class="panel-titulo">&#9888; Por favor corrige los siguientes errores antes de continuar:</div><ul id="lista-errores"></ul></div>
 
     <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="report-form">
 
@@ -1485,202 +1538,249 @@ $(document).ready(function () {
     });
 
     /* ----------------------------------------------------------
-       3. Validación antes de enviar
+       Helpers de validacion visual
+    ---------------------------------------------------------- */
+    function limpiarErrores() {
+        $('.field-error').removeClass('field-error');
+        $('.field-error-msg').remove();
+        $('#lista-errores').empty();
+        $('#panel-errores').hide();
+    }
+
+    function marcarError($el, mensaje) {
+        $el.addClass('field-error');
+        if ($el.next('.field-error-msg').length === 0) {
+            $el.after('<span class="field-error-msg">' + mensaje + '</span>');
+        }
+    }
+
+    function agregarAlPanel(mensaje, $elFoco) {
+        var $li = $('<li></li>').text(mensaje);
+        if ($elFoco) {
+            $li.on('click', function () {
+                $('html, body').animate({ scrollTop: $elFoco.offset().top - 120 }, 300);
+                setTimeout(function () { $elFoco.focus(); }, 320);
+            });
+        }
+        $('#lista-errores').append($li);
+    }
+
+    function mostrarPanel() {
+        $('#panel-errores').show();
+        $('html, body').animate({ scrollTop: $('#panel-errores').offset().top - 80 }, 400);
+    }
+
+    /* Limpiar error individual al corregir el campo */
+    $(document).on('input change', '.field-error', function () {
+        $(this).removeClass('field-error');
+        $(this).next('.field-error-msg').remove();
+    });
+
+    /* ----------------------------------------------------------
+       3. Validacion antes de enviar
     ---------------------------------------------------------- */
     $('#form1').on('submit', function (e) {
 
+        limpiarErrores();
+        var hayError = false;
+
+        /* ---- Carcel ---- */
         if (!$('#carcel_id').val()) {
-            e.preventDefault();
-            alert('Por favor seleccione una cárcel.');
-            $('#carcel_id').focus();
-            return false;
+            marcarError($('#carcel_id'), 'Seleccione una cárcel.');
+            agregarAlPanel('Seleccione una cárcel.', $('#carcel_id'));
+            hayError = true;
         }
 
+        /* ---- Campos numericos obligatorios > 0 ---- */
         var numericos = [
-            { id: 'pabellon',              label: 'N° de patios y/o pabellón' },
+            { id: 'pabellon',              label: 'N° de patios y/o pabbellón' },
             { id: 'poblacion_total',       label: 'Total población' },
             { id: 'prisioneros_invitados', label: 'Prisioneros invitados' },
             { id: 'prisioneros_iniciaron', label: 'Prisioneros que iniciaron el curso' }
         ];
-
         for (var i = 0; i < numericos.length; i++) {
-            var val = parseInt($('#' + numericos[i].id).val(), 10);
+            var $f  = $('#' + numericos[i].id);
+            var val = parseInt($f.val(), 10);
             if (isNaN(val) || val < 1) {
-                e.preventDefault();
-                alert('El campo "' + numericos[i].label + '" debe ser un número mayor a 0.');
-                $('#' + numericos[i].id).focus();
-                return false;
+                var msg = 'El campo "' + numericos[i].label + '" debe ser un número mayor a 0.';
+                marcarError($f, msg);
+                agregarAlPanel(msg, $f);
+                hayError = true;
             }
         }
 
-        /* Validar método de verificación: >= 0 */
+        /* ---- Restriccion 1: invitados <= poblacion ---- */
+        var poblacionVal = parseInt($('#poblacion_total').val(), 10);
+        var invitadosVal = parseInt($('#prisioneros_invitados').val(), 10);
+        var iniciaronVal = parseInt($('#prisioneros_iniciaron').val(), 10);
+        if (!isNaN(invitadosVal) && !isNaN(poblacionVal) && invitadosVal > poblacionVal) {
+            var msg1 = '"Prisioneros invitados" (' + invitadosVal + ') no puede superar "Total población" (' + poblacionVal + ').';
+            marcarError($('#prisioneros_invitados'), msg1);
+            agregarAlPanel(msg1, $('#prisioneros_invitados'));
+            hayError = true;
+        }
+
+        /* ---- Restriccion 1: iniciaron <= invitados ---- */
+        if (!isNaN(iniciaronVal) && !isNaN(invitadosVal) && iniciaronVal > invitadosVal) {
+            var msg2 = '"Prisioneros que iniciaron" (' + iniciaronVal + ') no puede superar "Prisioneros invitados" (' + invitadosVal + ').';
+            marcarError($('#prisioneros_iniciaron'), msg2);
+            agregarAlPanel(msg2, $('#prisioneros_iniciaron'));
+            hayError = true;
+        }
+
+        /* ---- Campos numericos >= 0 (verificacion) ---- */
         var verificacion = [
             { id: 'discipulos_pasaron_cm', label: 'Número de discípulos que pasaron a C&M' },
             { id: 'costo_recursos',        label: 'Costo de recursos gestionados' }
         ];
         for (var j = 0; j < verificacion.length; j++) {
-            var vval = parseInt($('#' + verificacion[j].id).val(), 10);
+            var $fv  = $('#' + verificacion[j].id);
+            var vval = parseInt($fv.val(), 10);
             if (isNaN(vval) || vval < 0) {
-                e.preventDefault();
-                alert('El campo "' + verificacion[j].label + '" debe ser un número mayor o igual a 0.');
-                $('#' + verificacion[j].id).focus();
-                return false;
+                var msgv = 'El campo "' + verificacion[j].label + '" debe ser un número mayor o igual a 0.';
+                marcarError($fv, msgv);
+                agregarAlPanel(msgv, $fv);
+                hayError = true;
             }
         }
 
-        /* Validar internos: mínimo 1 completo */
+        /* ---- Restriccion 2: graduados <= poblacion ---- */
+        var totalGradVal = parseInt($('#total_graduados').val(), 10) || 0;
+        if (!isNaN(poblacionVal) && totalGradVal > poblacionVal) {
+            var msg3 = 'Los graduados registrados (' + totalGradVal + ') no pueden superar la población total (' + poblacionVal + ').';
+            marcarError($('#total_graduados_vis'), msg3);
+            agregarAlPanel(msg3, $('#body-graduados .grad-nombre').first());
+            hayError = true;
+        }
+
+        /* ---- Restriccion 3: discipulos <= graduados ---- */
+        var discipulosVal = parseInt($('#discipulos_pasaron_cm').val(), 10) || 0;
+        if (discipulosVal > totalGradVal) {
+            var msg4 = '"Discípulos que pasaron a C&M" (' + discipulosVal + ') no puede superar los graduados registrados (' + totalGradVal + ').';
+            marcarError($('#discipulos_pasaron_cm'), msg4);
+            agregarAlPanel(msg4, $('#discipulos_pasaron_cm'));
+            hayError = true;
+        }
+
+        /* ---- Voluntarios internos: minimo 1 completo ---- */
         var intCompletos = 0;
-        var intIncompletos = 0;
         $('#body-internos tr').each(function () {
             var nom  = $(this).find('.int-nombre').val().trim();
             var iden = $(this).find('.int-identificacion').val().trim();
-            if (nom !== '' && iden !== '') { intCompletos++; }
-            else if (nom !== '' || iden !== '') { intIncompletos++; }
+            if (nom !== '' && iden !== '') {
+                intCompletos++;
+            } else if (nom !== '' || iden !== '') {
+                /* Fila incompleta: marcar el campo vacio */
+                if (nom === '')  { marcarError($(this).find('.int-nombre'),          'Nombre requerido.'); }
+                if (iden === '') { marcarError($(this).find('.int-identificacion'),  'Identificación requerida.'); }
+            }
         });
         if (intCompletos === 0) {
-            e.preventDefault();
-            alert('Debes registrar al menos un voluntario interno con nombre e identificación completos.');
-            $('#body-internos .int-nombre').first().focus();
-            return false;
-        }
-        if (intIncompletos > 0) {
-            e.preventDefault();
-            alert('Hay ' + intIncompletos + ' fila(s) de voluntarios internos con datos incompletos. Completa ambos campos o elimínalas.');
-            $('#body-internos tr').each(function () {
-                var nom  = $(this).find('.int-nombre').val().trim();
-                var iden = $(this).find('.int-identificacion').val().trim();
-                if (nom === '' && iden !== '') { $(this).find('.int-nombre').focus(); return false; }
-                if (iden === '' && nom !== '') { $(this).find('.int-identificacion').focus(); return false; }
-            });
-            return false;
+            var msg5 = 'Debes registrar al menos un voluntario interno con nombre e identificación completos.';
+            marcarError($('#body-internos .int-nombre').first(), msg5);
+            agregarAlPanel(msg5, $('#body-internos .int-nombre').first());
+            hayError = true;
+        } else {
+            /* Si hay incompletos ademas del minimo requerido */
+            var intIncomp = $('#body-internos tr').filter(function () {
+                var n = $(this).find('.int-nombre').val().trim();
+                var d = $(this).find('.int-identificacion').val().trim();
+                return (n !== '' || d !== '') && (n === '' || d === '');
+            }).length;
+            if (intIncomp > 0) {
+                var msg5b = 'Hay ' + intIncomp + ' fila(s) de voluntarios internos con datos incompletos.';
+                agregarAlPanel(msg5b, $('#body-internos .int-nombre').first());
+                hayError = true;
+            }
         }
 
-        /* Validar graduados: mínimo 1 completo (nombre + identificación) */
+        /* ---- Graduados: minimo 1 completo ---- */
         var gradCompletos = 0;
-        var gradIncompletos = 0;
         $('#body-graduados tr').each(function () {
             var nom  = $(this).find('.grad-nombre').val().trim();
             var iden = $(this).find('.grad-identificacion').val().trim();
             if (nom !== '' && iden !== '') {
                 gradCompletos++;
             } else if (nom !== '' || iden !== '') {
-                gradIncompletos++;
+                if (nom === '')  { marcarError($(this).find('.grad-nombre'),          'Nombre requerido.'); }
+                if (iden === '') { marcarError($(this).find('.grad-identificacion'),  'Identificación requerida.'); }
             }
         });
-
         if (gradCompletos === 0) {
-            e.preventDefault();
-            alert('Debes registrar al menos un graduado con nombre e identificación completos.');
-            $('#body-graduados .grad-nombre').first().focus();
-            return false;
+            var msg6 = 'Debes registrar al menos un graduado con nombre e identificación completos.';
+            marcarError($('#body-graduados .grad-nombre').first(), msg6);
+            agregarAlPanel(msg6, $('#body-graduados .grad-nombre').first());
+            hayError = true;
+        } else {
+            var gradIncomp = $('#body-graduados tr').filter(function () {
+                var n = $(this).find('.grad-nombre').val().trim();
+                var d = $(this).find('.grad-identificacion').val().trim();
+                return (n !== '' || d !== '') && (n === '' || d === '');
+            }).length;
+            if (gradIncomp > 0) {
+                var msg6b = 'Hay ' + gradIncomp + ' fila(s) de graduados con datos incompletos.';
+                agregarAlPanel(msg6b, $('#body-graduados .grad-nombre').first());
+                hayError = true;
+            }
         }
 
-        if (gradIncompletos > 0) {
-            e.preventDefault();
-            alert('Hay ' + gradIncompletos + ' fila(s) de graduados con datos incompletos. Completa ambos campos o elimínalas.');
-            /* Enfocar la primera incompleta */
-            $('#body-graduados tr').each(function () {
-                var nom  = $(this).find('.grad-nombre').val().trim();
-                var iden = $(this).find('.grad-identificacion').val().trim();
-                if (nom === '' && iden !== '') {
-                    $(this).find('.grad-nombre').focus();
-                    return false;
-                }
-                if (iden === '' && nom !== '') {
-                    $(this).find('.grad-identificacion').focus();
-                    return false;
-                }
-            });
-            return false;
-        }
-
-        /* Validar externos: filas incompletas (mínimo 0, pero si hay datos deben estar completos) */
-        var extCompletos = 0;
-        var extIncompletos = 0;
+        /* ---- Externos: si hay datos deben estar completos ---- */
+        var extIncomp = 0;
         $('#body-externos tr').each(function () {
             var nom  = $(this).find('.ext-nombre').val().trim();
             var iden = $(this).find('.ext-identificacion').val().trim();
-            if (nom !== '' && iden !== '') { extCompletos++; }
-            else if (nom !== '' || iden !== '') { extIncompletos++; }
+            if ((nom !== '' || iden !== '') && (nom === '' || iden === '')) {
+                extIncomp++;
+                if (nom === '')  { marcarError($(this).find('.ext-nombre'),          'Nombre requerido.'); }
+                if (iden === '') { marcarError($(this).find('.ext-identificacion'),  'Identificación requerida.'); }
+            }
         });
-        if (extIncompletos > 0) {
-            e.preventDefault();
-            alert('Hay ' + extIncompletos + ' fila(s) de voluntarios externos con datos incompletos. Completa ambos campos o elimínalas.');
-            $('#body-externos tr').each(function () {
-                var nom  = $(this).find('.ext-nombre').val().trim();
-                var iden = $(this).find('.ext-identificacion').val().trim();
-                if (nom === '' && iden !== '') { $(this).find('.ext-nombre').focus(); return false; }
-                if (iden === '' && nom !== '') { $(this).find('.ext-identificacion').focus(); return false; }
-            });
-            return false;
+        if (extIncomp > 0) {
+            var msg7 = 'Hay ' + extIncomp + ' fila(s) de voluntarios externos con datos incompletos.';
+            agregarAlPanel(msg7, $('#body-externos .ext-nombre').first());
+            hayError = true;
         }
 
-        /* Restriccion 1: invitados <= poblacion, iniciaron <= invitados */
-        var poblacionVal  = parseInt($('#poblacion_total').val(), 10);
-        var invitadosVal  = parseInt($('#prisioneros_invitados').val(), 10);
-        var iniciaronVal  = parseInt($('#prisioneros_iniciaron').val(), 10);
-        if (!isNaN(invitadosVal) && !isNaN(poblacionVal) && invitadosVal > poblacionVal) {
-            e.preventDefault();
-            alert('"Prisioneros invitados" (' + invitadosVal + ') no puede ser mayor que "Total población" (' + poblacionVal + ').');
-            $('#prisioneros_invitados').focus();
-            return false;
-        }
-        if (!isNaN(iniciaronVal) && !isNaN(invitadosVal) && iniciaronVal > invitadosVal) {
-            e.preventDefault();
-            alert('"Prisioneros que iniciaron el curso" (' + iniciaronVal + ') no puede ser mayor que "Prisioneros invitados" (' + invitadosVal + ').');
-            $('#prisioneros_iniciaron').focus();
-            return false;
-        }
-
-        /* Restriccion 2: graduados registrados <= poblacion_total */
-        var totalGradVal = parseInt($('#total_graduados').val(), 10) || 0;
-        if (!isNaN(poblacionVal) && totalGradVal > poblacionVal) {
-            e.preventDefault();
-            alert('La cantidad de graduados registrados (' + totalGradVal + ') no puede superar la población total de la prisión (' + poblacionVal + ').');
-            $('#body-graduados .grad-nombre').first().focus();
-            return false;
-        }
-
-        /* Restriccion 3: discipulos_pasaron_cm <= graduados registrados */
-        var discipulosVal = parseInt($('#discipulos_pasaron_cm').val(), 10) || 0;
-        if (discipulosVal > totalGradVal) {
-            e.preventDefault();
-            alert('"Discípulos que pasaron a C&M" (' + discipulosVal + ') no puede ser mayor que la cantidad de graduados registrados (' + totalGradVal + ').');
-            $('#discipulos_pasaron_cm').focus();
-            return false;
-        }
-
-        /* Restriccion 4a: Foto de grupo es obligatoria */
+        /* ---- Restriccion 4a: foto obligatoria ---- */
         var fotoInput = $('#archivo_foto')[0];
         if (!fotoInput || fotoInput.files.length === 0) {
-            e.preventDefault();
-            alert('La Foto de grupo es obligatoria.');
-            $('#archivo_foto').focus();
-            return false;
-        }
-        var fotoExt = fotoInput.files[0].name.split('.').pop().toLowerCase();
-        var fotoPermitidos = ['jpg', 'jpeg', 'png', 'gif'];
-        if (fotoPermitidos.indexOf(fotoExt) === -1) {
-            e.preventDefault();
-            alert('El archivo de Foto de grupo debe ser una imagen (JPG, JPEG, PNG o GIF).');
-            $('#archivo_foto').focus();
-            return false;
+            var msg8 = 'La Foto de grupo es obligatoria.';
+            marcarError($('#archivo_foto'), msg8);
+            $('#archivo_foto').closest('.verif-upload-card').addClass('field-error');
+            agregarAlPanel(msg8, $('#archivo_foto'));
+            hayError = true;
+        } else {
+            var fotoExt = fotoInput.files[0].name.split('.').pop().toLowerCase();
+            if (['jpg','jpeg','png','gif'].indexOf(fotoExt) === -1) {
+                var msg8b = 'La Foto de grupo debe ser una imagen (JPG, JPEG, PNG o GIF).';
+                marcarError($('#archivo_foto'), msg8b);
+                agregarAlPanel(msg8b, $('#archivo_foto'));
+                hayError = true;
+            }
         }
 
-        /* Restriccion 4b: Testimonio es obligatorio */
+        /* ---- Restriccion 4b: testimonio obligatorio ---- */
         var testInput = $('#archivo_testimonio')[0];
         if (!testInput || testInput.files.length === 0) {
-            e.preventDefault();
-            alert('El archivo de Testimonio es obligatorio.');
-            $('#archivo_testimonio').focus();
-            return false;
+            var msg9 = 'El archivo de Testimonio es obligatorio.';
+            marcarError($('#archivo_testimonio'), msg9);
+            $('#archivo_testimonio').closest('.verif-upload-card').addClass('field-error');
+            agregarAlPanel(msg9, $('#archivo_testimonio'));
+            hayError = true;
+        } else {
+            var testExt = testInput.files[0].name.split('.').pop().toLowerCase();
+            if (['pdf','doc','docx'].indexOf(testExt) === -1) {
+                var msg9b = 'El archivo de Testimonio debe ser PDF, DOC o DOCX.';
+                marcarError($('#archivo_testimonio'), msg9b);
+                agregarAlPanel(msg9b, $('#archivo_testimonio'));
+                hayError = true;
+            }
         }
-        var testExt = testInput.files[0].name.split('.').pop().toLowerCase();
-        var testPermitidos = ['pdf', 'doc', 'docx'];
-        if (testPermitidos.indexOf(testExt) === -1) {
+
+        /* ---- Resultado final ---- */
+        if (hayError) {
             e.preventDefault();
-            alert('El archivo de Testimonio debe ser PDF, DOC o DOCX.');
-            $('#archivo_testimonio').focus();
+            mostrarPanel();
             return false;
         }
 
