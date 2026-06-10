@@ -320,10 +320,9 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <div class="col-sm-3">
                     <strong>Cárcel ubicación:</strong>
                     <select name="carcel_id" id="carcel_id" class="form-control" required>
-                        <option value="">Seleccione una cárcel...</option>
+                        <option value="">Sin especificar</option>
                         <?php
                         if ($empresa_pd != '') {
-                            echo '<option value="">Sin especificar</option>';
                             $sql_c = "SELECT * FROM tbl_regional_ubicacion";
                             if ($empresa_pd != 0) {
                                 $sql_c .= " WHERE reub_reg_fk = " . (int)$empresa_pd;
@@ -340,9 +339,6 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                         }
                         ?>
                     </select>
-                    <!-- El HTML con departamento, municipio y dirección
-                         lo inyecta datos_carcel_ubicacion.php aquí, igual que el original -->
-                    <div id="ubicacion"></div>
                 </div>
 
                 <div class="col-sm-2">
@@ -358,34 +354,22 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 
             </div><!-- /.form-group fila 1 -->
 
-            <!-- Fila 2: Departamento, Municipio, Dirección (solo lectura, igual que el original) -->
-            <div class="form-group row">
-                <div class="col-sm-1"></div>
-                <div class="col-sm-3">
-                    <strong>Departamento:</strong>
-                    <select id="departamento" name="departamento" class="form-control">
-                        <option value="">— Seleccione departamento —</option>
-                        <?php
-                        $PSN->query("SELECT id_departamento, departamento FROM dane_departamentos ORDER BY departamento ASC");
-                        while ($PSN->next_record()) {
-                            echo '<option value="' . $PSN->f('id_departamento') . '">' . $PSN->f('departamento') . '</option>';
-                        }
-                        ?>
-                    </select>
-                </div>
-                <div class="col-sm-3">
-                    <strong>Municipio:</strong>
-                    <select id="municipio" name="municipio_vis" class="form-control">
-                        <option value="">— Seleccione municipio —</option>
-                    </select>
-                </div>
+            <!-- Fila 2: Departamento, Municipio, Dirección — solo lectura, se llenan al elegir cárcel -->
+            <div class="form-group row" id="fila-ubicacion" style="display:none;">
+
                 <div class="col-sm-4">
-                    <strong>Dirección de la cárcel:</strong>
-                    <input type="text"
-                           id="direccion_carcel"
-                           class="form-control"
-                           readonly
-                           placeholder="Se carga al seleccionar la cárcel" />
+                    <strong>Departamento:</strong>
+                    <input type="text" id="txt-departamento" class="form-control" readonly />
+                </div>
+
+                <div class="col-sm-4">
+                    <strong>Municipio:</strong>
+                    <input type="text" id="txt-municipio" class="form-control" readonly />
+                </div>
+
+                <div class="col-sm-4">
+                    <strong>Dirección:</strong>
+                    <input type="text" id="txt-direccion" class="form-control" readonly />
                 </div>
 
             </div>
@@ -490,33 +474,23 @@ $(document).ready(function () {
     }
 
     /* ----------------------------------------------------------
-       2. Municipios — igual que el original:
-          recargaListaDpto() llama a datos_ubicacion.php
-          e inyecta opciones en select#municipio
+       2. Al cambiar la cárcel: consultar departamento, municipio
+          y dirección via AJAX y mostrarlos en inputs readonly
     ---------------------------------------------------------- */
-    function recargaListaDpto() {
-        $.ajax({
-            type   : 'POST',
-            url    : 'datos_ubicacion.php',
-            data   : 'id_depa=' + $('#departamento').val(),
-            success: function (r) {
-                $('#municipio').html(r);
-            }
-        });
-    }
-
-    /* Al cargar la página y al cambiar la cárcel */
     recargaLista();
+
     $('#carcel_id').on('change', function () {
         recargaLista();
 
-        /* Además llenamos dirección desde los datos de la cárcel
-           consultando directamente vía AJAX al mismo archivo */
         var id = $(this).val();
         if (!id) {
-            $('#direccion_carcel').val('');
+            $('#fila-ubicacion').hide();
+            $('#txt-departamento').val('');
+            $('#txt-municipio').val('');
+            $('#txt-direccion').val('');
             return;
         }
+
         $.ajax({
             type    : 'POST',
             url     : window.location.href,
@@ -524,22 +498,15 @@ $(document).ready(function () {
             dataType: 'json',
             success : function (data) {
                 if (data.ok) {
-                    $('#direccion_carcel').val(data.direccion || '');
-                    /* Seleccionar departamento y disparar carga de municipios */
-                    $('#departamento').val(data.id_departamento).trigger('change');
-                    /* Esperar a que carguen los municipios y luego seleccionar */
-                    setTimeout(function () {
-                        $('#municipio').val(data.id_municipio);
-                    }, 600);
+                    $('#txt-departamento').val(data.departamento || '');
+                    $('#txt-municipio').val(data.municipio      || '');
+                    $('#txt-direccion').val(data.direccion      || '');
+                    $('#fila-ubicacion').show();
+                } else {
+                    $('#fila-ubicacion').hide();
                 }
             }
         });
-    });
-
-    /* Al cambiar departamento */
-    recargaListaDpto();
-    $('#departamento').on('change', function () {
-        recargaListaDpto();
     });
 
     /* ----------------------------------------------------------
