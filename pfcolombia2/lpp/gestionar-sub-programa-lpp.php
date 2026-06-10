@@ -586,11 +586,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         border-radius: 12px;
         padding: 16px 20px;
     }
-    .verif-card-icon {
-        font-size: 28px;
-        line-height: 1;
-        flex-shrink: 0;
-    }
+   
     .verif-card-body {
         flex: 1;
         display: flex;
@@ -646,7 +642,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         background: #f0f4f8;
         border-bottom: 1px solid #d8e2eb;
     }
-    .verif-upload-icon { font-size: 18px; line-height: 1; }
+
     .verif-upload-title {
         font-size: 13px;
         font-weight: 700;
@@ -1014,7 +1010,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
             <div class="verif-indicadores">
 
                 <div class="verif-card">
-                    <div class="verif-card-icon">&#127891;</div>
+                    
                     <div class="verif-card-body">
                         <label class="verif-label" for="discipulos_pasaron_cm">
                             Discípulos que pasaron a C&amp;M
@@ -1025,7 +1021,7 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 </div>
 
                 <div class="verif-card">
-                    <div class="verif-card-icon">&#128176;</div>
+                  
                     <div class="verif-card-body">
                         <label class="verif-label" for="costo_recursos">
                             Costo de recursos gestionados ($)
@@ -1042,25 +1038,24 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
 
                 <div class="verif-upload-card">
                     <div class="verif-upload-header">
-                        <span class="verif-upload-icon">&#128247;</span>
-                        <span class="verif-upload-title">Foto de grupo</span>
+
+                        <span class="verif-upload-title">Foto de grupo <span style="color:#c0392b">*</span></span>
                     </div>
                     <div class="verif-upload-body">
                         <input type="file" name="archivo_foto" id="archivo_foto"
                                class="verif-file-input" accept=".jpg,.jpeg,.png,.gif" />
-                        <p class="verif-upload-hint">JPG, JPEG, PNG, GIF</p>
+                        <p class="verif-upload-hint">JPG, JPEG, PNG, GIF &mdash; <span style="color:#c0392b;font-style:normal">Obligatorio</span></p>
                     </div>
                 </div>
 
                 <div class="verif-upload-card">
                     <div class="verif-upload-header">
-                        <span class="verif-upload-icon">&#128196;</span>
-                        <span class="verif-upload-title">Testimonio</span>
+                        <span class="verif-upload-title">Testimonio <span style="color:#c0392b">*</span></span>
                     </div>
                     <div class="verif-upload-body">
                         <input type="file" name="archivo_testimonio" id="archivo_testimonio"
                                class="verif-file-input" accept=".pdf,.doc,.docx" />
-                        <p class="verif-upload-hint">PDF, DOC, DOCX</p>
+                        <p class="verif-upload-hint">PDF, DOC, DOCX &mdash; <span style="color:#c0392b;font-style:normal">Obligatorio</span></p>
                     </div>
                 </div>
 
@@ -1213,6 +1208,19 @@ $(document).ready(function () {
         });
         $('#total_graduados_vis').val(completos);
         $('#total_graduados').val(completos);
+
+        /* Restriccion 2: graduados <= poblacion_total */
+        var poblacion = parseInt($('#poblacion_total').val(), 10);
+        if (!isNaN(poblacion) && completos > poblacion) {
+            alert('La cantidad de graduados registrados (' + completos + ') no puede superar la poblacion total de la prision (' + poblacion + ').');
+        }
+
+        /* Restriccion 3: discipulos_pasaron_cm <= graduados */
+        $('#discipulos_pasaron_cm').attr('max', completos);
+        var discipulos = parseInt($('#discipulos_pasaron_cm').val(), 10);
+        if (!isNaN(discipulos) && discipulos > completos) {
+            $('#discipulos_pasaron_cm').val(completos);
+        }
     }
 
     /* Recalcular al escribir en cualquier input de la tabla */
@@ -1418,11 +1426,58 @@ $(document).ready(function () {
     });
 
     /* ----------------------------------------------------------
-       4. Cursos activos — ceil(iniciaron / 12), mínimo 1
+       4. Restricciones numéricas en cascada
+          · invitados  ≤ población_total
+          · iniciaron  ≤ invitados
+    ---------------------------------------------------------- */
+    $('#poblacion_total').on('input change', function () {
+        var poblacion = parseInt($(this).val(), 10);
+        if (!isNaN(poblacion) && poblacion >= 1) {
+            $('#prisioneros_invitados').attr('max', poblacion);
+            /* Si el valor actual ya supera el nuevo límite, corregirlo */
+            var invitados = parseInt($('#prisioneros_invitados').val(), 10);
+            if (!isNaN(invitados) && invitados > poblacion) {
+                $('#prisioneros_invitados').val(poblacion);
+                $('#prisioneros_invitados').trigger('change');
+            }
+        }
+    });
+
+    $('#prisioneros_invitados').on('input change', function () {
+        var invitados  = parseInt($(this).val(), 10);
+        var poblacion  = parseInt($('#poblacion_total').val(), 10);
+
+        /* Corregir si supera la población */
+        if (!isNaN(invitados) && !isNaN(poblacion) && invitados > poblacion) {
+            $(this).val(poblacion);
+            invitados = poblacion;
+        }
+
+        if (!isNaN(invitados) && invitados >= 1) {
+            $('#prisioneros_iniciaron').attr('max', invitados);
+            /* Si el valor actual ya supera el nuevo límite, corregirlo */
+            var iniciaron = parseInt($('#prisioneros_iniciaron').val(), 10);
+            if (!isNaN(iniciaron) && iniciaron > invitados) {
+                $('#prisioneros_iniciaron').val(invitados);
+                $('#prisioneros_iniciaron').trigger('change');
+            }
+        }
+    });
+
+    /* ----------------------------------------------------------
+       5. Cursos activos — ceil(iniciaron / 12), mínimo 1
     ---------------------------------------------------------- */
     $('#prisioneros_iniciaron').on('input change', function () {
+        var invitados = parseInt($('#prisioneros_invitados').val(), 10);
         var iniciaron = parseInt($(this).val(), 10);
-        var cursos    = '';
+
+        /* Corregir si supera los invitados */
+        if (!isNaN(iniciaron) && !isNaN(invitados) && iniciaron > invitados) {
+            $(this).val(invitados);
+            iniciaron = invitados;
+        }
+
+        var cursos = '';
         if (!isNaN(iniciaron) && iniciaron > 0) {
             cursos = iniciaron <= 12 ? 1 : Math.trunc(iniciaron / 12) + (iniciaron % 12 !== 0 ? 1 : 0);
         }
@@ -1560,30 +1615,73 @@ $(document).ready(function () {
             return false;
         }
 
-        /* Validar archivo foto (si se sube, debe ser imagen) */
-        var fotoInput = $('#archivo_foto')[0];
-        if (fotoInput && fotoInput.files.length > 0) {
-            var fotoExt = fotoInput.files[0].name.split('.').pop().toLowerCase();
-            var fotoPermitidos = ['jpg', 'jpeg', 'png', 'gif'];
-            if (fotoPermitidos.indexOf(fotoExt) === -1) {
-                e.preventDefault();
-                alert('El archivo de Foto de grupo debe ser una imagen (JPG, JPEG, PNG o GIF).');
-                $('#archivo_foto').focus();
-                return false;
-            }
+        /* Restriccion 1: invitados <= poblacion, iniciaron <= invitados */
+        var poblacionVal  = parseInt($('#poblacion_total').val(), 10);
+        var invitadosVal  = parseInt($('#prisioneros_invitados').val(), 10);
+        var iniciaronVal  = parseInt($('#prisioneros_iniciaron').val(), 10);
+        if (!isNaN(invitadosVal) && !isNaN(poblacionVal) && invitadosVal > poblacionVal) {
+            e.preventDefault();
+            alert('"Prisioneros invitados" (' + invitadosVal + ') no puede ser mayor que "Total población" (' + poblacionVal + ').');
+            $('#prisioneros_invitados').focus();
+            return false;
+        }
+        if (!isNaN(iniciaronVal) && !isNaN(invitadosVal) && iniciaronVal > invitadosVal) {
+            e.preventDefault();
+            alert('"Prisioneros que iniciaron el curso" (' + iniciaronVal + ') no puede ser mayor que "Prisioneros invitados" (' + invitadosVal + ').');
+            $('#prisioneros_iniciaron').focus();
+            return false;
         }
 
-        /* Validar archivo testimonio (si se sube, debe ser pdf/doc/docx) */
+        /* Restriccion 2: graduados registrados <= poblacion_total */
+        var totalGradVal = parseInt($('#total_graduados').val(), 10) || 0;
+        if (!isNaN(poblacionVal) && totalGradVal > poblacionVal) {
+            e.preventDefault();
+            alert('La cantidad de graduados registrados (' + totalGradVal + ') no puede superar la población total de la prisión (' + poblacionVal + ').');
+            $('#body-graduados .grad-nombre').first().focus();
+            return false;
+        }
+
+        /* Restriccion 3: discipulos_pasaron_cm <= graduados registrados */
+        var discipulosVal = parseInt($('#discipulos_pasaron_cm').val(), 10) || 0;
+        if (discipulosVal > totalGradVal) {
+            e.preventDefault();
+            alert('"Discípulos que pasaron a C&M" (' + discipulosVal + ') no puede ser mayor que la cantidad de graduados registrados (' + totalGradVal + ').');
+            $('#discipulos_pasaron_cm').focus();
+            return false;
+        }
+
+        /* Restriccion 4a: Foto de grupo es obligatoria */
+        var fotoInput = $('#archivo_foto')[0];
+        if (!fotoInput || fotoInput.files.length === 0) {
+            e.preventDefault();
+            alert('La Foto de grupo es obligatoria.');
+            $('#archivo_foto').focus();
+            return false;
+        }
+        var fotoExt = fotoInput.files[0].name.split('.').pop().toLowerCase();
+        var fotoPermitidos = ['jpg', 'jpeg', 'png', 'gif'];
+        if (fotoPermitidos.indexOf(fotoExt) === -1) {
+            e.preventDefault();
+            alert('El archivo de Foto de grupo debe ser una imagen (JPG, JPEG, PNG o GIF).');
+            $('#archivo_foto').focus();
+            return false;
+        }
+
+        /* Restriccion 4b: Testimonio es obligatorio */
         var testInput = $('#archivo_testimonio')[0];
-        if (testInput && testInput.files.length > 0) {
-            var testExt = testInput.files[0].name.split('.').pop().toLowerCase();
-            var testPermitidos = ['pdf', 'doc', 'docx'];
-            if (testPermitidos.indexOf(testExt) === -1) {
-                e.preventDefault();
-                alert('El archivo de Testimonio debe ser PDF, DOC o DOCX.');
-                $('#archivo_testimonio').focus();
-                return false;
-            }
+        if (!testInput || testInput.files.length === 0) {
+            e.preventDefault();
+            alert('El archivo de Testimonio es obligatorio.');
+            $('#archivo_testimonio').focus();
+            return false;
+        }
+        var testExt = testInput.files[0].name.split('.').pop().toLowerCase();
+        var testPermitidos = ['pdf', 'doc', 'docx'];
+        if (testPermitidos.indexOf(testExt) === -1) {
+            e.preventDefault();
+            alert('El archivo de Testimonio debe ser PDF, DOC o DOCX.');
+            $('#archivo_testimonio').focus();
+            return false;
         }
 
         if (confirm('¿Está seguro de que desea guardar este reporte?')) {
