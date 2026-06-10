@@ -366,6 +366,50 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
         box-shadow: 0 0 0 3px rgba(51,78,104,.10);
         outline: none;
     }
+    .btn-eliminar-todo {
+        background: #fdf3f3;
+        border: 1px dashed #c0392b;
+        color: #c0392b;
+        border-radius: 9px;
+        padding: 9px 16px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background .14s;
+        white-space: nowrap;
+    }
+    .btn-eliminar-todo:hover { background: #fae0de; }
+
+    .cont-total-graduados {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 12px;
+        padding: 10px 14px;
+        background: #f0f4f8;
+        border: 1px solid #d0dbe5;
+        border-radius: 10px;
+        width: fit-content;
+    }
+    .lbl-total-grad {
+        font-size: 13px;
+        font-weight: 700;
+        color: #1e2d3a;
+        white-space: nowrap;
+    }
+    .inp-total-grad {
+        width: 70px;
+        padding: 7px 10px;
+        border-radius: 8px;
+        border: 1px solid #b0c4d4;
+        background: #ffffff;
+        font-size: 15px;
+        font-weight: 700;
+        color: #1f3547;
+        text-align: center;
+        height: 38px;
+        cursor: default;
+    }
 
     @media (max-width: 767px) {
         .cont-tit { flex-direction: column; gap: 8px; }
@@ -560,6 +604,16 @@ if (isset($_POST['funcion']) && $_POST['funcion'] === 'insertar') {
                 <span class="lbl-generar">¿Cuántos registros deseas generar?</span>
                 <input type="number" id="cant-generar" class="inp-generar" min="1" max="100" placeholder="N°" />
                 <button type="button" class="btn btn-agregar" id="btn-generar">Generar</button>
+                <span class="sep-agregar">|</span>
+                <button type="button" class="btn btn-eliminar-todo" id="btn-eliminar-todo">
+                    &#128465; Eliminar todo
+                </button>
+            </div>
+
+            <div class="cont-total-graduados">
+                <span class="lbl-total-grad">Total de graduados completos:</span>
+                <input type="number" id="total_graduados_vis" class="inp-total-grad" readonly value="0" />
+                <input type="hidden" name="total_graduados" id="total_graduados" value="0" />
             </div>
 
         </div><!-- /seccion 3 -->
@@ -656,6 +710,7 @@ $(document).ready(function () {
     $('#btn-agregar-graduado').on('click', function () {
         agregarFila(true);
         actualizarBotonesEliminar();
+        actualizarTotalGraduados();
     });
 
     /* Generador masivo */
@@ -670,6 +725,7 @@ $(document).ready(function () {
             agregarFila(false);
         }
         actualizarBotonesEliminar();
+        actualizarTotalGraduados();
         /* Enfocar el primer campo vacío generado */
         $('#body-graduados .grad-nombre').filter(function () {
             return $(this).val() === '';
@@ -683,7 +739,39 @@ $(document).ready(function () {
         $(this).closest('tr').remove();
         actualizarNumeracion();
         actualizarBotonesEliminar();
+        actualizarTotalGraduados();
     });
+
+    /* Eliminar todo */
+    $('#btn-eliminar-todo').on('click', function () {
+        var total = $('#body-graduados tr').length;
+        if (!confirm('¿Estás seguro de que deseas eliminar todos los ' + total + ' registros de graduados? Esta acción no se puede deshacer.')) return;
+        $('#body-graduados').empty();
+        contadorGraduados = 0;
+        agregarFila(false);       // siempre queda 1 fila vacía
+        actualizarBotonesEliminar();
+        actualizarTotalGraduados();
+    });
+
+    /* Recalcular total de graduados completos */
+    function actualizarTotalGraduados() {
+        var completos = 0;
+        $('#body-graduados tr').each(function () {
+            var nom  = $(this).find('.grad-nombre').val().trim();
+            var iden = $(this).find('.grad-identificacion').val().trim();
+            if (nom !== '' && iden !== '') completos++;
+        });
+        $('#total_graduados_vis').val(completos);
+        $('#total_graduados').val(completos);
+    }
+
+    /* Recalcular al escribir en cualquier input de la tabla */
+    $('#body-graduados').on('input', '.grad-nombre, .grad-identificacion', function () {
+        actualizarTotalGraduados();
+    });
+
+    /* Inicializar total */
+    actualizarTotalGraduados();
 
     /* ----------------------------------------------------------
        3. Cursos activos — ceil(iniciaron / 12), mínimo 1
