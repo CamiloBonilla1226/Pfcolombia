@@ -1,9 +1,9 @@
 <?php
 //Porcentajes de efectividad
 function obtenerPorcentaje($cantidad, $total) {
-    $porcentaje = ((float)$cantidad * 100) / $total; // Regla de tres
-    $porcentaje = round($porcentaje, 2);  // Quitar los decimales
-    return $porcentaje;
+    if ($total == 0) return 0;
+    $porcentaje = ((float)$cantidad * 100) / (float)$total;
+    return round($porcentaje, 2);
 }
 
 /*******************************************
@@ -185,21 +185,23 @@ $sql .= " WHERE 1 ".$sqlFiltro."";
 //
 
 $PSN->query($sql);
-//echo $sql;
-$num=$PSN->num_rows();
-if($num > 0){
-    while($PSN->next_record()){
-        //$total_poblacion = intval($PSN->f('total_poblacion'));
-        $dto_1_prns_invitados = intval($PSN->f('prns_invitados'));
-        $dto_1_prns_iniciaron = intval($PSN->f('prns_iniciaron'));
-        $dto_1_cursos_act = intval($PSN->f('cursos_act'));
-        $dto_1_prns_graduados = intval($PSN->f('prns_graduados'));
-        $dto_1_invt_internos = intval($PSN->f('internos'));
-        $dto_1_invt_externos = intval($PSN->f('externos'));
-        $dto_1_voluntarios = intval($PSN->f('voluntarios'));
-        $dto_1_discipulos = intval($PSN->f('discipulos'));
+$num = $PSN->num_rows();
+$varError = 0;
+if ($num > 0) {
+    $PSN->next_record();
+    $dto_1_prns_invitados = intval($PSN->f('prns_invitados'));
+    $dto_1_prns_iniciaron = intval($PSN->f('prns_iniciaron'));
+    $dto_1_cursos_act     = intval($PSN->f('cursos_act'));
+    $dto_1_prns_graduados = intval($PSN->f('prns_graduados'));
+    $dto_1_invt_internos  = intval($PSN->f('internos'));
+    $dto_1_invt_externos  = intval($PSN->f('externos'));
+    $dto_1_voluntarios    = intval($PSN->f('voluntarios'));
+    $dto_1_discipulos     = intval($PSN->f('discipulos'));
+    // Si todos los SUMs son 0 (sin datos reales) se marca error
+    if ($dto_1_prns_invitados == 0 && $dto_1_prns_iniciaron == 0 && $dto_1_cursos_act == 0 && $dto_1_prns_graduados == 0 && $dto_1_voluntarios == 0) {
+        $varError = 1;
     }
-}else{
+} else {
     $varError = 1;
 }
 
@@ -209,10 +211,10 @@ FROM reporte_lpp AS RL ";
 $sql .= "LEFT JOIN usuario AS U ON U.id = RL.usuario_id LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RL.carcel_id LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = RL.usuario_id LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
 $sql .= " WHERE 1 ".$sqlFiltro." GROUP BY RU.reub_id ORDER BY RL.fecha_reporte";
 $PSN4->query($sql);
-//echo $sql;
-$num=$PSN4->num_rows();
-if($num > 0){
-    while($PSN4->next_record()){
+$total_poblacion = 0;
+$num = $PSN4->num_rows();
+if ($num > 0) {
+    while ($PSN4->next_record()) {
         $total_poblacion += intval($PSN4->f('total_poblacion'));
     }
 }
@@ -289,7 +291,10 @@ switch($meta2){
 
 
 
-if($varError != 1){
+if ($varError != 1) {
+    // Solo mostrar gráfica si el usuario ya eligió meta1 y meta2
+    $mostrar_grafica = ($meta1 > 0 && $meta2 > 0);
+    if ($mostrar_grafica) {
     ?>
 
     <script type="text/javascript">
@@ -310,7 +315,6 @@ if($varError != 1){
                            2]);
 
           var options = {
-
             bar: {groupWidth: "95%"},
             legend: { position: "none" },
           };
@@ -318,7 +322,7 @@ if($varError != 1){
           chart.draw(view, options);
         }
     </script>
-<?php } ?>
+<?php } } ?>
 <div class="container">
     <form action="index.php" method="get" name="form1" class="form-horizontal">
         <input type="hidden" name="doc" value="grafica-porcentaje-de-efectividad-lpp" />
@@ -517,24 +521,29 @@ if($varError != 1){
         </div>
     </form>
 <?php
-/*
-*    
-*/
-if($varError == 1){
-  ?><div class="container">
+if ($varError == 1) { ?>
+    <div class="container">
         <div class="row">
-            <h5 class="alert alert-warning text-center">No se ha encontrado ningun registro para el rango de fechas seleccionado.</h5>
+            <h5 class="alert alert-warning text-center">No se ha encontrado ningún registro para el rango de fechas seleccionado.</h5>
         </div>
-    </div><?php  
-}
+    </div>
+<?php }
 
-if($varError != 1){?>
+if ($varError != 1 && $meta1 == 0 || $varError != 1 && $meta2 == 0) { ?>
+    <div class="container">
+        <div class="row">
+            <h5 class="alert alert-info text-center">Selecciona un <strong>Dato 1</strong> (base de comparación) y un <strong>Dato 2</strong> (valor a medir) y presiona <strong>Buscar</strong> para ver el porcentaje de efectividad.</h5>
+        </div>
+    </div>
+<?php }
+
+if ($varError != 1 && $meta1 > 0 && $meta2 > 0) { ?>
     <div class="row">
         <div class="cont-tit">
             <div class="hr"><hr></div>
             <div class="tit-cen">
                 <h3 class="text-center">RESULTADOS DE BUSQUEDA</h3>
-                <h5><?=$totalProspectos; ?> Registros encontrados</h5>
+                <h5>Mostrando: <strong><?= $dto_1_prns_graduados; ?></strong> graduados de <strong><?= $total_poblacion; ?></strong> en población total</h5>
             </div>
             <div class="hr"><hr></div>
         </div>
