@@ -92,7 +92,7 @@ if(!isset($_REQUEST["fechaFinal"]) || eliminarInvalidos($_REQUEST["fechaFinal"])
 
 if(isset($_REQUEST["idUsuario"]) && soloNumeros($_REQUEST["idUsuario"]) != "" && soloNumeros($_REQUEST["idUsuario"]) > 0){
     $buscar_idUsuario = soloNumeros($_REQUEST["idUsuario"]);
-    $sqlFiltro .= " AND sat_reportes.idUsuario = '".$buscar_idUsuario."'";
+    $sqlFiltro .= " AND RL.usuario_id = '".$buscar_idUsuario."'";
 }
 if ($_SESSION["id_zona"]!="" && $_SESSION["id_zona"]!=0) {
     $sqlFiltro .= " AND C.idSec = '".$_SESSION["id_zona"]."'";
@@ -116,7 +116,7 @@ if(isset($_REQUEST["empresa_pd"]) && soloNumeros($_REQUEST["empresa_pd"]) != "")
 
 if(isset($_REQUEST["sitioReunion"]) && soloNumeros($_REQUEST["sitioReunion"]) != ""){
     $buscar_prision = soloNumeros($_REQUEST["sitioReunion"]);
-    $sqlFiltro .= " AND sat_reportes.sitioReunion = ".$buscar_prision."";
+    $sqlFiltro .= " AND RL.carcel_id = ".$buscar_prision."";
 }
 
 //
@@ -133,12 +133,12 @@ if(isset($_REQUEST["sitioReunion"]) && soloNumeros($_REQUEST["sitioReunion"]) !=
 //
 if(isset($_REQUEST["fechaInicial"]) && eliminarInvalidos($_REQUEST["fechaInicial"]) != ""){
     $fechaInicial = eliminarInvalidos($_REQUEST["fechaInicial"]);
-    $sqlFiltro .= " AND sat_reportes.fechaReporte >= '".$fechaInicial."'";
+    $sqlFiltro .= " AND RL.fecha_reporte >= '".$fechaInicial."'";
 }
 //
 if(isset($_REQUEST["fechaFinal"]) && eliminarInvalidos($_REQUEST["fechaFinal"]) != ""){
     $fechaFinal = eliminarInvalidos($_REQUEST["fechaFinal"]);
-    $sqlFiltro .= " AND sat_reportes.fechaReporte <= '".$fechaFinal."'";
+    $sqlFiltro .= " AND RL.fecha_reporte <= '".$fechaFinal."'";
 }
 
 //
@@ -175,13 +175,13 @@ if($_REQUEST["idUsuario"] == 0){
 }
 $datos = array();
 //FILTRO DE DATO 1
-$sql = "SELECT SUM(sat_reportes.asistencia_total) AS total_poblacion,SUM(sat_reportes.asistencia_hom) AS prns_invitados, SUM(sat_reportes.asistencia_muj) AS prns_iniciaron, SUM(sat_reportes.asistencia_jov) AS cursos_act, SUM(sat_reportes.asistencia_nin) AS prns_graduados, SUM(sat_reportes.bautizados) AS internos, SUM(sat_reportes.desiciones) AS externos, SUM(sat_reportes.bautizados + sat_reportes.desiciones) AS voluntarios, SUM(sat_reportes.rep_ndis) AS discipulos FROM sat_reportes";
-$sql .= " LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario 
-LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion 
+$sql = "SELECT SUM(RL.poblacion_total) AS total_poblacion, SUM(RL.prisioneros_invitados) AS prns_invitados, SUM(RL.prisioneros_iniciaron) AS prns_iniciaron, SUM(RL.cursos_activos) AS cursos_act, SUM(RL.total_graduados) AS prns_graduados, SUM(RL.total_voluntarios_internos) AS internos, SUM(RL.total_voluntarios_externos) AS externos, SUM(RL.total_voluntarios_internos + RL.total_voluntarios_externos) AS voluntarios, SUM(RL.discipulos_pasaron_cm) AS discipulos FROM reporte_lpp AS RL";
+$sql .= " LEFT JOIN usuario AS U ON U.id = RL.usuario_id 
+LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RL.carcel_id 
 LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk 
-LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = sat_reportes.idUsuario 
+LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = RL.usuario_id 
 LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
-$sql.=" WHERE 1 AND sat_reportes.rep_tip = 307 ".$sqlFiltro."";
+$sql .= " WHERE 1 ".$sqlFiltro."";
 //
 
 $PSN->query($sql);
@@ -204,10 +204,10 @@ if($num > 0){
 }
 
 
-$sql = "SELECT sat_reportes.asistencia_total AS total_poblacion
-FROM sat_reportes ";
-$sql .= "LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = sat_reportes.idUsuario LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
-$sql.=" WHERE 1 AND sat_reportes.rep_tip = 307 ".$sqlFiltro." GROUP BY RU.reub_id ORDER BY sat_reportes.fechaReporte";
+$sql = "SELECT RL.poblacion_total AS total_poblacion
+FROM reporte_lpp AS RL ";
+$sql .= "LEFT JOIN usuario AS U ON U.id = RL.usuario_id LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RL.carcel_id LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = RL.usuario_id LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
+$sql .= " WHERE 1 ".$sqlFiltro." GROUP BY RU.reub_id ORDER BY RL.fecha_reporte";
 $PSN4->query($sql);
 //echo $sql;
 $num=$PSN4->num_rows();
