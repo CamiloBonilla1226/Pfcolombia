@@ -689,6 +689,43 @@ else{
         color:#000;
     }
 
+    .table-resultados {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto;
+        border-collapse: separate;
+        border-spacing: 0;
+        background-color: #fff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .table-resultados thead th {
+        background-color: #2f6f9f;
+        color: #fff;
+        font-weight: 600;
+        padding: 10px 8px;
+        border: 1px solid #2f6f9f;
+    }
+
+    .table-resultados tbody td {
+        padding: 8px 10px;
+        border: 1px solid #e3e3e3;
+        vertical-align: middle;
+        text-align: center;
+    }
+
+    .table-resultados tbody tr:nth-child(even) {
+        background-color: #f8f9fb;
+    }
+
+    .table-resultados tbody tr:hover {
+        background-color: #eef6ff;
+    }
+
+    .table-resultados td:first-child,
+    .table-resultados th:first-child {
+        text-align: left;
+    }
     </style>
 
     <div class="container">
@@ -700,22 +737,17 @@ else{
             </div>
             <div class="hr"><hr></div>
         </div>
-        <div style="overflow-x: auto;">
-            <table border="0" cellspacing="0" cellpadding="2"  align="center" class="table table-striped" style="font-size:12px">
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered table-hover table-resultados" style="font-size:12px">
                 <thead>
                     <tr> 
                         <th>Regional</th>
                         <th>Prisión</th>
                         <th>Usuario</th>
                         <th>T. población</th>
-                        <th>T. patios atendidos</th>
-                        <th>T. invitados</th>
                         <th>T. iniciaron</th>
                         <th>T. cursos activos</th>
                         <th>T. graduados</th>
-                        <th>T. voluntarios internos</th>
-                        <th>T. voluntarios externos</th>
-                        <th>T. discípulos</th>
                         <th>Doc. Testimonio</th>
                         <th>Foto</th>
                     </tr>
@@ -727,57 +759,39 @@ else{
                         $contador = 0;
                         while($PSN1->next_record())
                         {
-                            //Solo si no se ha modificado ya el formulario.
                             $id = $PSN1->f('id');
                             $regional = $PSN1->f("regional");
                             $prision = $PSN1->f("reub_nom");
                             $nombreUsuario = $PSN1->f("nombreUsuario");
-                            $pabellon = $PSN1->f("pabellon");
                             $ext1 = $PSN1->f("ext1");
                             $ext2 = $PSN1->f("ext2");
-                            $asistencia_hom = $PSN1->f("asistencia_hom");
                             $asistencia_muj = $PSN1->f("asistencia_muj");
                             $asistencia_jov = $PSN1->f("asistencia_jov");
                             $asistencia_nin = $PSN1->f("asistencia_nin");
-                            $bautizados = $PSN1->f("bautizados");
-                            $asistencia_total  = $PSN1->f("asistencia_total");
-                            $rep_ndis  = $PSN1->f("rep_ndis");
-                            $desiciones  = $PSN1->f("desiciones");
+                            $asistencia_total = $PSN1->f("asistencia_total");
                             
-                            ?><tr class='clickable-row' data-href='index.php?doc=gestionar-sub-programa-lpp&id=<?=$id; ?>' >
-                                <!--<td><a href="index.php?doc=gestionar-sub-programa-lpp&id=<?=$id; ?>"><?=str_pad($id, 6, "0", STR_PAD_LEFT); ?></a></td>//-->
+                            ?><tr class='clickable-row' data-href='index.php?doc=gestionar-sub-programa-lpp&id=<?=$id; ?>'>
                                 <td><?=$regional; ?></td>
-                                <td><?= $prision; ?></td>
+                                <td><?=$prision; ?></td>
                                 <td><?=$nombreUsuario; ?></td>
                                 <td><?=$asistencia_total; ?></td>
-                                <td><?=$pabellon; ?></td>
-                                <td><?=$asistencia_hom; ?></td>
                                 <td><?=$asistencia_muj; ?></td>
                                 <td><?=$asistencia_jov; ?></td>
                                 <td><?=$asistencia_nin; ?></td>
-                                <td><?=$bautizados; ?></td>
-                                <td><?=$desiciones; ?></td>
-                                <td><?=$rep_ndis; ?></td>
                                 <td align="center"><?php
-                                if($ext2 != "" || $ext2 != null){
-                                    ?><i class="fas fa-thumbs-up ico-lik"></i>
-                                    <!--<img src="images/png/thumb-up.png" width="20px" />--><?php
+                                if($ext2 != "" && $ext2 != null){
+                                    ?><i class="fas fa-thumbs-up ico-lik"></i><?php
                                 }else{
-                                    ?>
-                                    <i class="fas fa-thumbs-down ico-dli"></i>
-                                    <!--<img src="images/png/thumb-down.png" width="20px" />--><?php                            
+                                    ?><i class="fas fa-thumbs-down ico-dli"></i><?php
                                 }
-                                ?></td> 
+                                ?></td>
                                 <td align="center"><?php
-                                if($ext1 != "" || $ext1 != null){
-                                    ?><i class="fas fa-thumbs-up ico-lik"></i>
-                                    <!--<img src="images/png/thumb-up.png" width="20px" />--><?php
+                                if($ext1 != "" && $ext1 != null){
+                                    ?><i class="fas fa-thumbs-up ico-lik"></i><?php
                                 }else{
-                                    ?>
-                                    <i class="fas fa-thumbs-down ico-dli"></i>
-                                    <!--<img src="images/png/thumb-down.png" width="20px" />--><?php                            
+                                    ?><i class="fas fa-thumbs-down ico-dli"></i><?php
                                 }
-                                ?></td>                           
+                                ?></td>
                             </tr>
                             <?php
                             $contador++;
