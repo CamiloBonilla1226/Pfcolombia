@@ -660,7 +660,7 @@ if (isset($_GET["excelX"])) {
             ?><li><a href="index.php?doc=videos" target="_self" title="Graficas"><img  src="images/png/sms-message.png" border="0" height="10px" align="left" /> Video tutorial</a></li><?
         }*/
                       ?>
-          <li><a href="index.php?doc=mis_documentos" target="_self" title="Ver mis documentos"><i class="fas fa-cloud-download-alt"></i> Documentos usuario</a></li>
+          <li><a href="index.php?doc=mis_documentos" target="_self" title="Ver mis documentos"><i class="fas fa-cloud-download-alt"></i> Tutoriales / Videos</a></li>
 
           <li><a href="javascript:salirSistema();void(0);" target="_self" title="Salir del Sistema"><i class="fas fa-power-off"></i></a></li>
 
