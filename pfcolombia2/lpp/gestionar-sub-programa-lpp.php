@@ -2953,6 +2953,28 @@ if($idReporteActual > 0){
         color: #ffffff !important;
     }
 
+    /* ---- Fila 2: cárcel + campos AJAX de ubicación ---- */
+    .report-form .lpp-fila-ubicacion{
+        align-items: flex-start;
+        margin-top: -4px;
+    }
+
+    .report-form .lpp-ubicacion-ajax{
+        display: flex;
+        flex-wrap: wrap;
+        flex: 1 1 0;
+        gap: 0;
+    }
+
+    .report-form .lpp-ubicacion-ajax > [class*="col-sm-"],
+    .report-form .lpp-ubicacion-ajax [class*="col-sm-"]{
+        float: none;
+        flex: 1 1 160px;
+        padding-left: 10px;
+        padding-right: 10px;
+        margin-bottom: 18px;
+    }
+
     /* ---- Fila de información general: centrada horizontalmente ---- */
     .report-form .lpp-info-general-row{
         display: flex;
@@ -3401,14 +3423,36 @@ if($idReporteActual > 0){
                     </div>
                     <div class="hr"><hr></div>
                 </div> 
+                <!-- Fila 1: Coordinador | Fecha | Período | Pabellón -->
                 <div class="form-group lpp-info-general-row">
-                    <div class="col-sm-2">
+                    <div class="col-sm-3">
                         <strong>Coordinador de prisión:</strong>
                         <select required name="usua_id" id="usua_id" class="form-control">
                             <option value="<?=$_SESSION["id"]; ?>"><?=$_SESSION["nombre"]; ?></option>
                         </select>
                     </div>
                     <div class="col-sm-3">
+                        <strong>Fecha del registro:</strong>
+                        <input name="fechaReporte" type="date" id="fechaReporte" maxlength="250" value="<?=date("Y-m-d"); ?>" max='<?=date("Y-m-d"); ?>' class="form-control" required readonly />
+                    </div>
+                    <div class="col-sm-3">
+                        <?php $mes = date("m"); ?>
+                        <strong>Período:</strong>
+                        <select name="mapeo_cuarto" class="form-control">
+                            <?php echo($mes>=1 && $mes<=3)?'<option value="1" selected>Q1 (Ene - Mar)</option>':''; ?>
+                            <?php echo($mes>=4 && $mes<=6)?'<option value="4" selected>Q2 (Abr - Jun)</option>':''; ?>
+                            <?php echo($mes>=7 && $mes<=9)?'<option value="7" selected>Q3 (Jul - Sep)</option>':''; ?>
+                            <?php echo($mes>=10 && $mes<=12)?'<option value="10" selected>Q4 (Oct - Dic)</option>':''; ?>
+                        </select>
+                    </div>
+                    <div class="col-sm-3">
+                        <strong>N° de patios / pabellón:</strong>
+                        <input name="pabellon" type="number" id="pabellon" maxlength="250" value="<?=$pabellon; ?>" min="1" class="form-control" required />
+                    </div>
+                </div>
+                <!-- Fila 2: Cárcel/Ubicación | Departamento | Municipio | Dirección (AJAX) -->
+                <div class="form-group lpp-info-general-row lpp-fila-ubicacion">
+                    <div class="col-sm-3 lpp-carcel-col">
                         <strong>Cárcel / Ubicación:</strong>
                         <select required name="sitioReunion" id="rep_carcel" class="form-control">
                             <?php
@@ -3433,26 +3477,8 @@ if($idReporteActual > 0){
                             ?>
                         </select>
                     </div>
-                    <div class="col-sm-2">
-                        <strong>Fecha del registro:</strong>
-                        <input name="fechaReporte" type="date" id="fechaReporte" maxlength="250" value="<?=date("Y-m-d"); ?>" max='<?=date("Y-m-d"); ?>' class="form-control" required readonly />
-                    </div>
-                    <div class="col-sm-2">
-                        <?php $mes = date("m"); ?>
-                        <strong>Período:</strong>
-                        <select name="mapeo_cuarto" class="form-control">
-                            <?php echo($mes>=1 && $mes<=3)?'<option value="1" selected>Q1 (Ene - Mar)</option>':''; ?>
-                            <?php echo($mes>=4 && $mes<=6)?'<option value="4" selected>Q2 (Abr - Jun)</option>':''; ?>
-                            <?php echo($mes>=7 && $mes<=9)?'<option value="7" selected>Q3 (Jul - Sep)</option>':''; ?>
-                            <?php echo($mes>=10 && $mes<=12)?'<option value="10" selected>Q4 (Oct - Dic)</option>':''; ?>
-                        </select>
-                    </div>
-                    <div class="col-sm-2">
-                        <strong>N° de patios / pabellón:</strong>
-                        <input name="pabellon" type="number" id="pabellon" maxlength="250" value="<?=$pabellon; ?>" min="1" class="form-control" required />
-                    </div>
+                    <div id="ubicacion" class="lpp-ubicacion-ajax"></div>
                 </div>
-                <div id="ubicacion"></div>
                 <!--<div class="cont-btn cont-flex fl-sbet">
                     <div class="item-btn"></div>
                     <div class="item-btn">
