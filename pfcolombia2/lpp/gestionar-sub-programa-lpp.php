@@ -3812,19 +3812,10 @@ if($idReporteActual > 0){
 
                         if (!isNaN(asistenciaTotal) && asistenciaTotal >= 0) {
                             $('#asistencia_hom').attr('max', asistenciaTotal);
-                            // Si el valor actual supera el nuevo máximo, corregirlo
-                            if (!isNaN(asistenciaHombres) && asistenciaHombres > asistenciaTotal) {
-                                $('#asistencia_hom').val(asistenciaTotal);
-                                asistenciaHombres = asistenciaTotal;
-                            }
                         }
 
                         if (!isNaN(asistenciaHombres) && asistenciaHombres >= 0) {
                             $('#asistencia_muj').attr('max', asistenciaHombres);
-                            var asistenciaMuj = parseInt($('#asistencia_muj').val(), 10);
-                            if (!isNaN(asistenciaMuj) && asistenciaMuj > asistenciaHombres) {
-                                $('#asistencia_muj').val(asistenciaHombres).trigger('change');
-                            }
                         }
                     }
 
@@ -3868,12 +3859,7 @@ if($idReporteActual > 0){
                     function sincronizarTotal() {
                         var total = contarCompletos();
                         $('#total').val(total);
-                        var maxNdis = total > 0 ? total : 0;
-                        $('#rep_ndis').attr('max', maxNdis);
-                        var ndisVal = parseInt($('#rep_ndis').val(), 10);
-                        if (!isNaN(ndisVal) && ndisVal > maxNdis) {
-                            $('#rep_ndis').val(maxNdis);
-                        }
+                        $('#rep_ndis').attr('max', total > 0 ? total : 0);
                         return total;
                     }
 
@@ -4601,37 +4587,74 @@ else{
         });
 
         /* ---- Límites dinámicos del formulario de inserción ---- */
+        function lppMostrarError(campo, msg) {
+            var $campo = $(campo);
+            var $err = $campo.next('.lpp-field-error');
+            if ($err.length === 0) {
+                $err = $('<span class="lpp-field-error" style="display:block;color:#c0392b;font-size:12px;margin-top:4px;font-weight:600;"></span>');
+                $campo.after($err);
+            }
+            $err.text(msg);
+            $campo.css('border-color', '#c0392b');
+        }
+        function lppLimpiarError(campo) {
+            var $campo = $(campo);
+            $campo.next('.lpp-field-error').remove();
+            $campo.css('border-color', '');
+        }
+
         // asistencia_hom <= asistencia_total
-        $('#asistencia_total').on('input change', function(){
-            var total = parseInt($(this).val(), 10);
-            if (isNaN(total) || total < 0) return;
-            $('#asistencia_hom').attr('max', total);
-            var hom = parseInt($('#asistencia_hom').val(), 10);
-            if (!isNaN(hom) && hom > total) {
-                $('#asistencia_hom').val(total).trigger('change');
+        $('#asistencia_total, #asistencia_hom').on('input change', function(){
+            var total = parseInt($('#asistencia_total').val(), 10);
+            var hom   = parseInt($('#asistencia_hom').val(), 10);
+            if (!isNaN(total) && !isNaN(hom) && hom > total) {
+                lppMostrarError('#asistencia_hom', 'No puede superar la población total (' + total + ').');
+            } else {
+                lppLimpiarError('#asistencia_hom');
             }
-        });
-        // asistencia_muj <= asistencia_hom
-        $('#asistencia_hom').on('input change', function(){
-            var hom = parseInt($(this).val(), 10);
-            if (isNaN(hom) || hom < 0) return;
-            $('#asistencia_muj').attr('max', hom);
+            // Cascada: revisar también muj vs hom
             var muj = parseInt($('#asistencia_muj').val(), 10);
-            if (!isNaN(muj) && muj > hom) {
-                $('#asistencia_muj').val(hom).trigger('change');
+            var homActual = isNaN(hom) ? 0 : hom;
+            if (!isNaN(muj) && muj > homActual) {
+                lppMostrarError('#asistencia_muj', 'No puede superar los prisioneros invitados (' + homActual + ').');
+            } else {
+                lppLimpiarError('#asistencia_muj');
             }
         });
-        // rep_ndis <= #total (graduados) — el campo #total ya es readonly y lo actualiza sincronizarTotal()
+
+        // asistencia_muj <= asistencia_hom
+        $('#asistencia_muj').on('input change', function(){
+            var hom = parseInt($('#asistencia_hom').val(), 10);
+            var muj = parseInt($(this).val(), 10);
+            if (!isNaN(hom) && !isNaN(muj) && muj > hom) {
+                lppMostrarError('#asistencia_muj', 'No puede superar los prisioneros invitados (' + hom + ').');
+            } else {
+                lppLimpiarError('#asistencia_muj');
+            }
+        });
+
+        // rep_ndis <= #total (graduados)
         $('#rep_ndis').on('input change', function(){
             var maxGrad = parseInt($('#total').val(), 10) || 0;
             var ndis = parseInt($(this).val(), 10);
-            if (!isNaN(ndis) && ndis > maxGrad) $(this).val(maxGrad);
-            if (!isNaN(ndis) && ndis < 0) $(this).val(0);
+            if (!isNaN(ndis) && ndis > maxGrad) {
+                lppMostrarError('#rep_ndis', 'No puede superar el total de graduados (' + maxGrad + ').');
+            } else {
+                lppLimpiarError('#rep_ndis');
+            }
+            if (!isNaN(ndis) && ndis < 0) {
+                lppMostrarError('#rep_ndis', 'El valor no puede ser negativo.');
+            }
         });
+
         // rep_entr >= 0
         $('#rep_entr').on('input change', function(){
             var v = parseFloat($(this).val());
-            if (!isNaN(v) && v < 0) $(this).val(0);
+            if (!isNaN(v) && v < 0) {
+                lppMostrarError('#rep_entr', 'El costo no puede ser negativo.');
+            } else {
+                lppLimpiarError('#rep_entr');
+            }
         });
     })
 </script>
