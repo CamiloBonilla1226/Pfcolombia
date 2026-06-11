@@ -3449,7 +3449,7 @@ if($idReporteActual > 0){
                     </div>
                     <div class="col-sm-2">
                         <strong>N° de patios / pabellón:</strong>
-                        <input name="pabellon" type="number" id="pabellon" maxlength="250" value="<?=$pabellon; ?>" class="form-control" required />
+                        <input name="pabellon" type="number" id="pabellon" maxlength="250" value="<?=$pabellon; ?>" min="1" class="form-control" required />
                     </div>
                 </div>
                 <div id="ubicacion"></div>
@@ -3811,11 +3811,30 @@ if($idReporteActual > 0){
                         var asistenciaHombres = parseInt($('#asistencia_hom').val(), 10);
 
                         if (!isNaN(asistenciaTotal) && asistenciaTotal >= 0) {
-                            $('#asistencia_hom').attr('max', Math.max(asistenciaTotal - 1, 0));
+                            $('#asistencia_hom').attr('max', asistenciaTotal);
+                            // Si el valor actual supera el nuevo máximo, corregirlo
+                            if (!isNaN(asistenciaHombres) && asistenciaHombres > asistenciaTotal) {
+                                $('#asistencia_hom').val(asistenciaTotal);
+                                asistenciaHombres = asistenciaTotal;
+                            }
                         }
 
                         if (!isNaN(asistenciaHombres) && asistenciaHombres >= 0) {
                             $('#asistencia_muj').attr('max', asistenciaHombres);
+                            var asistenciaMuj = parseInt($('#asistencia_muj').val(), 10);
+                            if (!isNaN(asistenciaMuj) && asistenciaMuj > asistenciaHombres) {
+                                $('#asistencia_muj').val(asistenciaHombres).trigger('change');
+                            }
+                        }
+                    }
+
+                    function actualizarLimiteDiscipulos() {
+                        var totalGraduados = parseInt($('#total').val(), 10);
+                        var maximo = (!isNaN(totalGraduados) && totalGraduados > 0) ? totalGraduados : 0;
+                        $('#rep_ndis').attr('max', maximo);
+                        var ndis = parseInt($('#rep_ndis').val(), 10);
+                        if (!isNaN(ndis) && ndis > maximo) {
+                            $('#rep_ndis').val(maximo);
                         }
                     }
 
@@ -3849,7 +3868,12 @@ if($idReporteActual > 0){
                     function sincronizarTotal() {
                         var total = contarCompletos();
                         $('#total').val(total);
-                        $('#rep_ndis').attr('max', total > 0 ? total : 0);
+                        var maxNdis = total > 0 ? total : 0;
+                        $('#rep_ndis').attr('max', maxNdis);
+                        var ndisVal = parseInt($('#rep_ndis').val(), 10);
+                        if (!isNaN(ndisVal) && ndisVal > maxNdis) {
+                            $('#rep_ndis').val(maxNdis);
+                        }
                         return total;
                     }
 
@@ -4392,6 +4416,58 @@ if($idReporteActual > 0){
                 }else{
                     ?>
                     
+                    // Regla 1: pabellón positivo
+                    var pabellon = parseInt(document.getElementById('pabellon') ? document.getElementById('pabellon').value : 1, 10);
+                    if (isNaN(pabellon) || pabellon < 1) {
+                        alert('El N° de patios / pabellón debe ser un número positivo (mayor o igual a 1).');
+                        if (document.getElementById('pabellon')) document.getElementById('pabellon').focus();
+                        return false;
+                    }
+
+                    // Regla 2: invitados <= total población; iniciaron <= invitados
+                    var elTotal = document.getElementById('asistencia_total');
+                    var elHom   = document.getElementById('asistencia_hom');
+                    var elMuj   = document.getElementById('asistencia_muj');
+                    if (elTotal && elHom && elMuj) {
+                        var vTotal = parseInt(elTotal.value, 10);
+                        var vHom   = parseInt(elHom.value, 10);
+                        var vMuj   = parseInt(elMuj.value, 10);
+                        if (!isNaN(vTotal) && !isNaN(vHom) && vHom > vTotal) {
+                            alert('El número de prisioneros invitados (' + vHom + ') no puede superar la población total (' + vTotal + ').');
+                            elHom.focus();
+                            return false;
+                        }
+                        if (!isNaN(vHom) && !isNaN(vMuj) && vMuj > vHom) {
+                            alert('El número de prisioneros que iniciaron el curso (' + vMuj + ') no puede superar los invitados (' + vHom + ').');
+                            elMuj.focus();
+                            return false;
+                        }
+                    }
+
+                    // Regla 3: discípulos C&M <= total graduados
+                    var elNdis = document.getElementById('rep_ndis');
+                    var elTotalGrad = document.getElementById('total');
+                    if (elNdis && elTotalGrad) {
+                        var vNdis     = parseInt(elNdis.value, 10);
+                        var vTotalGrad = parseInt(elTotalGrad.value, 10);
+                        if (!isNaN(vNdis) && !isNaN(vTotalGrad) && vNdis > vTotalGrad) {
+                            alert('Los discípulos que pasaron a C&M (' + vNdis + ') no pueden superar el total de graduados (' + vTotalGrad + ').');
+                            elNdis.focus();
+                            return false;
+                        }
+                    }
+
+                    // Regla 4: costo >= 0
+                    var elEntr = document.getElementById('rep_entr');
+                    if (elEntr) {
+                        var vEntr = parseFloat(elEntr.value);
+                        if (!isNaN(vEntr) && vEntr < 0) {
+                            alert('El costo de recursos gestionados no puede ser negativo.');
+                            elEntr.focus();
+                            return false;
+                        }
+                    }
+
                     if(confirm("Esta accion guardara los cambios en el sistema, ¿esta seguro que desea continuar?")){
                     $(':input[type="submit"]').prop('disabled', true);
                     document.getElementById('funcion').value = "<?=$temp_accionForm; ?>";
@@ -4522,6 +4598,40 @@ else{
                 resul = 1;
             }
             $('#asistencia_jov').val(resul);
+        });
+
+        /* ---- Límites dinámicos del formulario de inserción ---- */
+        // asistencia_hom <= asistencia_total
+        $('#asistencia_total').on('input change', function(){
+            var total = parseInt($(this).val(), 10);
+            if (isNaN(total) || total < 0) return;
+            $('#asistencia_hom').attr('max', total);
+            var hom = parseInt($('#asistencia_hom').val(), 10);
+            if (!isNaN(hom) && hom > total) {
+                $('#asistencia_hom').val(total).trigger('change');
+            }
+        });
+        // asistencia_muj <= asistencia_hom
+        $('#asistencia_hom').on('input change', function(){
+            var hom = parseInt($(this).val(), 10);
+            if (isNaN(hom) || hom < 0) return;
+            $('#asistencia_muj').attr('max', hom);
+            var muj = parseInt($('#asistencia_muj').val(), 10);
+            if (!isNaN(muj) && muj > hom) {
+                $('#asistencia_muj').val(hom).trigger('change');
+            }
+        });
+        // rep_ndis <= #total (graduados) — el campo #total ya es readonly y lo actualiza sincronizarTotal()
+        $('#rep_ndis').on('input change', function(){
+            var maxGrad = parseInt($('#total').val(), 10) || 0;
+            var ndis = parseInt($(this).val(), 10);
+            if (!isNaN(ndis) && ndis > maxGrad) $(this).val(maxGrad);
+            if (!isNaN(ndis) && ndis < 0) $(this).val(0);
+        });
+        // rep_entr >= 0
+        $('#rep_entr').on('input change', function(){
+            var v = parseFloat($(this).val());
+            if (!isNaN(v) && v < 0) $(this).val(0);
         });
     })
 </script>
