@@ -2877,8 +2877,24 @@ if($idReporteActual > 0){
         color: #555555;
     }
 
+    /* Alineación de etiquetas — misma altura mínima para que los campos queden al mismo nivel */
     .report-form .form-group > [class*="col-sm-"] > strong:first-child{
-        min-height: 3.7em;
+        min-height: 2.6em;
+        display: flex;
+        align-items: flex-end;
+        padding-bottom: 6px;
+    }
+
+    /* Separación entre secciones del formulario */
+    .report-form > .col-sm-12 + .col-sm-12{
+        margin-top: 6px;
+    }
+
+    /* Botón guardar más prominente */
+    .report-form .cont-btn.fl-cent .btn-success{
+        min-width: 220px;
+        padding: 13px 28px;
+        font-size: 15px;
     }
 
     .report-form .form-control,
@@ -2937,25 +2953,22 @@ if($idReporteActual > 0){
         color: #ffffff !important;
     }
 
-    .report-form .registro-section{
-        border-top: 3px solid #252525;
+    /* ---- Fila de información general: centrada horizontalmente ---- */
+    .report-form .lpp-info-general-row{
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-start;
+        margin-left: -10px;
+        margin-right: -10px;
+        gap: 0;
     }
 
-    .report-form .registro-section.registro-graduados{
-        border-top-color: #404040;
-        background: linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
+    .report-form .lpp-info-general-row > [class*="col-sm-"]{
+        float: none;
     }
 
-    .report-form .registro-section.registro-internos{
-        border-top-color: #5a5a5a;
-        background: linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
-    }
-
-    .report-form .registro-section.registro-externos{
-        border-top-color: #7a7a7a;
-        background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
-    }
-
+    /* ---- Tablas de registro: diseño fino tipo card por fila ---- */
     .report-form .registro-table-wrap{
         float: none;
         width: 100% !important;
@@ -2972,76 +2985,127 @@ if($idReporteActual > 0){
         table-layout: fixed;
         border: 0 !important;
         border-collapse: separate !important;
-        border-spacing: 0 14px !important;
+        border-spacing: 0 10px !important;
         background: transparent !important;
+    }
+
+    /* Cada fila como una tarjeta con borde izquierdo de acento */
+    .report-form .registro-table > tbody > tr{
+        transition: box-shadow 0.15s ease;
+    }
+
+    .report-form .registro-table > tbody > tr:hover > td{
+        background: #f8f9fa !important;
     }
 
     .report-form .registro-table > tbody > tr > td,
     .report-form .registro-table > tr > td{
-        padding: 18px 20px !important;
-        vertical-align: top !important;
-        border: 1px solid #dbe3ea !important;
+        padding: 16px 18px !important;
+        vertical-align: middle !important;
+        border: 1px solid #e4e8ec !important;
         border-left-width: 0 !important;
         background: #ffffff;
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        transition: background 0.15s ease;
     }
 
     .report-form .registro-table > tbody > tr > td:first-child,
     .report-form .registro-table > tr > td:first-child{
-        border-left-width: 1px !important;
-        border-radius: 18px 0 0 18px;
+        border-left: 3px solid #c0c0c0 !important;
+        border-radius: 8px 0 0 8px;
+    }
+
+    .report-form .registro-section.registro-graduados .registro-table > tbody > tr > td:first-child{
+        border-left-color: #3a6ea5 !important;
+    }
+
+    .report-form .registro-section.registro-internos .registro-table > tbody > tr > td:first-child{
+        border-left-color: #2e7d52 !important;
+    }
+
+    .report-form .registro-section.registro-externos .registro-table > tbody > tr > td:first-child{
+        border-left-color: #7a4ca0 !important;
     }
 
     .report-form .registro-table > tbody > tr > td:last-child,
     .report-form .registro-table > tr > td:last-child{
-        border-radius: 0 18px 18px 0;
+        border-radius: 0 8px 8px 0;
+    }
+
+    /* Número de fila — indicador visual sutil */
+    .report-form .registro-table > tbody > tr{
+        counter-increment: fila-registro;
     }
 
     .report-form .registro-table .registro-col--nombre{
-        width: 52%;
+        width: 50%;
     }
 
     .report-form .registro-table .registro-col--identificacion{
-        width: 38%;
+        width: 37%;
     }
 
     .report-form .registro-table .registro-col--action{
-        width: 10%;
-        padding: 18px 10px !important;
+        width: 13%;
         text-align: center;
         vertical-align: middle !important;
+        padding: 16px 10px !important;
     }
 
     .report-form .registro-table strong{
         display: block;
         width: 100%;
         min-height: 0 !important;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #6b7a8d;
     }
 
-    .report-form .registro-table input{
+    .report-form .registro-table input.form-control{
         width: 100% !important;
-        min-height: 44px !important;
+        min-height: 40px !important;
         margin-top: 0;
+        border-radius: 6px !important;
+        font-size: 14px;
     }
 
-    .report-form .registro-table .btn,
-    .report-form .registro-table .btn-cir-uno,
-    .report-form .registro-table .btn-eliminar-fila{
+    .report-form .registro-table .btn-eliminar-fila,
+    .report-form .registro-table .btn-cir-uno{
         margin: 0 auto;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+        border-radius: 8px !important;
+        font-size: 14px;
+        opacity: 0.75;
+        transition: opacity 0.15s ease, transform 0.15s ease;
     }
 
+    .report-form .registro-table .btn-eliminar-fila:hover,
+    .report-form .registro-table .btn-cir-uno:hover{
+        opacity: 1;
+        transform: scale(1.08);
+    }
+
+    /* Panel de controles (resumen + botones) */
     .report-form .registro-summary,
     .report-form .registro-bulk-controls{
         display: flex;
         flex-wrap: wrap;
-        align-items: flex-end;
-        gap: 14px 16px;
+        align-items: center;
+        gap: 12px 16px;
         width: 100%;
-        padding: 18px 20px;
-        border: 1px solid #dbe3ea;
-        border-radius: 18px;
-        background: #f8fafc;
+        padding: 14px 18px;
+        border: 1px solid #e4e8ec;
+        border-radius: 10px;
+        background: #f9fafb;
+        margin-top: 4px;
     }
 
     .report-form .registro-summary > [class*="col-sm-"],
@@ -3054,15 +3118,15 @@ if($idReporteActual > 0){
 
     .report-form .registro-summary > :first-child,
     .report-form .registro-bulk-controls > :first-child{
-        flex: 1 1 360px;
+        flex: 1 1 300px;
         min-width: 0;
     }
 
     .report-form .registro-summary > :nth-child(2),
     .report-form .registro-bulk-controls > :nth-child(2){
-        flex: 0 0 160px;
-        max-width: 180px;
-        min-width: 130px;
+        flex: 0 0 140px;
+        max-width: 160px;
+        min-width: 110px;
     }
 
     .report-form .registro-summary > :nth-child(3){
@@ -3071,10 +3135,10 @@ if($idReporteActual > 0){
 
     .report-form .registro-summary > :last-child,
     .report-form .registro-bulk-controls > :last-child{
-        flex: 1 1 220px;
+        flex: 1 1 200px;
         display: flex;
         justify-content: flex-end;
-        align-items: flex-end;
+        align-items: center;
     }
 
     .report-form .registro-summary > :last-child > center,
@@ -3084,7 +3148,7 @@ if($idReporteActual > 0){
 
     .report-form .registro-summary__text,
     .report-form .registro-bulk-controls__text{
-        flex: 1 1 360px;
+        flex: 1 1 300px;
         min-width: 0;
     }
 
@@ -3094,13 +3158,17 @@ if($idReporteActual > 0){
         width: 100%;
         margin: 0;
         min-height: 0 !important;
+        font-size: 13px;
+        text-transform: none;
+        letter-spacing: 0;
+        color: #374151;
     }
 
     .report-form .registro-summary__value,
     .report-form .registro-bulk-controls__value{
-        flex: 0 0 160px;
-        max-width: 180px;
-        min-width: 130px;
+        flex: 0 0 130px;
+        max-width: 150px;
+        min-width: 100px;
     }
 
     .report-form .registro-summary__value .form-control,
@@ -3108,15 +3176,18 @@ if($idReporteActual > 0){
         width: 100%;
         text-align: center;
         font-weight: 700;
+        font-size: 15px;
+        border-radius: 6px !important;
+        background: #ffffff;
     }
 
     .report-form .registro-summary__actions,
     .report-form .registro-bulk-controls__actions{
-        flex: 1 1 220px;
+        flex: 1 1 200px;
         display: flex;
         flex-wrap: wrap;
         justify-content: flex-end;
-        gap: 12px;
+        gap: 10px;
     }
 
     .report-form .registro-summary__actions > [class*="col-sm-"],
@@ -3131,17 +3202,42 @@ if($idReporteActual > 0){
     .report-form .registro-bulk-controls__actions .btn,
     .report-form .registro-summary > :last-child .btn,
     .report-form .registro-bulk-controls > :last-child .btn{
-        min-width: 160px;
+        min-width: 140px;
         white-space: nowrap;
+        border-radius: 8px !important;
+        font-size: 13px;
+        padding: 9px 16px;
+    }
+
+    /* Separador visual entre secciones de registro */
+    .report-form .registro-section{
+        border-top: 2px solid #e8e8e8 !important;
+        background: #ffffff !important;
+    }
+
+    .report-form .registro-section.registro-graduados{
+        border-top-color: #3a6ea5 !important;
+    }
+
+    .report-form .registro-section.registro-internos{
+        border-top-color: #2e7d52 !important;
+    }
+
+    .report-form .registro-section.registro-externos{
+        border-top-color: #7a4ca0 !important;
     }
 
     @media (max-width: 767px){
+        .report-form .lpp-info-general-row > [class*="col-sm-"]{
+            width: 100%;
+        }
+
         .report-form .form-group > [class*="col-sm-"] > strong:first-child{
             min-height: 0;
         }
 
         .report-form .registro-table{
-            border-spacing: 0 12px !important;
+            border-spacing: 0 10px !important;
         }
 
         .report-form .registro-table > tbody > tr,
@@ -3159,17 +3255,18 @@ if($idReporteActual > 0){
 
         .report-form .registro-table > tbody > tr > td:first-child,
         .report-form .registro-table > tr > td:first-child{
-            border-radius: 18px 18px 0 0 !important;
+            border-left-width: 3px !important;
+            border-radius: 8px 8px 0 0 !important;
         }
 
         .report-form .registro-table > tbody > tr > td:last-child,
         .report-form .registro-table > tr > td:last-child{
             border-top: 0 !important;
-            border-radius: 0 0 18px 18px !important;
+            border-radius: 0 0 8px 8px !important;
         }
 
         .report-form .registro-table .registro-col--action{
-            min-height: 74px;
+            min-height: 60px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -3177,7 +3274,7 @@ if($idReporteActual > 0){
 
         .report-form .registro-summary,
         .report-form .registro-bulk-controls{
-            padding: 16px;
+            padding: 14px;
         }
 
         .report-form .registro-summary__text,
@@ -3241,7 +3338,16 @@ if($idReporteActual > 0){
             }
             ?> correctamente el registro, para ver el reporte de clic aquí</a>.</h2>
         </div>
-    </div>   
+    </div>
+    <script type="text/javascript">
+    /* El reporte fue guardado exitosamente — limpiar el borrador local */
+    (function(){
+        try {
+            var STORAGE_KEY = 'lpp_autosave_' + (window.location.search || 'nuevo');
+            localStorage.removeItem(STORAGE_KEY);
+        } catch(e) {}
+    })();
+    </script>
 <?php }else if($idReporteActual == 0){?>
     <style type="text/css">
         #form1 fieldset:not(:first-of-type){
@@ -3295,54 +3401,29 @@ if($idReporteActual > 0){
                     </div>
                     <div class="hr"><hr></div>
                 </div> 
-                <div class="form-group">
-                    <div class="col-sm-1"></div>
+                <div class="form-group lpp-info-general-row">
                     <div class="col-sm-2">
-                        <strong>Fecha del registro:</strong>
-                        <input name="fechaReporte" type="date" id="fechaReporte" maxlength="250" value="<?=date("Y-m-d"); ?>" max='<?=date("Y-m-d"); ?>' class="form-control"  required readonly  />
-                    </div>
-                    <div class="col-sm-2">
-                        <?php $mes = date("m"); ?>
-                        <strong>Período:</strong>
-                        <select name="mapeo_cuarto"  class="form-control">
-                            <?php echo($mes>=1 && $mes<=3)?'<option value="1" selected >Q1 (Ene - Mar)</option>':''; ?>
-                            <?php echo($mes>=4 && $mes<=6)?'<option value="4" selected >Q2 (Abr - Jun)</option>':''; ?>
-                            <?php echo($mes>=7 && $mes<=9)?'<option value="7" selected >Q3 (Jul - Sep)</option>':''; ?>
-                            <?php echo($mes>=10 && $mes<=12)?'<option value="10" selected >Q4 (Oct - Dic)</option>':''; ?>
-                        </select>
-                    </div>
-                    <div class="col-sm-3">
                         <strong>Coordinador de prisión:</strong>
                         <select required name="usua_id" id="usua_id" class="form-control">
                             <option value="<?=$_SESSION["id"]; ?>"><?=$_SESSION["nombre"]; ?></option>
                         </select>
                     </div>
-                    <div class="col-sm-2">
-                        <strong>Cárcel ubicación:</strong>
+                    <div class="col-sm-3">
+                        <strong>Cárcel / Ubicación:</strong>
                         <select required name="sitioReunion" id="rep_carcel" class="form-control">
-                                        
                             <?php
-                            /*
-                            *   TRAEMOS LOS TIPOS DE SERVICIOS QUE PRESTA (25)
-                            */
                             if ($_SESSION['empresa_pd'] != "") {
                                 echo '<option value="">Sin especificar</option>';
-                                $sql = "SELECT * ";
-                                $sql.=" FROM tbl_regional_ubicacion ";
+                                $sql = "SELECT * FROM tbl_regional_ubicacion";
                                 if($_SESSION['empresa_pd'] != 0){
                                     $sql.=" WHERE reub_reg_fk = ".$_SESSION['empresa_pd'];
                                 }
                                 $sql.=" ORDER BY reub_reg_fk asc";
-
                                 $PSN1->query($sql);
-                                $numero=$PSN1->num_rows();
-                                if($numero > 0){
+                                if($PSN1->num_rows() > 0){
                                     while($PSN1->next_record()){
                                         ?><option value="<?=$PSN1->f('reub_id'); ?>" <?php
-                                        if($cliente_servicio1 == $PSN1->f('reub_id'))
-                                        {
-                                            ?>selected="selected"<?php
-                                        }
+                                        if($cliente_servicio1 == $PSN1->f('reub_id')) echo 'selected="selected"';
                                         ?>><?=$PSN1->f('reub_nom'); ?></option><?php
                                     }
                                 }
@@ -3352,16 +3433,26 @@ if($idReporteActual > 0){
                             ?>
                         </select>
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <div class="col-sm-1"></div>
-                    <div id="ubicacion"></div>
                     <div class="col-sm-2">
-                        <strong>N° de patios y/o pabellón:</strong>
+                        <strong>Fecha del registro:</strong>
+                        <input name="fechaReporte" type="date" id="fechaReporte" maxlength="250" value="<?=date("Y-m-d"); ?>" max='<?=date("Y-m-d"); ?>' class="form-control" required readonly />
+                    </div>
+                    <div class="col-sm-2">
+                        <?php $mes = date("m"); ?>
+                        <strong>Período:</strong>
+                        <select name="mapeo_cuarto" class="form-control">
+                            <?php echo($mes>=1 && $mes<=3)?'<option value="1" selected>Q1 (Ene - Mar)</option>':''; ?>
+                            <?php echo($mes>=4 && $mes<=6)?'<option value="4" selected>Q2 (Abr - Jun)</option>':''; ?>
+                            <?php echo($mes>=7 && $mes<=9)?'<option value="7" selected>Q3 (Jul - Sep)</option>':''; ?>
+                            <?php echo($mes>=10 && $mes<=12)?'<option value="10" selected>Q4 (Oct - Dic)</option>':''; ?>
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <strong>N° de patios / pabellón:</strong>
                         <input name="pabellon" type="number" id="pabellon" maxlength="250" value="<?=$pabellon; ?>" class="form-control" required />
-                    </div> 
+                    </div>
                 </div>
+                <div id="ubicacion"></div>
                 <!--<div class="cont-btn cont-flex fl-sbet">
                     <div class="item-btn"></div>
                     <div class="item-btn">
@@ -3381,23 +3472,22 @@ if($idReporteActual > 0){
                     <div class="hr"><hr></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-1"></div>
                     <div class="col-sm-3">
-                        <strong>Total población que hay en la prisión:</strong>
-                        <input name="asistencia_total"  type="number" id="asistencia_total" min="0" value="" class="form-control" />
-                    </div> 
-                    <div class="col-sm-2">
-                        <strong>Número de prisioneros invitados:</strong>
-                        <input name="asistencia_hom" type="number" id="asistencia_hom" min="0" value="" class="form-control"  />
+                        <strong>Total población en la prisión:</strong>
+                        <input name="asistencia_total" type="number" id="asistencia_total" min="0" value="" class="form-control" />
                     </div>
                     <div class="col-sm-3">
-                        <strong>Número de prisioneros que iniciaron el curso:</strong>
+                        <strong>Prisioneros invitados:</strong>
+                        <input name="asistencia_hom" type="number" id="asistencia_hom" min="0" value="" class="form-control" />
+                    </div>
+                    <div class="col-sm-3">
+                        <strong>Prisioneros que iniciaron el curso:</strong>
                         <input name="asistencia_muj" type="number" id="asistencia_muj" min="0" value="" class="form-control" />
-                    </div> 
-                    <div class="col-sm-2">
-                        <strong>Numero de cursos activos de LPP: </strong>
-                        <input name="asistencia_jov" type="number" id="asistencia_jov" min="0" value="" readonly class="form-control"  />
-                    </div>   
+                    </div>
+                    <div class="col-sm-3">
+                        <strong>Cursos activos de LPP:</strong>
+                        <input name="asistencia_jov" type="number" id="asistencia_jov" min="0" value="" readonly class="form-control" />
+                    </div>
                 </div>
                 <!--<div class="cont-btn cont-flex fl-sbet">
                     <div class="item-btn">
@@ -4220,27 +4310,22 @@ if($idReporteActual > 0){
                     <div class="hr"><hr></div>
                 </div>
                 <div class="form-group">
-                    <div class="col-sm-3"></div>
                     <div class="col-sm-3">
-                        <strong>Número de discípulos que pasaron a C&M:</strong>
+                        <strong>Discípulos que pasaron a C&M:</strong>
                         <input name="rep_ndis" type="number" id="rep_ndis" min="0" value="<?=$rep_ndis; ?>" class="form-control" />
                     </div>
                     <div class="col-sm-3">
-                        <strong>Costo de recursos gestionados($):</strong>
+                        <strong>Costo de recursos gestionados ($):</strong>
                         <input name="rep_entr" type="number" id="rep_entr" min="0" value="<?= $rep_entr; ?>" class="form-control" />
                     </div>
-                </div>
-                <div class="form-group">
-                    <div class="col-sm-3"></div>
                     <div class="col-sm-3">
                         <strong>Testimonio:</strong>
-                        <input name="archivo2" type="file" id="archivo2" class="form-control " required />
+                        <input name="archivo2" type="file" id="archivo2" class="form-control" required />
                     </div>
                     <div class="col-sm-3">
                         <strong>Foto:</strong>
-                        <input name="archivo1" type="file" id="archivo1" class="form-control"  accept="image/png, image/jpeg,  image/jpg, image/gif />
+                        <input name="archivo1" type="file" id="archivo1" class="form-control" accept="image/png, image/jpeg, image/jpg, image/gif" />
                     </div>
-                    <div class="col-sm-1"></div>
                 </div>
                 <div class="cont-btn cont-flex fl-cent">
                     <!--<div class="item-btn">
@@ -4488,18 +4573,12 @@ else{
     #lpp-status-bar.restaurado { background:#17a2b8; color:#fff; display:block; }
     #lpp-status-bar.guardando  { background:#ffc107; color:#333; display:block; }
     #lpp-recuperar-banner {
-        display:none; background:#fff3cd; border:1px solid #ffc107;
-        padding:10px 16px; margin:10px 0; border-radius:4px;
-        font-size:13px;
+        display:none;
     }
 </style>
 
 <div id="lpp-status-bar"></div>
-<div id="lpp-recuperar-banner">
-    ⚠️ Se encontraron datos guardados anteriormente sin enviar.
-    <button type="button" class="btn btn-sm btn-warning" onclick="lppRestaurarDatos()">Restaurar datos</button>
-    <button type="button" class="btn btn-sm btn-default" onclick="lppDescartarDatos()">Descartar</button>
-</div>
+<div id="lpp-recuperar-banner" style="display:none;"></div>
 
 <script type="text/javascript">
 (function(){
@@ -4707,17 +4786,11 @@ else{
     /* ---- Inicialización ---- */
     $(document).ready(function(){
 
-        /* Verificar si hay datos guardados */
+        /* Restaurar datos automáticamente al cargar si existen */
         try {
             var raw = localStorage.getItem(STORAGE_KEY);
             if (raw) {
-                var obj  = JSON.parse(raw);
-                var mins = Math.round((Date.now() - obj.ts) / 60000);
-                recuperarBanner.style.display = 'block';
-                recuperarBanner.querySelector('button').textContent =
-                    'Restaurar datos (guardado hace ' + mins + ' min)';
-                var form = document.getElementById(FORM_ID);
-                if (form) form.parentNode.insertBefore(recuperarBanner, form);
+                window.lppRestaurarDatos();
             }
         } catch(e) {}
 
@@ -4742,10 +4815,9 @@ else{
         window.addEventListener('offline', onOffline);
         window.addEventListener('online',  onOnline);
 
-        /* Al enviar, limpiar el borrador */
+        /* Al enviar, marcar como enviado para evitar guardado de emergencia */
         $('#' + FORM_ID).on('submit', function(){
             formularioEnviado = true;
-            try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
         });
 
         /* Último guardado de emergencia al cerrar/recargar */
