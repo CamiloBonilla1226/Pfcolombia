@@ -419,8 +419,8 @@ else{
         $fechaFinal = $_REQUEST["fechaFinal"];
     }
 
-    // Conteo optimizado
-    $sql = "SELECT count(DISTINCT RC.id_cm) as conteo FROM reporte_cm AS RC WHERE RC.programa_id = 308 ".$sqlFiltro;
+    // Conteo
+    $sql = "SELECT count(*) as conteo FROM reporte_cm AS RC WHERE 1=1 ".$sqlFiltro;
     $PSN1->query($sql);
     $total_registros = 0;
     if($PSN1->num_rows() > 0){
@@ -430,8 +430,8 @@ else{
     }
     $total_paginas = ceil($total_registros / $registros);
 
-    // Paso 1: Obtener solo los IDs necesarios para la página
-    $sql_ids = "SELECT RC.id_cm AS id FROM reporte_cm AS RC WHERE RC.programa_id = 308 ".$sqlFiltro." ORDER BY RC.id_cm DESC LIMIT ".$inicio.", ".$registros;
+    // Paso 1: IDs de la página
+    $sql_ids = "SELECT RC.id_cm AS id FROM reporte_cm AS RC WHERE 1=1 ".$sqlFiltro." ORDER BY RC.fecha_reporte DESC, RC.id_cm DESC LIMIT ".$inicio.", ".$registros;
     $PSN_ids = new DBbase_Sql;
     $PSN_ids->query($sql_ids);
     $report_ids = [];
@@ -439,16 +439,20 @@ else{
         $report_ids[] = $PSN_ids->f('id');
     }
 
-    // Paso 2: Obtener datos completos de los IDs de la página
+    // Paso 2: Datos completos
     if (count($report_ids) > 0) {
-        $sql = "SELECT C.descripcion AS regional, RC.*, U.nombre as nombreUsuario
+        $sql = "SELECT RC.id_cm, RC.fecha_reporte, RC.entrenador, RC.siervo_facilitador,
+        RC.asistencia_total, RC.miembros_bautizados, RC.bautizados_periodo,
+        RC.graduados_periodo, RC.decisiones_cristo, RC.carcel_id, RC.tipo,
+        U.nombre AS nombreUsuario, RU.reub_nom AS nombre_prision,
+        C.descripcion AS regional
         FROM reporte_cm AS RC
         LEFT JOIN usuario AS U ON U.id = RC.usuario_id
         LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
         LEFT JOIN categorias AS C ON C.id = UE.empresa_pd
+        LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RC.carcel_id
         WHERE RC.id_cm IN (" . implode(',', $report_ids) . ")
-        GROUP BY RC.id_cm
-        ORDER BY RC.fecha_reporte DESC";
+        ORDER BY RC.fecha_reporte DESC, RC.id_cm DESC";
 
         $PSN1->query($sql);
     } else {
@@ -660,190 +664,56 @@ else{
             <div class="hr"><hr></div>
         </div>
         <div style="overflow-x: auto;">
-            <table border="0" cellspacing="0" cellpadding="2"  align="center" class="table table-striped" style="font-size:12px">
-                <thead>
-                    <tr> 
-                        <th width="120px">Regional</th>
-                        <th>Prisión / Ubicación</th>
-                        <th>Coordinador de prisión </th>
-                        <th>Entrenador</th>
-                        <th>Siervo facilitador</th>
-                        <th width="80px">Fecha de reporte</th>
-                        <th width="80px" title="Fecha de Inicio Confraternidad Restaurativa">Fecha de inicio</th>
-                        <th width="30px" title="Asistencia total">Asistencia</th>
-                        <th width="30px"  title="Decisiones para cristo">Decisiones</th>
-                        <th>Bautizos</th>
-                        <th width="80px">Último ingreso</th>
-                        <!--<th>Foto/Bautizo</th>
-                        <th>Foto/Grupo</th>-->
+            <table border="0" cellspacing="0" cellpadding="4" align="center" class="table table-striped table-bordered table-hover" style="font-size:13px">
+                <thead style="background-color:#5a7a9e;color:#fff;">
+                    <tr>
+                        <th style="text-align:center;white-space:nowrap"># Reporte</th>
+                        <th style="text-align:center">Regional</th>
+                        <th style="text-align:center">Prisión / Lugar</th>
+                        <th style="text-align:center">Coordinador de prisión</th>
+                        <th style="text-align:center">Entrenador</th>
+                        <th style="text-align:center;white-space:nowrap">Fecha reporte</th>
+                        <th style="text-align:center" title="Asistencia total">Asistencia</th>
+                        <th style="text-align:center" title="Bautizados en el período">Bautizados</th>
+                        <th style="text-align:center" title="Decisiones para Cristo">Decisiones</th>
+                        <th style="text-align:center" title="Graduados en el período">Graduados</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php
                     if($total_registros > 0){
-                        $contador = 0;
                         while($PSN1->next_record()){
-                            //Solo si no se ha modificado ya el formulario.
-                            $id = $PSN1->f('id_cm');
-                            $plantador = $PSN1->f("siervo_facilitador");
-                            $rep_entr = $PSN1->f("entrenador");
-                            $fechaReporte = $PSN1->f("fecha_reporte");
-                            $fechaInicio = $PSN1->f("fecha_inicio_confraternidad");
-                            $sitioReunion = $PSN1->f("carcel_id");
-                            $grupoMadre_txt = $PSN1->f("grupo_madre");
-                            $idGrupoMadre = 0;
-                            $pabellon = $PSN1->f("pabellon");
-                            $ciudad = $PSN1->f("municipio_id");
-                            $direccion = $PSN1->f("direccion");
-                            $generacionNumero = intval($PSN1->f("generacion"));
-
-                            $nombreUsuario = $PSN1->f("nombreUsuario");
-                            $nombreGrupo = '';
-
-                            $mapeo_comprometido = $PSN1->f("mapeo_comprometido");
-                            $nombreGrupo_txt = $PSN1->f("nombre_grupo_iglesia");
-                            $mapeo_fecha = $PSN1->f("mapeo_fecha");
-
-                            $mapeo_oracion = $PSN1->f("mapeo_oracion");
-                            $mapeo_companerismo = $PSN1->f("mapeo_companerismo");
-                            $mapeo_adoracion = $PSN1->f("mapeo_adoracion");
-                            $mapeo_biblia = $PSN1->f("mapeo_biblia");
-                            $mapeo_evangelizar = $PSN1->f("mapeo_evangelizar");
-                            $mapeo_cena = $PSN1->f("mapeo_cena");
-                            $mapeo_dar = $PSN1->f("mapeo_dar");
-                            $mapeo_bautizar = $PSN1->f("mapeo_bautizar");
-                            $mapeo_trabajadores = $PSN1->f("mapeo_trabajadores");
-
-                            $ext1 = $PSN1->f("foto_confraternidad_ext");
-                            $ext2 = $PSN1->f("testimonio_ext");
-                            $ext3 = '';
-
-                            $asistencia_hom = $PSN1->f("asistencia_hombres");
-                            $asistencia_muj = $PSN1->f("asistencia_mujeres");
-                            $asistencia_jov = $PSN1->f("asistencia_jovenes");
-                            $asistencia_nin = $PSN1->f("asistencia_ninos");
-
-                            $bautizados = $PSN1->f("miembros_bautizados");
-
-                            $asistencia_total = $PSN1->f("asistencia_total");
-                            $discipulado = $PSN1->f("en_discipulado");
-                            $desiciones = $PSN1->f("decisiones_cristo");
-                            $preparandose = $PSN1->f("preparandose_bautismo");
-                            $url_baut = $PSN1->f("bautizo_foto_ext");
-                            $iglesias_reconocidas = 0;  
-                            
-                            ?><tr class='clickable-row' data-href='index.php?doc=gestionar-sub-programa-ecc&id=<?=$id; ?>' >
-                                <!--<td><a href="index.php?doc=gestionar-sub-programa-ecc&id=<?=$id; ?>"><?=str_pad($id, 6, "0", STR_PAD_LEFT); ?></a></td>//-->
-                                <?php if($sitioReunion != 0){
-                                        $sql = "SELECT LOWER(D.departamento) AS departamento, M.municipio, C.descripcion AS regional, RU.reub_nom,RU.reub_dir ";
-                                        $sql.=" FROM tbl_regional_ubicacion AS RU
-                                        LEFT JOIN dane_municipios AS M ON M.id_municipio = RU.reub_mun_fk
-                                        LEFT JOIN dane_departamentos AS D ON D.id_departamento = M.departamento_id
-                                        LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk
-                                         WHERE RU.reub_id = ".$sitioReunion;
-
-                                        $PSN2->query($sql);
-                                        $numero=$PSN2->num_rows();
-                                        if($numero > 0){
-                                            while($PSN2->next_record()){
-                                                $departamento = $PSN2->f("departamento");
-                                                $municipio = $PSN2->f("municipio");
-                                                $regional = $PSN2->f("regional");
-                                                $prision = $PSN2->f("reub_nom");
-                                            }
-                                        }
-                                        
-                                        
-                                    }else{
-                                        $sql = "SELECT M.municipio,LOWER(D.departamento) AS departamento ";
-                                        $sql.=" FROM dane_municipios AS M
-                                        LEFT JOIN dane_departamentos AS D ON D.id_departamento = M.departamento_id
-                                         WHERE M.id_municipio = ".$ciudad;
-
-                                        $PSN2->query($sql);
-                                        $numero=$PSN2->num_rows();
-                                        if($numero > 0){
-                                            while($PSN2->next_record()){
-                                                $regional = $PSN2->f("departamento");
-                                                $prision = $PSN2->f("municipio");
-                                            }
-                                        }
-                                        
-                                    }?>
-                                <td><?=$PSN1->f("regional"); ?></td>
-                                <td><?=$prision." - ".$PSN1->f("direccion");?></td>
-                                <td><a href="index.php?doc=gestionar-sub-programa-ecc&id=<?=$id; ?>"><?=$nombreUsuario; ?></a></td>
-                                <td><?=$rep_entr; ?></td>
-                                <td><?=$plantador; ?></td>
-                                <td><?= date("d-m-Y", strtotime($fechaReporte)); ?></td>
-                                    <td><?= date("d-m-Y", strtotime($fechaInicio)); ?></td>
-                                <td><?=$asistencia_total; ?></td>
-                                <td><?=$desiciones; ?></td>
-                                <td><?php echo($bautizados>0)?($bautizados-1):$bautizados; ?></td>
-                                <td><?= date("d-m-Y", strtotime($mapeo_fecha)); ?></td>
-                                <!--<td><?=$iglesias_reconocidas; ?></td>//--->
-                                
-                                <!--<td align="center"><?php
-                                if($ext2 != ""){
-                                    ?><img src="images/png/thumb-up.png" width="20px" />
-                                    <i class="fas fa-thumbs-up ico-lik"></i><?php
-                                }else{
-                                    ?><img src="images/png/thumb-down.png" width="20px" />
-                                    <i class="fas fa-thumbs-down ico-dli"></i><?php                            
-                                }
-                                ?></td>-->
-                                <!--<td align="center"><?php
-                                if($url_baut != "" || $url_baut != null){
-                                    ?><i class="fas fa-thumbs-up ico-lik"></i>
-                                    <!--<img src="images/png/thumb-up.png" width="20px" />--><?php
-                                }else{
-                                    ?>
-                                    <i class="fas fa-thumbs-down ico-dli"></i>
-                                    <!--<img src="images/png/thumb-down.png" width="20px" />--><?php                            
-                                }
-                                ?></td>
-                                <!--
-                                <td align="center"><?php
-                                if($generacionNumero == 0 || $generacionNumero == 77 || $generacionNumero == 8){
-                                    if($ext3 != ""){
-                                        ?><!--<img src="images/png/thumb-up.png" width="20px" />
-                                        <i class="fas fa-thumbs-up ico-lik"></i><?php
-                                    }else{
-                                        ?><!--<img src="images/png/thumb-down.png" width="20px" />
-                                        <i class="fas fa-thumbs-down ico-dli"></i><?php                            
-                                    }
-                                }
-                                else{
-                                    /*$total = $mapeo_oracion
-                                            + $mapeo_companerismo
-                                            + $mapeo_adoracion
-                                            + $mapeo_biblia
-                                            + $mapeo_evangelizar
-                                            + $mapeo_cena
-                                            + $mapeo_dar
-                                            + $mapeo_bautizar
-                                            + $mapeo_trabajadores;*/
-                                    if($ext1 != "" || $ext2 != ""){
-                                        ?><!--<img src="images/png/thumb-up.png" width="20px" />
-                                    <i class="fas fa-thumbs-up ico-lik"></i><?php
-                                    }else{
-                                        ?><!--<img src="images/png/thumb-down.png" width="20px" />
-                                        <i class="fas fa-thumbs-down ico-dli"></i>
-                                    <?php                       
-                                    }
-                                }
-                                ?></td>
-                                -->
-                                
+                            $id                 = $PSN1->f('id_cm');
+                            $nombreUsuario      = $PSN1->f("nombreUsuario");
+                            $rep_entr           = $PSN1->f("entrenador");
+                            $fechaReporte       = $PSN1->f("fecha_reporte");
+                            $asistencia_total   = $PSN1->f("asistencia_total");
+                            $bautizados_periodo = $PSN1->f("bautizados_periodo");
+                            $desiciones         = $PSN1->f("decisiones_cristo");
+                            $graduados_periodo  = $PSN1->f("graduados_periodo");
+                            $regional           = $PSN1->f("regional");
+                            $nombre_prision     = $PSN1->f("nombre_prision");
+                            ?>
+                            <tr class="clickable-row" data-href="index.php?doc=gestionar-sub-programa-ecc&id=<?=$id?>" style="cursor:pointer">
+                                <td style="text-align:center;font-weight:bold"><?= str_pad($id, 6, "0", STR_PAD_LEFT) ?></td>
+                                <td><?= htmlspecialchars($regional) ?></td>
+                                <td><?= htmlspecialchars($nombre_prision) ?></td>
+                                <td><a href="index.php?doc=gestionar-sub-programa-ecc&id=<?=$id?>" style="color:#333"><?= htmlspecialchars($nombreUsuario) ?></a></td>
+                                <td><?= htmlspecialchars($rep_entr) ?></td>
+                                <td style="text-align:center;white-space:nowrap"><?= $fechaReporte ? date("d-m-Y", strtotime($fechaReporte)) : '—' ?></td>
+                                <td style="text-align:center"><?= intval($asistencia_total) ?></td>
+                                <td style="text-align:center"><?= intval($bautizados_periodo) ?></td>
+                                <td style="text-align:center"><?= intval($desiciones) ?></td>
+                                <td style="text-align:center"><?= intval($graduados_periodo) ?></td>
                             </tr>
                             <?php
-                            $contador++;
                         }
-                    }
-                    ?>
+                    } else { ?>
+                        <tr><td colspan="10" class="text-center" style="padding:20px;color:#888">No se encontraron registros</td></tr>
+                    <?php } ?>
                 </tbody>
             </table>
-        </div>       
+        </div>
     </div>
 
 
