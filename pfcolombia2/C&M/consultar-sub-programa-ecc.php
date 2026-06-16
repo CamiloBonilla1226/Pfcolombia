@@ -364,66 +364,63 @@ else{
     
     if(isset($_REQUEST["idUsuario"]) && $_REQUEST["idUsuario"] != "" && soloNumeros($_REQUEST["idUsuario"]) != ""){
         $buscar_idUsuario = soloNumeros($_REQUEST["idUsuario"]);
-        $sqlFiltro .= " AND sat_reportes.idUsuario = '".$buscar_idUsuario."'";
+        $sqlFiltro .= " AND RC.usuario_id = '".$buscar_idUsuario."'";
     }
-    // Optimizar filtros de zona/regional con subconsultas
-    // Priorizar parámetros de REQUEST sobre sesión, pero solo si no están vacíos
+    // Filtros de zona/regional con subconsultas
     if(isset($_REQUEST["empresa_sitio_cor"]) && $_REQUEST["empresa_sitio_cor"] != "") {
         $buscar_zona = soloNumeros($_REQUEST["empresa_sitio_cor"]);
         if($buscar_zona != "") {
-            $sqlFiltro .= " AND sat_reportes.idUsuario IN (SELECT UE.idUsuario FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE C.idSec = '".$buscar_zona."')";
+            $sqlFiltro .= " AND RC.usuario_id IN (SELECT UE.idUsuario FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE C.idSec = '".$buscar_zona."')";
         }
     } else if (!isset($_REQUEST["empresa_sitio_cor"]) && $_SESSION["id_zona"]!="" && $_SESSION["id_zona"]!=0) {
-        $sqlFiltro .= " AND sat_reportes.idUsuario IN (SELECT UE.idUsuario FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE C.idSec = '".$_SESSION["id_zona"]."')";
+        $sqlFiltro .= " AND RC.usuario_id IN (SELECT UE.idUsuario FROM usuario_empresa UE LEFT JOIN categorias C ON C.id = UE.empresa_pd WHERE C.idSec = '".$_SESSION["id_zona"]."')";
         $_REQUEST["empresa_sitio_cor"] = $_SESSION["id_zona"];
         $buscar_zona = $_SESSION["id_zona"];
     }
-    
-    // Priorizar parámetros de REQUEST sobre sesión para empresa_pd, pero solo si no están vacíos
+
     if(isset($_REQUEST["empresa_pd"]) && $_REQUEST["empresa_pd"] != "") {
         $buscar_regional = soloNumeros($_REQUEST["empresa_pd"]);
         if($buscar_regional != "") {
-            $sqlFiltro .= " AND sat_reportes.idUsuario IN (SELECT idUsuario FROM usuario_empresa WHERE empresa_pd = '".$buscar_regional."')";
+            $sqlFiltro .= " AND RC.usuario_id IN (SELECT idUsuario FROM usuario_empresa WHERE empresa_pd = '".$buscar_regional."')";
         }
     } else if (!isset($_REQUEST["empresa_pd"]) && $_SESSION["empresa_pd"]!="" && $_SESSION["empresa_pd"]!=0) {
         $buscar_regional = soloNumeros($_SESSION["empresa_pd"]);
-        $sqlFiltro .= " AND sat_reportes.idUsuario IN (SELECT idUsuario FROM usuario_empresa WHERE empresa_pd = '".$_SESSION["empresa_pd"]."')";
+        $sqlFiltro .= " AND RC.usuario_id IN (SELECT idUsuario FROM usuario_empresa WHERE empresa_pd = '".$_SESSION["empresa_pd"]."')";
         $_REQUEST["empresa_pd"] = $_SESSION["empresa_pd"];
     }
     if(isset($_REQUEST["sitioReunion"]) && soloNumeros($_REQUEST["sitioReunion"]) != ""){
         $buscar_prision = soloNumeros($_REQUEST["sitioReunion"]);
-        $sqlFiltro .= " AND sat_reportes.sitioReunion = ".$buscar_prision."";
+        $sqlFiltro .= " AND RC.carcel_id = ".$buscar_prision;
     } else {
         $buscar_prision = isset($_REQUEST["sitioReunion"]) ? $_REQUEST["sitioReunion"] : "";
     }
-    
-    //
+
     if(isset($_REQUEST["rep_inex"]) && eliminarInvalidos($_REQUEST["rep_inex"]) != ""){
         $tipo = eliminarInvalidos($_REQUEST["rep_inex"]);
         if ($tipo == 2) {
-            $sqlFiltro .= " AND sat_reportes.sitioReunion = 0 ";
+            $sqlFiltro .= " AND RC.tipo = 'EXTRA' ";
         }else{
-            $sqlFiltro .= " AND sat_reportes.sitioReunion <> 0 ";
-        }    
+            $sqlFiltro .= " AND RC.tipo = 'INTRA' ";
+        }
     }else{
         $_REQUEST["rep_inex"] = "";
     }
     if(isset($_REQUEST["fechaInicial"]) && eliminarInvalidos($_REQUEST["fechaInicial"]) != ""){
         $fechaInicial = eliminarInvalidos($_REQUEST["fechaInicial"]);
-        $sqlFiltro .= " AND sat_reportes.fechaReporte >= '".$fechaInicial."'";
+        $sqlFiltro .= " AND RC.fecha_reporte >= '".$fechaInicial."'";
     } else {
         $fechaInicial = $_REQUEST["fechaInicial"];
     }
-    
+
     if(isset($_REQUEST["fechaFinal"]) && eliminarInvalidos($_REQUEST["fechaFinal"]) != ""){
         $fechaFinal = eliminarInvalidos($_REQUEST["fechaFinal"]);
-        $sqlFiltro .= " AND sat_reportes.fechaReporte <= '".$fechaFinal."'";
+        $sqlFiltro .= " AND RC.fecha_reporte <= '".$fechaFinal."'";
     } else {
         $fechaFinal = $_REQUEST["fechaFinal"];
-    }    
-    
-    // Conteo optimizado - consulta simple
-    $sql = "SELECT count(DISTINCT sat_reportes.id) as conteo FROM sat_reportes WHERE sat_reportes.rep_tip = 308 ".$sqlFiltro;
+    }
+
+    // Conteo optimizado
+    $sql = "SELECT count(DISTINCT RC.id_cm) as conteo FROM reporte_cm AS RC WHERE RC.programa_id = 308 ".$sqlFiltro;
     $PSN1->query($sql);
     $total_registros = 0;
     if($PSN1->num_rows() > 0){
@@ -432,33 +429,29 @@ else{
         }
     }
     $total_paginas = ceil($total_registros / $registros);
-    
-    // Paso 1: Obtener solo los IDs necesarios para la página (RÁPIDO)
-    $sql_ids = "SELECT sat_reportes.id FROM sat_reportes WHERE sat_reportes.rep_tip = 308 ".$sqlFiltro." ORDER BY sat_reportes.id DESC LIMIT ".$inicio.", ".$registros;
+
+    // Paso 1: Obtener solo los IDs necesarios para la página
+    $sql_ids = "SELECT RC.id_cm AS id FROM reporte_cm AS RC WHERE RC.programa_id = 308 ".$sqlFiltro." ORDER BY RC.id_cm DESC LIMIT ".$inicio.", ".$registros;
     $PSN_ids = new DBbase_Sql;
     $PSN_ids->query($sql_ids);
     $report_ids = [];
     while($PSN_ids->next_record()){
         $report_ids[] = $PSN_ids->f('id');
-    } 
+    }
 
-    // Paso 2: Solo si hay IDs, obtener los datos completos (RÁPIDO)
+    // Paso 2: Obtener datos completos de los IDs de la página
     if (count($report_ids) > 0) {
-        $sql = "SELECT C.descripcion AS regional, sat_reportes.*, U.nombre as nombreUsuario, sat_grupos.nombre as nombreGrupo, tbl_adjuntos.adj_url 
-        FROM sat_reportes 
-        LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario 
-        LEFT JOIN sat_grupos ON sat_grupos.id = sat_reportes.idGrupoMadre
-        LEFT JOIN tbl_adjuntos ON sat_reportes.id = tbl_adjuntos.adj_rep_fk 
+        $sql = "SELECT C.descripcion AS regional, RC.*, U.nombre as nombreUsuario
+        FROM reporte_cm AS RC
+        LEFT JOIN usuario AS U ON U.id = RC.usuario_id
         LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
         LEFT JOIN categorias AS C ON C.id = UE.empresa_pd
-        LEFT JOIN categorias AS CA ON CA.id = C.idSec 
-        WHERE sat_reportes.id IN (" . implode(',', $report_ids) . ") 
-        GROUP BY sat_reportes.id
-        ORDER BY sat_reportes.fechaReporte DESC";
-        
+        WHERE RC.id_cm IN (" . implode(',', $report_ids) . ")
+        GROUP BY RC.id_cm
+        ORDER BY RC.fecha_reporte DESC";
+
         $PSN1->query($sql);
     } else {
-        // No hay registros para mostrar
         $total_registros = 0;
     }
 
@@ -691,56 +684,53 @@ else{
                         $contador = 0;
                         while($PSN1->next_record()){
                             //Solo si no se ha modificado ya el formulario.
-                            $id = $PSN1->f('id');
-                            $plantador = $PSN1->f("plantador");
-                            $rep_entr = $PSN1->f("rep_entr");
-                            $fechaReporte = $PSN1->f("fechaReporte");
-                            $fechaInicio = $PSN1->f("fechaInicio");        
-                            $sitioReunion = $PSN1->f("sitioReunion");
-                            $grupoMadre_txt = $PSN1->f("grupoMadre_txt");
-                            $idGrupoMadre = $PSN1->f("idGrupoMadre");
+                            $id = $PSN1->f('id_cm');
+                            $plantador = $PSN1->f("siervo_facilitador");
+                            $rep_entr = $PSN1->f("entrenador");
+                            $fechaReporte = $PSN1->f("fecha_reporte");
+                            $fechaInicio = $PSN1->f("fecha_inicio_confraternidad");
+                            $sitioReunion = $PSN1->f("carcel_id");
+                            $grupoMadre_txt = $PSN1->f("grupo_madre");
+                            $idGrupoMadre = 0;
                             $pabellon = $PSN1->f("pabellon");
-                            $ciudad = $PSN1->f("ciudad");
+                            $ciudad = $PSN1->f("municipio_id");
                             $direccion = $PSN1->f("direccion");
-                            $generacionNumero = intval($PSN1->f("generacionNumero"));
-                            
+                            $generacionNumero = intval($PSN1->f("generacion"));
+
                             $nombreUsuario = $PSN1->f("nombreUsuario");
-                            $nombreGrupo = $PSN1->f("nombreGrupo");
+                            $nombreGrupo = '';
 
                             $mapeo_comprometido = $PSN1->f("mapeo_comprometido");
-                            $nombreGrupo_txt = $PSN1->f("nombreGrupo_txt");
-                            $mapeo_fecha = $PSN1->f("mapeo_fecha");  
+                            $nombreGrupo_txt = $PSN1->f("nombre_grupo_iglesia");
+                            $mapeo_fecha = $PSN1->f("mapeo_fecha");
 
-                            $mapeo_oracion = $PSN1->f("mapeo_oracion");  
-                            $mapeo_companerismo = $PSN1->f("mapeo_companerismo");  
-                            $mapeo_adoracion = $PSN1->f("mapeo_adoracion");  
-                            $mapeo_biblia = $PSN1->f("mapeo_biblia");  
-                            $mapeo_evangelizar = $PSN1->f("mapeo_evangelizar");  
-                            $mapeo_cena = $PSN1->f("mapeo_cena");  
-                            $mapeo_dar = $PSN1->f("mapeo_dar");  
-                            $mapeo_bautizar = $PSN1->f("mapeo_bautizar");  
-                            $mapeo_trabajadores = $PSN1->f("mapeo_trabajadores");  
-                            
+                            $mapeo_oracion = $PSN1->f("mapeo_oracion");
+                            $mapeo_companerismo = $PSN1->f("mapeo_companerismo");
+                            $mapeo_adoracion = $PSN1->f("mapeo_adoracion");
+                            $mapeo_biblia = $PSN1->f("mapeo_biblia");
+                            $mapeo_evangelizar = $PSN1->f("mapeo_evangelizar");
+                            $mapeo_cena = $PSN1->f("mapeo_cena");
+                            $mapeo_dar = $PSN1->f("mapeo_dar");
+                            $mapeo_bautizar = $PSN1->f("mapeo_bautizar");
+                            $mapeo_trabajadores = $PSN1->f("mapeo_trabajadores");
 
-                            $ext1 = $PSN1->f("ext1");
-                            $ext2 = $PSN1->f("ext2");
-                            $ext3 = $PSN1->f("ext3");
-                            
+                            $ext1 = $PSN1->f("foto_confraternidad_ext");
+                            $ext2 = $PSN1->f("testimonio_ext");
+                            $ext3 = '';
 
-                            $asistencia_hom = $PSN1->f("asistencia_hom");
-                            $asistencia_muj = $PSN1->f("asistencia_muj");
-                            $asistencia_jov = $PSN1->f("asistencia_jov");
-                            $asistencia_nin = $PSN1->f("asistencia_nin");
+                            $asistencia_hom = $PSN1->f("asistencia_hombres");
+                            $asistencia_muj = $PSN1->f("asistencia_mujeres");
+                            $asistencia_jov = $PSN1->f("asistencia_jovenes");
+                            $asistencia_nin = $PSN1->f("asistencia_ninos");
 
-                            $bautizados = $PSN1->f("bautizados");
+                            $bautizados = $PSN1->f("miembros_bautizados");
 
-                            //Calculados:
-                            $asistencia_total  = $PSN1->f("asistencia_total");
-                            $discipulado  = $PSN1->f("discipulado");
-                            $desiciones  = $PSN1->f("desiciones");
-                            $preparandose  = $PSN1->f("preparandose");
-                            $url_baut  = $PSN1->f("adj_nom");
-                            $iglesias_reconocidas = $PSN1->f("iglesias_reconocidas");  
+                            $asistencia_total = $PSN1->f("asistencia_total");
+                            $discipulado = $PSN1->f("en_discipulado");
+                            $desiciones = $PSN1->f("decisiones_cristo");
+                            $preparandose = $PSN1->f("preparandose_bautismo");
+                            $url_baut = $PSN1->f("bautizo_foto_ext");
+                            $iglesias_reconocidas = 0;  
                             
                             ?><tr class='clickable-row' data-href='index.php?doc=gestionar-sub-programa-ecc&id=<?=$id; ?>' >
                                 <!--<td><a href="index.php?doc=gestionar-sub-programa-ecc&id=<?=$id; ?>"><?=str_pad($id, 6, "0", STR_PAD_LEFT); ?></a></td>//-->
