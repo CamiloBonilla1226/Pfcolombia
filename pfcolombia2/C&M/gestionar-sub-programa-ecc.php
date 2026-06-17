@@ -2783,11 +2783,7 @@ else if($idReporteActual == 0){
                 </div>
             <?php } else { ?>
                 <div class="col-sm-6">
-                    <h3>&nbsp;</h3>
-                    <h5 class="alert alert-info text-center">IMAGEN DEL MAPEO</h5>
-                    <div class="form-group">
-                        <div class="col-sm-12"><img id="mapeoImgPreview" src="mapeo_img.php?id=0" class="img-responsive" /></div>
-                    </div>
+                    <img id="mapeoImgPreview" src="mapeo_img.php?id=0" style="display:block;margin:0 auto;max-width:320px;width:100%;height:auto;" />
                 </div>
             <?php } ?>
                 <!--<div class="cont-btn cont-flex fl-sbet">
