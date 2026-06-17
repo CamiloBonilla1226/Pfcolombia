@@ -31,7 +31,21 @@ if ($_SESSION["id"] == "") {
 }
 $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
 ?>
-
+<style>
+  /* Evita que números grandes se recorten en las tarjetas de resumen (resu-item) */
+  .resu-item .item-con {
+    overflow: visible;
+    min-width: 0;
+  }
+  .resu-item .item-num,
+  .resu-item .item-num span {
+    overflow: visible !important;
+    text-overflow: unset !important;
+    white-space: nowrap !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+</style>
 <div class="container-fluid" style="display: flex; flex-wrap: wrap;">
   <div class="jumbotron">
     <div class="container-fluid cont-info ">
@@ -153,8 +167,8 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
                   role: "style"
                 }],
                 ["Número de cárceles atendidas", <?= $prisiones_atendidas; ?>, "#2E86C1"],
-                ["Número de grupos Intramuros atendidos", <?= $grupos_intramuros ?>, "#239B56"],
-                ["Número de grupos extramuros atendidos", <?= $grupos_extramuros; ?>, "#F39C12"],
+                ["Número de personas Intramuros atendidas", <?= $grupos_intramuros ?>, "#239B56"],
+                ["Número de personas extramuros atendidas", <?= $grupos_extramuros; ?>, "#F39C12"],
                 ["Creyentes Asistentes", <?= $total_creyente; ?>, "#E74C3C"],
                 ["Total de discípulos (LPP) que pasan a C&M", <?= $total_discipulos; ?>, "#8E44AD"],
                 ["Número de bautizados", <?= $bautizados; ?>, "#F1C40F"],
@@ -208,7 +222,7 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
                 <div class="item-con">
                   <div class="item-text">
                     <h3>Número</h3>
-                    <p>de grupos intramuros atendidos</p>
+                    <p>de personas intramuros atendidas</p>
                   </div>
                   <div class="item-num">
                     <span><?= $grupos_intramuros; ?></span>
@@ -222,7 +236,7 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
                 <div class="item-con">
                   <div class="item-text">
                     <h3>Número</h3>
-                    <p>de grupos extramuros atendidos</p>
+                    <p>de personas extramuros atendidas</p>
                   </div>
                   <div class="item-num">
                     <span><?= $grupos_extramuros; ?></span>
@@ -236,7 +250,7 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
                 <div class="item-con">
                   <div class="item-text">
                     <h3>Total</h3>
-                    <p>de creyentes que asistieron a los grupos</p>
+                    <p>de creyentes que asistieron</p>
                   </div>
                   <div class="item-num">
                     <span><?= $total_creyente; ?></span>
@@ -398,13 +412,17 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
           <?php
           $datos = array();
           //
-          $sql = "SELECT SUM(sat_reportes.asistencia_total) AS total_poblacion, SUM(sat_reportes.asistencia_hom) AS prns_invitados, SUM(sat_reportes.asistencia_muj) AS prns_iniciaron,SUM(sat_reportes.asistencia_jov) AS cursos_act, SUM(sat_reportes.asistencia_nin) AS prns_graduados, SUM(sat_reportes.bautizados) AS internos, SUM(sat_reportes.desiciones) AS externos, SUM(sat_reportes.bautizados + sat_reportes.desiciones) AS voluntarios, SUM(sat_reportes.rep_ndis) AS discipulos FROM sat_reportes";
-          $sql .= " LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario 
-                        LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion 
-                        LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk 
-                        LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = sat_reportes.idUsuario 
+          $sqlUserLPP = "";
+          if ($_SESSION["perfil"] == 163) {
+            $sqlUserLPP = "RL.usuario_id = '" . $buscar_idUsuario . "' AND ";
+          }
+          $sql = "SELECT SUM(RL.poblacion_total) AS total_poblacion, SUM(RL.prisioneros_invitados) AS prns_invitados, SUM(RL.prisioneros_iniciaron) AS prns_iniciaron, SUM(RL.cursos_activos) AS cursos_act, SUM(RL.total_graduados) AS prns_graduados, SUM(RL.total_voluntarios_internos) AS internos, SUM(RL.total_voluntarios_externos) AS externos, SUM(RL.total_voluntarios_internos + RL.total_voluntarios_externos) AS voluntarios, SUM(RL.discipulos_pasaron_cm) AS discipulos FROM reporte_lpp AS RL";
+          $sql .= " LEFT JOIN usuario AS U ON U.id = RL.usuario_id
+                        LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RL.carcel_id
+                        LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk
+                        LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = RL.usuario_id
                         LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
-          $sql .= " WHERE " . $sqlUser . " 1 AND sat_reportes.rep_tip = 307 " . $sqlFiltro . "";
+          $sql .= " WHERE " . $sqlUserLPP . " 1=1 " . $sqlFiltro . "";
           //
           $datosArr[] = '["Tipo", "Cantidad"]';
           $datosArr2[] = '["Tipo", "Cantidad"]';
@@ -427,23 +445,23 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
           } else {
             $varError = 1;
           }
-          $sql = "SELECT count(sat_reportes.id) AS total_prisiones FROM sat_reportes";
-          $sql .= " LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario 
-                        LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion 
-                        LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk 
-                        LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = sat_reportes.idUsuario 
+          $sql = "SELECT count(RL.id_lpp) AS total_prisiones FROM reporte_lpp AS RL";
+          $sql .= " LEFT JOIN usuario AS U ON U.id = RL.usuario_id
+                        LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RL.carcel_id
+                        LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk
+                        LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = RL.usuario_id
                         LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
-          $sql .= " WHERE " . $sqlUser . " 1 AND sat_reportes.rep_tip = 307 " . $sqlFiltro . " GROUP BY sat_reportes.sitioReunion";
+          $sql .= " WHERE " . $sqlUserLPP . " 1=1 " . $sqlFiltro . " GROUP BY RL.carcel_id";
 
          //
 
           $PSN->query($sql);
           $total_prisiones = $PSN->num_rows();
 
-          $sql = "SELECT sat_reportes.asistencia_total AS total_poblacion
-                            FROM sat_reportes ";
-          $sql .= "LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = sat_reportes.idUsuario LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
-          $sql .= " WHERE 1 AND sat_reportes.rep_tip = 307 " . $sqlFiltro . " GROUP BY RU.reub_id ORDER BY sat_reportes.fechaReporte";
+          $sql = "SELECT RL.poblacion_total AS total_poblacion
+                            FROM reporte_lpp AS RL ";
+          $sql .= "LEFT JOIN usuario AS U ON U.id = RL.usuario_id LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RL.carcel_id LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = RL.usuario_id LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
+          $sql .= " WHERE 1=1 " . $sqlFiltro . " GROUP BY RU.reub_id ORDER BY RL.fecha_reporte";
           $result = $PSN4->query($sql);
 
           //if ($result && $result->num_rows > 0) {
@@ -643,20 +661,24 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
             </div>
           </div>
           <?php
-          $sql = "SELECT 
-                        SUM(asistencia_total) as asistencia_total,
-                        SUM(discipulado) as discipulado,
-                        SUM(desiciones) as decisiones,
-                        SUM(bautizadosPeriodo) as bautizos,
-                        SUM(graduadosPeriodo) as graduados,
-                        COUNT(sat_reportes.id) as total_grupos";
-          $sql .= " FROM sat_reportes ";
-          $sql .= " LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario 
-                        LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion 
-                        LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk 
-                        LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = sat_reportes.idUsuario 
+          $sqlUserCM = "";
+          if ($_SESSION["perfil"] == 163) {
+            $sqlUserCM = "RC.usuario_id = '" . $buscar_idUsuario . "' AND ";
+          }
+          $sql = "SELECT
+                        SUM(RC.asistencia_total) as asistencia_total,
+                        SUM(RC.en_discipulado) as discipulado,
+                        SUM(RC.decisiones_cristo) as decisiones,
+                        SUM(RC.bautizados_periodo) as bautizos,
+                        SUM(RC.graduados_periodo) as graduados,
+                        COUNT(RC.id_cm) as total_grupos";
+          $sql .= " FROM reporte_cm AS RC ";
+          $sql .= " LEFT JOIN usuario AS U ON U.id = RC.usuario_id
+                        LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RC.carcel_id
+                        LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk
+                        LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = RC.usuario_id
                         LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
-          $sql .= " WHERE " . $sqlUser . " sat_reportes.rep_tip = 308 " . $sqlFiltro . "";
+          $sql .= " WHERE " . $sqlUserCM . " 1=1 " . $sqlFiltro . "";
           $PSN->query($sql);
           $num = $PSN->num_rows();
           if ($num > 0) {
@@ -681,12 +703,12 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
                 ["Element", "Density", {
                   role: "style"
                 }],
-                ["Total de asistencia en grupos", <?= $satura_asistencia_total; ?>, "#2E86C1"],
+                ["Total de asistencia en personas", <?= $satura_asistencia_total; ?>, "#2E86C1"],
                 ["Total de discipulados", <?= $satura_discipulado ?>, "#239B56"],
                 ["Total de decisiones", <?= $satura_decisiones; ?>, "#F39C12"],
                 ["Total de bautizados", <?= $satura_bautizos; ?>, "#E74C3C"],
                 ["Total de graduados", <?= $satura_graduados; ?>, "#E74C3C"],
-                ["Total de grupos", <?= $satura_total_grupos; ?>, "#8E44AD"]
+                ["Total de personas", <?= $satura_total_grupos; ?>, "#8E44AD"]
               ]);
 
               var view = new google.visualization.DataView(data);
@@ -721,7 +743,7 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
                 <div class="item-con">
                   <div class="item-text">
                     <h3>Total</h3>
-                    <p>de asistencia en grupos</p>
+                    <p>de asistencia en personas</p>
                   </div>
                   <div class="item-num">
                     <span><?= $satura_asistencia_total; ?></span>
@@ -795,7 +817,7 @@ $nombreGrafica = "CONSOLIDADOS CONFRATERNIDAD CARCELARIA DE COLOMBIA";
                 <div class="item-con">
                   <div class="item-text">
                     <h3>Total</h3>
-                    <p>de grupos</p>
+                    <p>de personas</p>
                   </div>
                   <div class="item-num">
                     <span><?= $satura_total_grupos; ?></span>

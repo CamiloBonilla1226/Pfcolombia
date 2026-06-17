@@ -212,6 +212,21 @@ if ($num > 0) {
 }
 
 ?>
+<style>
+  /* Evita que números grandes se recorten en las tarjetas de resumen (resu-item) */
+  .resu-item .item-con {
+    overflow: visible;
+    min-width: 0;
+  }
+  .resu-item .item-num,
+  .resu-item .item-num span {
+    overflow: visible !important;
+    text-overflow: unset !important;
+    white-space: nowrap !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+</style>
 <div class="container">
   <form action="index.php" method="get" name="form1" class="form-horizontal">
     <input type="hidden" name="doc" value="grafica-consolidado-lpp" />
