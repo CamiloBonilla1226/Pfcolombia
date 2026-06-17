@@ -2721,8 +2721,8 @@ else if($idReporteActual == 0){
                             }
                             ?> value="4" class="form-control"  />
                         </div>
-                    </div> 
-                </div> 
+                    </div>
+                </div>
                 <!----------------COLUMNA DOS DE MAPEO--------------------------->
                 <?php if (($i+1)<$total_campos) {?>
                 <div class="col-sm-6">
@@ -2779,35 +2779,17 @@ else if($idReporteActual == 0){
                             }
                             ?> value="4" class="form-control"  />
                         </div>
-                    </div> 
-                </div> 
-            <?php } ?>
-                <div class="col-sm-12">
-                    <h5 class="alert alert-info text-center">IMAGEN DEL MAPEO</h5>
-                    <div class="form-group">
-                        <div class="col-sm-3">&nbsp;</div>
-                        <div class="col-sm-6"><img id="mapeoImgPreview" src="mapeo_img.php?id=0" class="img-responsive" /></div>
-                        <div class="col-sm-3">&nbsp;</div>
                     </div>
                 </div>
-                <script type="text/javascript">
-                    function actualizarMapeoPreview(){
-                        var campos = ["mapeo_comprometido","mapeo_oracion","mapeo_companerismo","mapeo_adoracion","mapeo_biblia","mapeo_evangelizar","mapeo_cena","mapeo_dar","mapeo_bautizar","mapeo_trabajadores"];
-                        var qs = "id=0";
-                        campos.forEach(function(campo){
-                            var val = $('[name="'+campo+'"]:checked').val();
-                            if (typeof val === "undefined") {
-                                val = $('[name="'+campo+'"]').val();
-                            }
-                            qs += "&" + campo + "=" + (val ? val : 0);
-                        });
-                        document.getElementById("mapeoImgPreview").src = "mapeo_img.php?" + qs + "&time=" + new Date().getTime();
-                    }
-                    $(document).ready(function(){
-                        actualizarMapeoPreview();
-                        $('[name^="mapeo_"]').on('change', actualizarMapeoPreview);
-                    });
-                </script>
+            <?php } else { ?>
+                <div class="col-sm-6">
+                    <h3>&nbsp;</h3>
+                    <h5 class="alert alert-info text-center">IMAGEN DEL MAPEO</h5>
+                    <div class="form-group">
+                        <div class="col-sm-12"><img id="mapeoImgPreview" src="mapeo_img.php?id=0" class="img-responsive" /></div>
+                    </div>
+                </div>
+            <?php } ?>
                 <!--<div class="cont-btn cont-flex fl-sbet">
                     <div class="item-btn">
                         <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
@@ -2818,6 +2800,24 @@ else if($idReporteActual == 0){
                 </div>
             </fieldset>-->
         <?php } ?>
+        <script type="text/javascript">
+            function actualizarMapeoPreview(){
+                var campos = ["mapeo_comprometido","mapeo_oracion","mapeo_companerismo","mapeo_adoracion","mapeo_biblia","mapeo_evangelizar","mapeo_cena","mapeo_dar","mapeo_bautizar","mapeo_trabajadores"];
+                var qs = "id=0";
+                campos.forEach(function(campo){
+                    var val = $('[name="'+campo+'"]:checked').val();
+                    if (typeof val === "undefined") {
+                        val = $('[name="'+campo+'"]').val();
+                    }
+                    qs += "&" + campo + "=" + (val ? val : 0);
+                });
+                document.getElementById("mapeoImgPreview").src = "mapeo_img.php?" + qs + "&time=" + new Date().getTime();
+            }
+            $(document).ready(function(){
+                actualizarMapeoPreview();
+                $('[name^="mapeo_"]').on('change', actualizarMapeoPreview);
+            });
+        </script>
         
         
         <!--<fieldset>-->
