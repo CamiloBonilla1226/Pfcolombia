@@ -78,63 +78,49 @@ if(!isset($_REQUEST["fechaFinal"]) || eliminarInvalidos($_REQUEST["fechaFinal"])
 
 if(isset($_REQUEST["idUsuario"]) && soloNumeros($_REQUEST["idUsuario"]) != ""){
     $buscar_idUsuario = soloNumeros($_REQUEST["idUsuario"]);
-    $sqlFiltro .= " AND sat_reportes.idUsuario = '".$buscar_idUsuario."'";
-}
-if ($_SESSION["id_zona"]!="" && $_SESSION["id_zona"]!=0) {
-    $sqlFiltro .= " AND C.idSec = '".$_SESSION["id_zona"]."'";
-    $_REQUEST["empresa_sitio_cor"] = $_SESSION["id_zona"];
-    $buscar_zona = $_SESSION["id_zona"];
-}
-
-if(isset($_REQUEST["empresa_sitio_cor"]) && soloNumeros($_REQUEST["empresa_sitio_cor"]) != ""){
-    $buscar_zona = soloNumeros($_REQUEST["empresa_sitio_cor"]);
-    $sqlFiltro .= " AND C.idSec = '".$buscar_zona."'";
+    $sqlFiltro .= " AND RC.usuario_id = '".$buscar_idUsuario."'";
 }
 
 if(isset($_REQUEST["empresa_pd"]) && soloNumeros($_REQUEST["empresa_pd"]) != ""){
     $buscar_regional = soloNumeros($_REQUEST["empresa_pd"]);
-    $sqlFiltro .= " AND UE.empresa_pd = '".$buscar_regional."'";
 }else if ($_SESSION["empresa_pd"]!="" && $_SESSION["empresa_pd"]!=0) {
     $buscar_regional = soloNumeros($_SESSION["empresa_pd"]);
-    $sqlFiltro .= " AND UE.empresa_pd = '".$_SESSION["empresa_pd"]."'";
-    $_REQUEST["empresa_pd"] = $_SESSION["empresa_pd"];
 }
 
 if(isset($_REQUEST["sitioReunion"]) && soloNumeros($_REQUEST["sitioReunion"]) != ""){
     $buscar_prision = soloNumeros($_REQUEST["sitioReunion"]);
-    $sqlFiltro .= " AND sat_reportes.sitioReunion = ".$buscar_prision."";
+    $sqlFiltro .= " AND RC.carcel_id = ".$buscar_prision."";
 }
 
 //
 if(isset($_REQUEST["rep_inex"]) && eliminarInvalidos($_REQUEST["rep_inex"]) != ""){
     $tipo = eliminarInvalidos($_REQUEST["rep_inex"]);
     if ($tipo == 2) {
-        $sqlFiltro .= " AND sat_reportes.sitioReunion = 0 ";
+        $sqlFiltro .= " AND RC.tipo = 'EXTRA' ";
     }else{
-        $sqlFiltro .= " AND sat_reportes.sitioReunion <> 0 ";
-    }    
+        $sqlFiltro .= " AND RC.tipo = 'INTRA' ";
+    }
 }else{
     $_REQUEST["rep_inex"] = "";
 }
 //
 if(isset($_REQUEST["fechaInicial"]) && eliminarInvalidos($_REQUEST["fechaInicial"]) != ""){
     $fechaInicial = eliminarInvalidos($_REQUEST["fechaInicial"]);
-    $sqlFiltro .= " AND sat_reportes.fechaReporte >= '".$fechaInicial."'";
+    $sqlFiltro .= " AND RC.fecha_reporte >= '".$fechaInicial."'";
 }
 //
 if(isset($_REQUEST["fechaFinal"]) && eliminarInvalidos($_REQUEST["fechaFinal"]) != ""){
     $fechaFinal = eliminarInvalidos($_REQUEST["fechaFinal"]);
-    $sqlFiltro .= " AND sat_reportes.fechaReporte <= '".$fechaFinal."'";
+    $sqlFiltro .= " AND RC.fecha_reporte <= '".$fechaFinal."'";
 }
 //
 if(isset($_REQUEST["empresa_paisid"]) && soloNumeros($_REQUEST["empresa_paisid"]) != ""){
     $empresa_paisid = soloNumeros($_REQUEST["empresa_paisid"]);
-    $sqlFiltro .= " AND usuario_empresa.empresa_paisid = '".$empresa_paisid."'";
+    $sqlFiltro .= " AND UE.empresa_paisid = '".$empresa_paisid."'";
 }
 
 
-$sqlFiltro .= " AND sat_reportes.generacionNumero != 0";
-$sqlFiltro .= " AND sat_reportes.rep_tip = 308";
+$sqlFiltro .= " AND RC.generacion != 0";
 
 /*
 *	PIE - Grafica de PIE mostrando cantidad de nuevos prospectos X comercial
@@ -144,29 +130,27 @@ $datos = array();
 //
 //
 $sql = "SELECT
-            COUNT(sat_reportes.idUsuario) as conteoUsuarios,
-            
-            SUM(CASE WHEN sat_reportes.generacionNumero > 0 THEN 1 ELSE 0 END) AS gruposConteo,
+            COUNT(RC.usuario_id) as conteoUsuarios,
 
-            SUM(sat_reportes.asistencia_total) as asistencia_total,
-            SUM(sat_reportes.asistencia_hom) as asistencia_hom,
-            SUM(sat_reportes.asistencia_muj) as asistencia_muj,
-            SUM(sat_reportes.asistencia_jov) as asistencia_jov,
-            SUM(sat_reportes.asistencia_nin) as asistencia_nin,
+            SUM(CASE WHEN RC.generacion > 0 THEN 1 ELSE 0 END) AS gruposConteo,
 
-            SUM(sat_reportes.bautizados) as bautizados,
-            SUM(sat_reportes.bautizadosPeriodo) as bautizadosPeriodo,
-            SUM(number_person_without_freedom) as familias_privadas,
-            SUM(number_person_post_penalties) as familias_pospenados ,
-            SUM(sat_reportes.discipulado) as discipulado,
-            SUM(sat_reportes.desiciones) as desiciones,
-            SUM(sat_reportes.preparandose) as preparandose,
-            SUM(sat_reportes.iglesias_reconocidas) as iglesias_reconocidas
+            SUM(RC.asistencia_total) as asistencia_total,
+            SUM(RC.asistencia_hombres) as asistencia_hom,
+            SUM(RC.asistencia_mujeres) as asistencia_muj,
+            SUM(RC.asistencia_jovenes) as asistencia_jov,
+            SUM(RC.asistencia_ninos) as asistencia_nin,
+
+            SUM(RC.miembros_bautizados) as bautizados,
+            SUM(RC.bautizados_periodo) as bautizadosPeriodo,
+            SUM(RC.familias_ppl) as familias_privadas,
+            SUM(RC.familias_pospenados) as familias_pospenados,
+            SUM(RC.en_discipulado) as discipulado,
+            SUM(RC.decisiones_cristo) as desiciones,
+            SUM(RC.preparandose_bautismo) as preparandose
             ";
-$sql.=" FROM sat_reportes ";
-//$sql .= " LEFT JOIN usuario ON usuario.id = sat_reportes.idUsuario";
-$sql .= " LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = sat_reportes.idUsuario
-LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = sat_reportes.sitioReunion 
+$sql.=" FROM reporte_cm AS RC ";
+$sql .= " LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = RC.usuario_id
+LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RC.carcel_id
 LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk
 LEFT JOIN categorias AS CA ON CA.id = C.idSec";
 //
@@ -201,28 +185,28 @@ $sqlFiltro = "";
 
 if(isset($_REQUEST["idUsuario"]) && soloNumeros($_REQUEST["idUsuario"]) != ""){
     $buscar_idUsuario = soloNumeros($_REQUEST["idUsuario"]);
-    $sqlFiltro .= " AND sat_reportes.idUsuario = '".$buscar_idUsuario."'";
+    $sqlFiltro .= " AND RC.usuario_id = '".$buscar_idUsuario."'";
 }
 
 //
 if(isset($_REQUEST["fechaInicial"]) && eliminarInvalidos($_REQUEST["fechaInicial"]) != ""){
     $fechaInicial = eliminarInvalidos($_REQUEST["fechaInicial"]);
-    $sqlFiltro .= " AND sat_reportes.fechaReporte >= '".$fechaInicial."'";
+    $sqlFiltro .= " AND RC.fecha_reporte >= '".$fechaInicial."'";
 }
 //
 if(isset($_REQUEST["fechaFinal"]) && eliminarInvalidos($_REQUEST["fechaFinal"]) != ""){
     $fechaFinal = eliminarInvalidos($_REQUEST["fechaFinal"]);
-    $sqlFiltro .= " AND sat_reportes.fechaReporte <= '".$fechaFinal."'";
+    $sqlFiltro .= " AND RC.fecha_reporte <= '".$fechaFinal."'";
 }
 
 
 /*
-$sql = "SELECT 
-            COUNT(sat_reportes.id) as conteo, 
-            SUM(sat_reportes.asistencia_total) as asistencia_total 
+$sql = "SELECT
+            COUNT(RC.id_cm) as conteo,
+            SUM(RC.asistencia_total) as asistencia_total
             ";
-$sql.=" FROM sat_reportes ";
-$sql.=" WHERE sat_reportes.generacionNumero = 0 ".$sqlFiltro."";
+$sql.=" FROM reporte_cm AS RC ";
+$sql.=" WHERE RC.generacion = 0 ".$sqlFiltro."";
 //
 $PSN->query($sql);
 $num=$PSN->num_rows();
@@ -291,68 +275,6 @@ if($varError != 1){
             <div class="hr"><hr></div>
         </div>
         <div class="form-group">
-            <div class="col-sm-2">
-                <strong>Zona:</strong>
-                <select name="empresa_sitio_cor" id="zona" class="form-control" onchange="this.form.submit()">
-                    <option value="" <?php if($empresa_pd == ""){?>
-                                selected="selected" <?php
-                            } ?>>Todas la zonas</option>
-                    <?php
-                    /*
-                    *   TRAEMOS LOS TIPOS DE CLIENTE/EMPRESA (15)
-                    */
-                    $sql = "SELECT * ";
-                    $sql.=" FROM categorias ";
-                    $sql.=" WHERE idSec = 85 ";
-                    if ($_SESSION["id_zona"]!="" && $_SESSION["id_zona"]!=0) {
-                        $sql.=" AND id = ".$_SESSION["id_zona"];
-                    }
-                    $sql .= " ORDER BY descripcion ASC ";
-
-                    $PSN3->query($sql);
-                    $numero=$PSN3->num_rows();
-                    if($numero > 0){
-                        while($PSN3->next_record()){
-                            ?><option value="<?=$PSN3->f('id'); ?>" <?php
-                            if($buscar_zona == $PSN3->f('id')){?>
-                                selected="selected" <?php
-                            }
-                            ?>><?=$PSN3->f('descripcion'); ?></option><?php
-                        }
-                    }?>
-                </select>
-            </div>
-            <div class="col-sm-2">
-                <strong>Regional:</strong>
-                <select  name="empresa_pd" id="regional" class="form-control" onchange="this.form.submit()">
-                    <?php echo($zona == "" && $_SESSION["perfil"]!=163 && $_SESSION["perfil"]!=162 )?'<option value="" selected >Todas la regionales</option>':"";
-                    $sql = "SELECT C.id, C.descripcion AS regional, CA.descripcion AS zona FROM categorias AS C";
-                    $sql.=" LEFT JOIN categorias AS CA ON CA.id = C.idSec
-                    WHERE CA.idSec = 85 ";
-                    if (!empty($buscar_zona)) {
-                        $sql.=" AND CA.id = ".$buscar_zona;
-                    }
-                    if ($_SESSION["perfil"]!=167) {
-                        if ($_SESSION["empresa_pd"]!="" && $_SESSION["empresa_pd"]!=0) {
-                            $sql.=" AND C.id = ".$_SESSION["empresa_pd"];
-                        }
-                    }
-                    
-                    $PSN2->query($sql); 
-                    echo $sql;
-                    $numero=$PSN2->num_rows();
-                    if($numero > 0){
-                        while($PSN2->next_record()){?>
-                            <option value="<?=$PSN2->f('id'); ?>" <?php
-                            if($buscar_regional == $PSN2->f('id')){
-                                ?>selected="selected"<?php
-                            }
-                            ?> ><?=$PSN2->f('regional'); ?></option><?php
-                        }
-                    }
-                    ?>
-                </select>                    
-            </div>
             <div class="col-sm-2">
                 <strong>Miembro de la regional:</strong><?php
             ?><select name="idUsuario" onchange="this.form.submit()" class="form-control">
