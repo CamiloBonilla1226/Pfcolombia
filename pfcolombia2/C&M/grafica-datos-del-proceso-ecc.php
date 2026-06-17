@@ -76,7 +76,7 @@ if(!isset($_REQUEST["fechaFinal"]) || eliminarInvalidos($_REQUEST["fechaFinal"])
 }
 
 
-if(isset($_REQUEST["idUsuario"]) && soloNumeros($_REQUEST["idUsuario"]) != ""){
+if(isset($_REQUEST["idUsuario"]) && soloNumeros($_REQUEST["idUsuario"]) > 0){
     $buscar_idUsuario = soloNumeros($_REQUEST["idUsuario"]);
     $sqlFiltro .= " AND RC.usuario_id = '".$buscar_idUsuario."'";
 }
@@ -87,7 +87,7 @@ if(isset($_REQUEST["empresa_pd"]) && soloNumeros($_REQUEST["empresa_pd"]) != "")
     $buscar_regional = soloNumeros($_SESSION["empresa_pd"]);
 }
 
-if(isset($_REQUEST["sitioReunion"]) && soloNumeros($_REQUEST["sitioReunion"]) != ""){
+if(isset($_REQUEST["sitioReunion"]) && soloNumeros($_REQUEST["sitioReunion"]) > 0){
     $buscar_prision = soloNumeros($_REQUEST["sitioReunion"]);
     $sqlFiltro .= " AND RC.carcel_id = ".$buscar_prision."";
 }
@@ -183,7 +183,7 @@ if($num > 0)
 $sqlFiltro = "";
 
 
-if(isset($_REQUEST["idUsuario"]) && soloNumeros($_REQUEST["idUsuario"]) != ""){
+if(isset($_REQUEST["idUsuario"]) && soloNumeros($_REQUEST["idUsuario"]) > 0){
     $buscar_idUsuario = soloNumeros($_REQUEST["idUsuario"]);
     $sqlFiltro .= " AND RC.usuario_id = '".$buscar_idUsuario."'";
 }
