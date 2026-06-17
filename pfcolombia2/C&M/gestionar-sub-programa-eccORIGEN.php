@@ -20,90 +20,6 @@ function compressImage($source, $destination, $quality) {
   imagejpeg($image, $destination, $quality);
 }
 
-function normalizarTextoAdjunto($valor){
-    return addslashes(eliminarInvalidos(trim((string)$valor)));
-}
-
-function construirMetaGraduado($nombre, $identificacion){
-    $payload = array(
-        'nombre' => $nombre,
-        'identificacion' => $identificacion
-    );
-
-    return 'GRADMETA:' . base64_encode(json_encode($payload));
-}
-
-function leerMetaGraduado($valor){
-    $respuesta = array(
-        'nombre' => '',
-        'identificacion' => '',
-        'legacy' => true
-    );
-
-    $valor = (string)$valor;
-    if (strpos($valor, 'GRADMETA:') !== 0) {
-        return $respuesta;
-    }
-
-    $json = base64_decode(substr($valor, 9));
-    $datos = json_decode($json, true);
-
-    if (!is_array($datos)) {
-        return $respuesta;
-    }
-
-    $respuesta['nombre'] = isset($datos['nombre']) ? $datos['nombre'] : '';
-    $respuesta['identificacion'] = isset($datos['identificacion']) ? $datos['identificacion'] : '';
-    $respuesta['legacy'] = false;
-
-    return $respuesta;
-}
-
-function esAdjuntoGraduado($adjunto){
-    $curso = isset($adjunto['adj_curso']) ? trim((string)$adjunto['adj_curso']) : '';
-    $nombre = isset($adjunto['adj_nom']) ? (string)$adjunto['adj_nom'] : '';
-
-    return $curso !== '' || strpos($nombre, 'GRADMETA:') === 0;
-}
-
-function obtenerValorLista($lista, $indice, $defecto = ''){
-    return isset($lista[$indice]) ? $lista[$indice] : $defecto;
-}
-
-function obtenerPrimerValorFormulario($valor, $defecto = ''){
-    if (is_array($valor)) {
-        return isset($valor[0]) ? $valor[0] : $defecto;
-    }
-
-    if ($valor === null || $valor === '') {
-        return $defecto;
-    }
-
-    return $valor;
-}
-
-function obtenerPrimerArchivoFormulario($archivo){
-    $respuesta = array(
-        'name' => '',
-        'tmp_name' => ''
-    );
-
-    if (!is_array($archivo)) {
-        return $respuesta;
-    }
-
-    if (isset($archivo['name']) && is_array($archivo['name'])) {
-        $respuesta['name'] = isset($archivo['name'][0]) ? $archivo['name'][0] : '';
-        $respuesta['tmp_name'] = isset($archivo['tmp_name'][0]) ? $archivo['tmp_name'][0] : '';
-        return $respuesta;
-    }
-
-    $respuesta['name'] = isset($archivo['name']) ? $archivo['name'] : '';
-    $respuesta['tmp_name'] = isset($archivo['tmp_name']) ? $archivo['tmp_name'] : '';
-
-    return $respuesta;
-}
-
 
 
 /*
@@ -123,7 +39,10 @@ if(isset($_REQUEST["generacion"]) && $_REQUEST["generacion"] != ""){
 if(isset($_REQUEST["id"]) && $_REQUEST["id"] != ""){
     $idReporteActual = soloNumeros($_REQUEST["id"]);
     if ($_SESSION["perfil"] == 162 || $_SESSION["perfil"] == 163) {
-        $sql = "UPDATE reporte_cm SET mapeo_fecha = '".date('Y-m-d')."' WHERE id_cm = '".$idReporteActual."'";
+        $sql = "UPDATE  sat_reportes SET 
+                    mapeo_fecha = '".date('Y-m-d')."'";
+    
+        $sql .= "WHERE id = '".$idReporteActual."'";
         $PSN1->query($sql);
     }  
 }else{
@@ -289,256 +208,262 @@ if(isset($_POST["funcion"])){
             
             
             /*
-            *   INSERTAR EN LAS NUEVAS TABLAS reporte_cm y reporte_graduado_cm
+            *	DEBEMOS INSERTAR LA INFORMACION DEL REPORTE SEGUN CORRESPONDA.
             */
-
-            // Pre-procesar datos del primer bautizo
-            $bautizo_fecha_ins = '';
-            $bautizo_cantidad_ins = $bautizadosPeriodo;
-            $bautizo_foto_ext_ins = '';
-            if ($bautizadosPeriodo > 0 && isset($_REQUEST['act_bau_fec']) && is_array($_REQUEST['act_bau_fec']) && count($_REQUEST['act_bau_fec']) > 0) {
-                $bautizo_fecha_ins = eliminarInvalidos($_REQUEST['act_bau_fec'][0]);
-            }
-            if (isset($_FILES['act_bau_img']['name']) && is_array($_FILES['act_bau_img']['name']) && !empty($_FILES['act_bau_img']['name'][0])) {
-                $bautizo_foto_ext_ins = extension_archivo($_FILES['act_bau_img']['name'][0]);
-            }
-
-            // Pre-procesar datos de graduados (datos comunes: fecha, curso, foto)
-            $graduacion_fecha_ins = '';
-            $graduacion_cantidad_ins = $graduadosPeriodo;
-            $graduacion_curso_id_ins = 0;
-            $graduacion_foto_ext_ins = '';
-            if ($graduadosPeriodo > 0) {
-                $graduacion_fecha_ins = eliminarInvalidos(obtenerPrimerValorFormulario(isset($_REQUEST['act_bau_fecG']) ? $_REQUEST['act_bau_fecG'] : '', ''));
-                $graduacion_curso_id_ins = soloNumeros(obtenerPrimerValorFormulario(isset($_REQUEST['act_bau_curG']) ? $_REQUEST['act_bau_curG'] : 0, 0));
-                $archivoGBase_ins = obtenerPrimerArchivoFormulario(isset($_FILES['act_bau_imgG']) ? $_FILES['act_bau_imgG'] : array());
-                if (!empty($archivoGBase_ins['name'])) {
-                    $graduacion_foto_ext_ins = extension_archivo($archivoGBase_ins['name']);
-                }
-            }
-
-            // Tipo INTRA o EXTRA
-            $tipo_ins = ($generacionActual == 'INTRA') ? 'INTRA' : (($generacionActual == 'EXTRA') ? 'EXTRA' : '');
-
-            // Departamento y municipio: para EXTRA vienen del formulario; para INTRA por ahora se guardan como 0
-            $departamento_id_ins = soloNumeros(isset($_REQUEST["departamento"]) ? $_REQUEST["departamento"] : 0);
-            $municipio_id_ins = $ciudad;
-            $direccion_ins = $direccion;
-
-            $sql = 'INSERT INTO reporte_cm (
-                usuario_id,
-                programa_id,
-                tipo,
-                inactivo,
-                entrenador,
-                siervo_facilitador,
-                fecha_reporte,
-                fecha_inicio_confraternidad,
-                carcel_id,
+            $sql = 'INSERT INTO sat_reportes (
+                idUsuario,
+                comentario,
+                plantador,
+                rep_entr,
+                fechaReporte,
+                fechaInicio,
+                sitioReunion,
+                grupoMadre_txt,
+                nombreGrupo_txt,
+                capacitacion_txt,
+                idGrupoMadre,
+                generacionNumero,
+                
                 pabellon,
-                departamento_id,
-                municipio_id,
                 direccion,
-                grupo_madre,
-                nombre_grupo_iglesia,
-                generacion,
-                asistencia_hombres,
-                asistencia_mujeres,
-                asistencia_jovenes,
-                asistencia_ninos,
+                ciudad,
+                
+                    asistencia_hom,
+                    asistencia_muj,
+                    asistencia_jov,
+                    asistencia_nin,
+
+                bautizados,
+                bautizadosPeriodo,
+                
+                graduados,
+                graduadosPeriodo,
+                
                 asistencia_total,
-                miembros_bautizados,
-                en_discipulado,
-                decisiones_cristo,
-                discipulos_lpp,
-                preparandose_bautismo,
-                bautizados_periodo,
-                graduados_periodo,
-                familias_ppl,
-                familias_pospenados,
-                bautizo_fecha,
-                bautizo_cantidad,
-                bautizo_foto_ext,
-                graduacion_fecha,
-                graduacion_cantidad,
-                graduacion_curso_id,
-                graduacion_foto_ext,
-                foto_confraternidad_ext,
-                testimonio_ext,
-                mapeo_fecha,
-                mapeo_comprometido,
-                mapeo_oracion,
-                mapeo_companerismo,
-                mapeo_adoracion,
-                mapeo_biblia,
-                mapeo_evangelizar,
-                mapeo_cena,
-                mapeo_dar,
-                mapeo_bautizar,
-                mapeo_trabajadores,
+                discipulado,
+                desiciones,
+                rep_ndis,
+                number_person_without_freedom,
+                number_person_post_penalties,
+                preparandose,
+                
+                creacionFecha,
+                creacionUsuario,
+                ext1,
+                ext2,
+                
+                    mapeo_fecha,
+                    mapeo_comprometido,
+
+                        mapeo_oracion,
+                        mapeo_companerismo,
+                        mapeo_adoracion,
+                        mapeo_biblia,
+                        mapeo_evangelizar,
+                        mapeo_cena,
+                        mapeo_dar,
+                        mapeo_bautizar,
+                        mapeo_trabajadores,                
+                
                 mapeo_anho,
                 mapeo_cuarto,
-                creacion_fecha,
-                creacion_usuario
+                ext3,
+                rep_tip
                 )';
-
-            $sql .= ' VALUES (
+            
+            $sql .= ' VALUES 
+                (
                 "'.$_SESSION["id"].'",
-                308,
-                "'.$tipo_ins.'",
-                0,
-                "'.$entrenador.'",
+                "'.$comentario.'", 
                 "'.$plantador.'",
-                "'.$fechaReporte.'",
-                "'.$fechaInicio.'",
-                '.$sitioReunion.',
-                "'.$pabellon.'",
-                '.$departamento_id_ins.',
-                '.$municipio_id_ins.',
-                "'.$direccion_ins.'",
-                "'.$grupoMadre_txt.'",
-                "'.$nombreGrupo_txt.'",
-                "'.$generacionNumero.'",
-                "'.$asistencia_hom.'",
-                "'.$asistencia_muj.'",
-                "'.$asistencia_jov.'",
-                "'.$asistencia_nin.'",
-                "'.$asistencia_total.'",
-                "'.$bautizados.'",
-                "'.$discipulado.'",
+                "'.$entrenador.'", 
+                "'.$fechaReporte.'", 
+                "'.$fechaInicio.'", 
+                '.$sitioReunion.', 
+                "'.$grupoMadre_txt.'", 
+                "'.$nombreGrupo_txt.'",                 
+                "'.$capacitacion_txt.'", 
+                "'.$idGrupoMadre.'", 
+                "'.$generacionNumero.'", 
+                
+                "'.$pabellon.'", 
+                "'.$direccion.'", 
+                '.$ciudad.', 
+                
+
+                    "'.$asistencia_hom.'", 
+                    "'.$asistencia_muj.'", 
+                    "'.$asistencia_jov.'", 
+                    "'.$asistencia_nin.'", 
+                    
+                "'.$bautizados.'", 
+                "'.$bautizadosPeriodo.'", 
+                
+                "'.$graduados.'", 
+                "'.$graduadosPeriodo.'", 
+                
+                
+                "'.$asistencia_total.'", 
+                "'.$discipulado.'", 
                 "'.$desiciones.'",
                 '.$rep_ndis.',
+                "'.$number_person_without_freedom.'", 
+                "'.$number_person_post_penalties.'", 
                 "'.$preparandose.'",
-                "'.$bautizadosPeriodo.'",
-                "'.$graduadosPeriodo.'",
-                "'.$number_person_without_freedom.'",
-                "'.$number_person_post_penalties.'",
-                "'.$bautizo_fecha_ins.'",
-                "'.$bautizo_cantidad_ins.'",
-                "'.$bautizo_foto_ext_ins.'",
-                "'.$graduacion_fecha_ins.'",
-                "'.$graduacion_cantidad_ins.'",
-                '.$graduacion_curso_id_ins.',
-                "'.$graduacion_foto_ext_ins.'",
+
+                NOW(), 
+                "'.$_SESSION["id"].'",
+
                 "'.$archivo1.'",
                 "'.$archivo2.'",
-                "'.$mapeo_fecha.'",
-                "'.$mapeo_comprometido.'",
-                "'.$mapeo_oracion.'",
-                "'.$mapeo_companerismo.'",
-                "'.$mapeo_adoracion.'",
-                "'.$mapeo_biblia.'",
-                "'.$mapeo_evangelizar.'",
-                "'.$mapeo_cena.'",
-                "'.$mapeo_dar.'",
-                "'.$mapeo_bautizar.'",
-                "'.$mapeo_trabajadores.'",
-                "'.$mapeo_anho.'",
-                "'.$mapeo_cuarto.'",
-                NOW(),
-                "'.$_SESSION["id"].'"
+                
+                    "'.$mapeo_fecha.'",
+                    "'.$mapeo_comprometido.'",
+
+                    "'.$mapeo_oracion.'",
+                    "'.$mapeo_companerismo.'",
+                    "'.$mapeo_adoracion.'",
+                    "'.$mapeo_biblia.'",
+                    "'.$mapeo_evangelizar.'",
+                    "'.$mapeo_cena.'",
+                    "'.$mapeo_dar.'",
+                    "'.$mapeo_bautizar.'",
+                    "'.$mapeo_trabajadores.'",
+                        
+                    "'.$mapeo_anho.'",
+                    "'.$mapeo_cuarto.'",                    
+                "'.$archivo3.'",
+                '.$rep_tip.'
+
                 )';
-
+            
+            //
+            //
+            //echo "Insertar sat_reportes: ".$sql;
             $ultimoQuery = $PSN1->query($sql);
-            $ultimoId = $PSN1->ultimoId();
-
-            // Subir fotos de bautizados (logica de archivos sin cambios)
-            if ($bautizadosPeriodo > 0) {
+            $ultimoId =  $PSN1->ultimoId();
+            //echo $bautizadosPeriodo."_____";
+            
+            
+            if ($bautizadosPeriodo>0) {
                 $act_bau_img = $_FILES["act_bau_img"];
                 $act_bau_fec = $_REQUEST['act_bau_fec'];
                 $act_bau_can = $_REQUEST['act_bau_can'];
 
-                for ($i=0; $i < sizeof($act_bau_fec); $i++) {
+                $sql = 'INSERT INTO tbl_adjuntos (
+                    adj_nom,
+                    adj_url,
+                    adj_fec,
+                    adj_can, 
+                    adj_rep_fk)';
+                $sql .= 'VALUES';
+                
+                for ($i=0; $i < sizeof($act_bau_fec); $i++) { 
                     $tp_arch = extension_archivo($act_bau_img['name'][$i]);
+                    $sql .= "('".$act_bau_img['name'][$i]."','archivos/evi_".$ultimoId."_".$i.".".$tp_arch."','".$act_bau_fec[$i]."',".$act_bau_can[$i].",".$ultimoId."),";
                     $extArchivo = $tp_arch;
                     if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
                         $rutaOr = $act_bau_img['tmp_name'][$i];
                         $rutaDe = "archivos/evi_".$ultimoId."_".$i.".".$tp_arch;
                         compressImage($rutaOr, $rutaDe, 80);
                     }else{
-                        if(move_uploaded_file($act_bau_img['tmp_name'][$i], "archivos/evi_".$ultimoId."_".$i.".".$tp_arch)){
-                        }
+                        if(move_uploaded_file($act_bau_img['tmp_name'][$i], "archivos/evi_".$i.".".$tp_arch)){
+                        }            
                     }
                 }
+                $sql = substr($sql, 0, -1);
+                //echo $sql;
+                $ultimoQuery = $PSN1->query($sql);
             }
-
-            // Insertar graduados en reporte_graduado_cm y subir foto compartida
-            if ($graduadosPeriodo > 0) {
-                $act_bau_imgG = isset($_FILES["act_bau_imgG"]) ? $_FILES["act_bau_imgG"] : array();
-                $act_grad_nomG = isset($_REQUEST['act_grad_nomG']) ? $_REQUEST['act_grad_nomG'] : array();
-                $act_grad_tarG = isset($_REQUEST['act_grad_tarG']) ? $_REQUEST['act_grad_tarG'] : array();
-                $archivoGraduadoBase = obtenerPrimerArchivoFormulario($act_bau_imgG);
-                $nombreArchivoGraduadoBase = isset($archivoGraduadoBase['name']) ? $archivoGraduadoBase['name'] : '';
-
-                if (!empty($nombreArchivoGraduadoBase)) {
-                    $tp_arch = extension_archivo($nombreArchivoGraduadoBase);
-                    $rutaFotoGraduadoBase = "archivos/evi_".$ultimoId."_g.".$tp_arch;
+            
+            
+            
+            
+            
+            // Aqui se crea carga adjuntos Graduados
+            
+            
+            if ($graduadosPeriodo>0) {
+                $act_bau_imgG = $_FILES["act_bau_imgG"];
+                $act_bau_fecG = $_REQUEST['act_bau_fecG'];
+                $act_bau_canG = $_REQUEST['act_bau_canG'];
+                $act_bau_curG = $_REQUEST['act_bau_curG'];
+    
+                $sql = 'INSERT INTO tbl_adjuntos (
+                    adj_nom,
+                    adj_url,
+                    adj_fec,
+                    adj_can,
+                    adj_curso,
+                    adj_rep_fk)';
+                $sql .= 'VALUES';
+                
+                for ($i=0; $i < sizeof($act_bau_fecG); $i++) { 
+                    $tp_arch = extension_archivo($act_bau_imgG['name'][$i]);
+                    $sql .= "('".$act_bau_imgG['name'][$i]."','archivos/evi_".$ultimoId."_".$i.".".$tp_arch."','".$act_bau_fecG[$i]."',".$act_bau_canG[$i].",".$act_bau_curG[$i].",".$ultimoId."),";
                     $extArchivo = $tp_arch;
                     if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
-                        compressImage($archivoGraduadoBase['tmp_name'], $rutaFotoGraduadoBase, 80);
+                        $rutaOr = $act_bau_imgG['tmp_name'][$i];
+                        $rutaDe = "archivos/evi_".$ultimoId."_".$i.".".$tp_arch;
+                        compressImage($rutaOr, $rutaDe, 80);
                     }else{
-                        move_uploaded_file($archivoGraduadoBase['tmp_name'], $rutaFotoGraduadoBase);
+                        if(move_uploaded_file($act_bau_imgG['tmp_name'][$i], "archivos/evi_".$i.".".$tp_arch)){
+                        }            
                     }
                 }
-
-                $totalGraduados = max(sizeof($act_grad_nomG), sizeof($act_grad_tarG));
-                $valoresGraduados = array();
-                for ($i=0; $i < $totalGraduados; $i++) {
-                    $nombreGraduado = normalizarTextoAdjunto(obtenerValorLista($act_grad_nomG, $i, ''));
-                    $identificacionGraduado = normalizarTextoAdjunto(obtenerValorLista($act_grad_tarG, $i, ''));
-                    if ($nombreGraduado == '' || $identificacionGraduado == '') {
-                        continue;
-                    }
-                    $valoresGraduados[] = "(".$ultimoId.",'".$nombreGraduado."','".$identificacionGraduado."')";
+                $sql = substr($sql, 0, -1);
+                //echo $sql;
+                $ultimoQuery = $PSN1->query($sql);
+            }
+            
+            
+            
+            
+            //      
+            //if($generacionNumero > 0){
+                // Compress Image
+                $extArchivo = $archivo1;
+                if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                    $rutaOrigen = $_FILES['000000']['tmp_name'];
+                    $rutaDestino = "archivos/evi_".$ultimoId."_1.".$archivo1;
+                    compressImage($rutaOrigen, $rutaDestino, 80);
+                }
+                else{
+                    if(move_uploaded_file($_FILES['archivo1']['tmp_name'], "archivos/evi_".$ultimoId."_1.".$archivo1))
+                    {
+                    }            
                 }
 
-                if (sizeof($valoresGraduados) > 0) {
-                    $PSN1->query('INSERT INTO reporte_graduado_cm (id_cm, nombre, identificacion) VALUES '.implode(',', $valoresGraduados));
+                $extArchivo = $archivo2;
+                if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                    $rutaOrigen = $_FILES['archivo2']['tmp_name'];
+                    $rutaDestino = "archivos/evi_".$ultimoId."_2.".$archivo2;
+                    compressImage($rutaOrigen, $rutaDestino, 80);
                 }
-            }
+                else{
+                    if(move_uploaded_file($_FILES['archivo2']['tmp_name'], "archivos/evi_".$ultimoId."_2.".$archivo2))
+                    {
+                    }            
+                }
 
-            // Subir archivos principales (confraternidad y testimonio)
-            $extArchivo = $archivo1;
-            if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
-                $rutaOrigen = $_FILES['archivo1']['tmp_name'];
-                $rutaDestino = "archivos/evi_".$ultimoId."_1.".$archivo1;
-                compressImage($rutaOrigen, $rutaDestino, 80);
-            }
-            else{
-                if(move_uploaded_file($_FILES['archivo1']['tmp_name'], "archivos/evi_".$ultimoId."_1.".$archivo1))
-                {
+                $extArchivo = $archivo3;
+                if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                    $rutaOrigen = $_FILES['archivo3']['tmp_name'];
+                    $rutaDestino = "archivos/evi_".$ultimoId."_3.".$archivo3;
+                    compressImage($rutaOrigen, $rutaDestino, 80);
                 }
-            }
-
-            $extArchivo = $archivo2;
-            if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
-                $rutaOrigen = $_FILES['archivo2']['tmp_name'];
-                $rutaDestino = "archivos/evi_".$ultimoId."_2.".$archivo2;
-                compressImage($rutaOrigen, $rutaDestino, 80);
-            }
-            else{
-                if(move_uploaded_file($_FILES['archivo2']['tmp_name'], "archivos/evi_".$ultimoId."_2.".$archivo2))
-                {
+                else{
+                    if(move_uploaded_file($_FILES['archivo3']['tmp_name'], "archivos/evi_".$ultimoId."_3.".$archivo3))
+                    {
+                    }            
                 }
-            }
-
-            $extArchivo = $archivo3;
-            if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
-                $rutaOrigen = $_FILES['archivo3']['tmp_name'];
-                $rutaDestino = "archivos/evi_".$ultimoId."_3.".$archivo3;
-                compressImage($rutaOrigen, $rutaDestino, 80);
-            }
-            else{
-                if(move_uploaded_file($_FILES['archivo3']['tmp_name'], "archivos/evi_".$ultimoId."_3.".$archivo3))
-                {
-                }
-            }
+            //}
+            //            
             $varExitoREP = 1;
         }
 	}//Fin del IF de insertar
     else if($_POST["funcion"] == "eliminar"){
-        $sql = 'DELETE FROM reporte_cm WHERE id_cm = "'.$idReporteActual.'"';
-        $PSN1->query("DELETE FROM reporte_graduado_cm WHERE id_cm = '".$idReporteActual."'");
+        $sql = 'DELETE from sat_reportes WHERE id = "'.$idReporteActual.'"';
         $PSN1->query($sql);
     }else if($_POST["funcion"] == "actualizar"){
        // die("Actualizar");
@@ -637,146 +562,162 @@ if(isset($_POST["funcion"])){
         $mapeo_bautizar = soloNumeros($_REQUEST["mapeo_bautizar"]);        
         $mapeo_trabajadores = soloNumeros($_REQUEST["mapeo_trabajadores"]);        
         
-        // Departamento y municipio para actualizar
-        $departamento_id_upd = soloNumeros(isset($_REQUEST["departamento"]) ? $_REQUEST["departamento"] : 0);
-        $municipio_id_upd = $ciudad;
+        //
+        $sql = 'UPDATE  sat_reportes SET 
+                    inactivo = '.$inactivo.', 
+                    comentario = "'.$comentario.'", 
+                    rep_entr = "'.$entrenador.'", 
+                    plantador = "'.$plantador.'", 
+                    fechaInicio = "'.$fechaInicio.'", 
+                    sitioReunion = '.$sitioReunion.', 
+                    grupoMadre_txt = "'.$grupoMadre_txt.'", 
+                    nombreGrupo_txt = "'.$nombreGrupo_txt.'",                     
+                    capacitacion_txt = "'.$capacitacion_txt.'", 
+                    generacionNumero = "'.$generacionNumero.'", 
 
-        $sql = 'UPDATE reporte_cm SET
-                    inactivo = '.$inactivo.',
-                    entrenador = "'.$entrenador.'",
-                    siervo_facilitador = "'.$plantador.'",
-                    fecha_inicio_confraternidad = "'.$fechaInicio.'",
-                    carcel_id = '.$sitioReunion.',
-                    departamento_id = '.$departamento_id_upd.',
-                    municipio_id = '.$municipio_id_upd.',
-                    direccion = "'.$direccion.'",
-                    grupo_madre = "'.$grupoMadre_txt.'",
-                    nombre_grupo_iglesia = "'.$nombreGrupo_txt.'",
-                    generacion = "'.$generacionNumero.'",
-                    pabellon = "'.$pabellon.'",
-                    asistencia_hombres = "'.$asistencia_hom.'",
-                    asistencia_mujeres = "'.$asistencia_muj.'",
-                    asistencia_jovenes = "'.$asistencia_jov.'",
-                    asistencia_ninos = "'.$asistencia_nin.'",
-                    miembros_bautizados = "'.$bautizados.'",
-                    bautizados_periodo = "'.$bautizadosPeriodo.'",
-                    graduados_periodo = "'.$graduadosPeriodo.'",
-                    asistencia_total = "'.$asistencia_total.'",
-                    en_discipulado = "'.$discipulado.'",
-                    decisiones_cristo = "'.$desiciones.'",
-                    discipulos_lpp = "'.$rep_ndis.'",
-                    familias_ppl = "'.$number_person_without_freedom.'",
-                    familias_pospenados = "'.$number_person_post_penalties.'",
-                    preparandose_bautismo = "'.$preparandose.'",
+                    pabellon = "'.$pabellon.'", 
+                    direccion = "'.$direccion.'", 
+                    ciudad = '.$ciudad.', 
+
+                        asistencia_hom = "'.$asistencia_hom.'", 
+                        asistencia_muj = "'.$asistencia_muj.'", 
+                        asistencia_jov = "'.$asistencia_jov.'", 
+                        asistencia_nin =  "'.$asistencia_nin.'", 
+
+                    bautizados =  "'.$bautizados.'", 
+                    bautizadosPeriodo = "'.$bautizadosPeriodo.'", 
+                    
+                    bautizados =  "'.$bautizados.'", 
+                    bautizadosPeriodo = "'.$bautizadosPeriodo.'", 
+                    
+                    graduados =  "'.$graduados.'", 
+                    graduadosPeriodo = "'.$graduadosPeriodo.'", 
+
+                    asistencia_total = "'.$asistencia_total.'", 
+                    discipulado = "'.$discipulado.'", 
+                    desiciones =  "'.$desiciones.'",
+                    rep_ndis =  "'.$rep_ndis.'",
+                    number_person_without_freedom = "'.$number_person_without_freedom.'",
+                    number_person_post_penalties = "'.$number_person_post_penalties.'",
+                    preparandose = "'.$preparandose.'",
+
+
                     mapeo_fecha = "'.$mapeo_fecha.'",
                     mapeo_comprometido = "'.$mapeo_comprometido.'",
-                    mapeo_oracion = "'.$mapeo_oracion.'",
-                    mapeo_companerismo = "'.$mapeo_companerismo.'",
-                    mapeo_adoracion = "'.$mapeo_adoracion.'",
-                    mapeo_biblia = "'.$mapeo_biblia.'",
-                    mapeo_evangelizar = "'.$mapeo_evangelizar.'",
-                    mapeo_cena = "'.$mapeo_cena.'",
-                    mapeo_dar = "'.$mapeo_dar.'",
-                    mapeo_bautizar = "'.$mapeo_bautizar.'",
-                    mapeo_trabajadores = "'.$mapeo_trabajadores.'",
+
+                        mapeo_oracion = "'.$mapeo_oracion.'",
+                        mapeo_companerismo = "'.$mapeo_companerismo.'",
+                        mapeo_adoracion = "'.$mapeo_adoracion.'",
+                        mapeo_biblia = "'.$mapeo_biblia.'",
+                        mapeo_evangelizar = "'.$mapeo_evangelizar.'",
+                        mapeo_cena = "'.$mapeo_cena.'",
+                        mapeo_dar = "'.$mapeo_dar.'",
+                        mapeo_bautizar = "'.$mapeo_bautizar.'",
+                        mapeo_trabajadores = "'.$mapeo_trabajadores.'",
+
                     mapeo_anho = "'.$mapeo_anho.'",
                     mapeo_cuarto = "'.$mapeo_cuarto.'"';
 
-        if($archivo1 != ""){
-            $sql .= ', foto_confraternidad_ext = "'.$archivo1.'"';
-        }
-        if($archivo2 != ""){
-            $sql .= ', testimonio_ext = "'.$archivo2.'"';
-        }
+    
+                if($archivo1 != ""){
+                    $sql .= ', ext1 = "'.$archivo1.'"';
+                }
 
-        $sql .= ', modificacion_fecha = NOW(), modificacion_usuario = "'.$_SESSION["id"].'" WHERE id_cm = "'.$idReporteActual.'"';
+        
+                if($archivo2 != ""){
+                    $sql .= ', ext2 = "'.$archivo2.'"';
+                }
+
+        
+                if($archivo3 != ""){
+                    $sql .= ', ext3 = "'.$archivo3.'"';
+                }
+
+
+        $sql .= '   ,modificacionFecha = NOW(),
+                    modificacionUsuario = "'.$_SESSION["id"].'"
+                WHERE id = "'.$idReporteActual.'"';
         $PSN1->query($sql);
         $numero_baut = 0;
         
-        // Actualizar columnas de bautizados en reporte_cm y subir/reemplazar fotos
-        $act_bau_img_upd = isset($_FILES["act_bau_img"]) ? $_FILES["act_bau_img"] : array();
-        $act_bau_imgAn_upd = isset($_REQUEST["act_bau_img_an"]) ? $_REQUEST["act_bau_img_an"] : array();
-        $act_bau_fec_upd = isset($_REQUEST['act_bau_fec']) ? $_REQUEST['act_bau_fec'] : array();
-        $act_bau_can_upd = isset($_REQUEST['act_bau_can']) ? $_REQUEST['act_bau_can'] : array();
+        if (isset($_REQUEST['act_bau_id'])) {
+            $act_bau_img = $_FILES["act_bau_img"];
+            $act_bau_imgAn = $_REQUEST["act_bau_img_an"];
+            $act_bau_fec = $_REQUEST['act_bau_fec'];
+            $act_bau_can = $_REQUEST['act_bau_can'];
+            $act_bau_id = $_REQUEST['act_bau_id'];
+            $numero_baut = sizeof($act_bau_id);
+            //echo "Si hay antiguos a modificar: ".sizeof($act_bau_id);
+            //var_dump($act_bau_id);
+            for ($i=0; $i < sizeof($act_bau_id); $i++) {
+                
+                $sqlA = "UPDATE  tbl_adjuntos SET ";
+                if (!empty($act_bau_img['name'][$i])) {
+                    $tp_arch = extension_archivo($act_bau_img['name'][$i]);
+                    $sqlA .= "adj_nom = '".$act_bau_img['name'][$i]."', adj_url = 'archivos/evi_".$idReporteActual."_".$i.".".$tp_arch."',";
+                    if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
+                        //echo "No elimina";
+                        $rutaOr = $act_bau_img['tmp_name'][$i];
+                        $rutaDe = "archivos/evi_".$idReporteActual."_".$i.".".$tp_arch;
 
-        $bautizo_fecha_upd = '';
-        $bautizo_foto_ext_upd = '';
-        if (count($act_bau_fec_upd) > 0) {
-            $bautizo_fecha_upd = eliminarInvalidos($act_bau_fec_upd[0]);
+                        compressImage($rutaOr, $rutaDe, 80);
+                    }else{
+                        //echo "Si elimina: ".$act_bau_imgAn[$i];
+                        unlink("./".$act_bau_imgAn[$i]);
+                        if(move_uploaded_file($act_bau_img['tmp_name'][$i], "archivos/evi_".$idReporteActual."_".$i.".".$tp_arch)){
+                        }            
+                    }
+                }
+                    $sqlA .= "adj_fec = '".$act_bau_fec[$i]."', 
+                    adj_can = ".$act_bau_can[$i].",
+                    adj_rep_fk = ".$idReporteActual."
+                    WHERE adj_id = ".$act_bau_id[$i]." ";
+                //echo $sqlA;
+                $PSN1->query($sqlA);
+            }
         }
-        if (!empty($act_bau_img_upd['name'][0])) {
-            $bautizo_foto_ext_upd = extension_archivo($act_bau_img_upd['name'][0]);
-        } elseif (!empty($act_bau_imgAn_upd[0])) {
-            $bautizo_foto_ext_upd = extension_archivo($act_bau_imgAn_upd[0]);
+        $act_bau_can = $_REQUEST['act_bau_can'];
+        $act_bau_fec = $_REQUEST['act_bau_fec'];
+        $totalReg= 0;
+        //var_dump($act_bau_can);
+        for ($i=0; $i < sizeof($act_bau_can); $i++) { 
+            if (!empty($act_bau_can[$i])&& !empty($act_bau_fec[$i])) {
+                $totalReg++;
+            }
         }
-
-        $PSN1->query("UPDATE reporte_cm SET bautizo_fecha = '".$bautizo_fecha_upd."', bautizo_cantidad = '".$bautizadosPeriodo."', bautizo_foto_ext = '".$bautizo_foto_ext_upd."' WHERE id_cm = '".$idReporteActual."'");
-
-        // Subir/reemplazar archivos de fotos de bautizados
-        for ($i=0; $i < sizeof($act_bau_fec_upd); $i++) {
-            if (!empty($act_bau_img_upd['name'][$i])) {
-                $tp_arch = extension_archivo($act_bau_img_upd['name'][$i]);
+        //echo $totalReg;
+        
+        
+        
+        $nuevos = $totalReg-$numero_baut;
+        //echo "Total de registros: ".$totalReg." nuevos: ".$nuevos;
+        if ($nuevos>0) {
+            //echo "Si hay nuevos a crear: ".$nuevos;
+            $act_bau_img = $_FILES["act_bau_img"];                
+            $sql = 'INSERT INTO tbl_adjuntos (
+                adj_nom,
+                adj_url,
+                adj_fec,
+                adj_can, 
+                adj_rep_fk)';
+            $sql .= 'VALUES';
+            for ($i=(sizeof($act_bau_fec)-$nuevos); $i < sizeof($act_bau_fec); $i++) { 
+                $tp_arch = extension_archivo($act_bau_img['name'][$i]);
+                $sql .= "('".$act_bau_img['name'][$i]."','archivos/evi_".$idReporteActual."_".$i.".".$tp_arch."','".$act_bau_fec[$i]."',".$act_bau_can[$i].",".$idReporteActual."),";
                 $extArchivo = $tp_arch;
                 if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
-                    $rutaOr = $act_bau_img_upd['tmp_name'][$i];
+                    $rutaOr = $act_bau_img['tmp_name'][$i];
                     $rutaDe = "archivos/evi_".$idReporteActual."_".$i.".".$tp_arch;
                     compressImage($rutaOr, $rutaDe, 80);
                 }else{
-                    if (!empty($act_bau_imgAn_upd[$i])) {
-                        unlink("./".$act_bau_imgAn_upd[$i]);
-                    }
-                    if(move_uploaded_file($act_bau_img_upd['tmp_name'][$i], "archivos/evi_".$idReporteActual."_".$i.".".$tp_arch)){
-                    }
+                    if(move_uploaded_file($act_bau_img['tmp_name'][$i], "archivos/evi_".$idReporteActual."_".$i.".".$tp_arch)){
+                    }            
                 }
             }
+            $sql = substr($sql, 0, -1);
+            //echo $sql;
+            $ultimoQuery = $PSN1->query($sql);
         }
-
-        // Eliminar graduados existentes y reinsertar en reporte_graduado_cm
-        $PSN1->query("DELETE FROM reporte_graduado_cm WHERE id_cm = '".$idReporteActual."'");
-
-        $act_bau_imgG_upd = isset($_FILES["act_bau_imgG"]) ? $_FILES["act_bau_imgG"] : array();
-        $act_bau_imgGAn_upd = isset($_REQUEST["act_bau_imgG_an"]) ? $_REQUEST["act_bau_imgG_an"] : '';
-        $act_grad_nomG_upd = isset($_REQUEST['act_grad_nomG']) ? $_REQUEST['act_grad_nomG'] : array();
-        $act_grad_tarG_upd = isset($_REQUEST['act_grad_tarG']) ? $_REQUEST['act_grad_tarG'] : array();
-        $fechaGraduadoBase_upd = eliminarInvalidos(obtenerPrimerValorFormulario(isset($_REQUEST['act_bau_fecG']) ? $_REQUEST['act_bau_fecG'] : '', ''));
-        $cursoGraduadoBase_upd = soloNumeros(obtenerPrimerValorFormulario(isset($_REQUEST['act_bau_curG']) ? $_REQUEST['act_bau_curG'] : 0, 0));
-        $rutaFotoGraduadoBase_upd = obtenerPrimerValorFormulario($act_bau_imgGAn_upd, '');
-        $archivoGraduadoBase_upd = obtenerPrimerArchivoFormulario($act_bau_imgG_upd);
-        $nombreArchivoGraduadoBase_upd = isset($archivoGraduadoBase_upd['name']) ? $archivoGraduadoBase_upd['name'] : '';
-
-        $graduacion_foto_ext_upd = !empty($nombreArchivoGraduadoBase_upd)
-            ? extension_archivo($nombreArchivoGraduadoBase_upd)
-            : extension_archivo($rutaFotoGraduadoBase_upd);
-
-        if (!empty($nombreArchivoGraduadoBase_upd)) {
-            $tp_arch = extension_archivo($nombreArchivoGraduadoBase_upd);
-            $rutaFotoGraduadoBase_upd = "archivos/evi_".$idReporteActual."_g.".$tp_arch;
-            $extArchivo = $tp_arch;
-
-            if($extArchivo == "png" || $extArchivo == "jpg" || $extArchivo == "jpeg" || $extArchivo == "gif"){
-                compressImage($archivoGraduadoBase_upd['tmp_name'], $rutaFotoGraduadoBase_upd, 80);
-            }else{
-                move_uploaded_file($archivoGraduadoBase_upd['tmp_name'], $rutaFotoGraduadoBase_upd);
-            }
-        }
-
-        $totalGraduadosReg_upd = max(sizeof($act_grad_nomG_upd), sizeof($act_grad_tarG_upd));
-        $valoresGraduados_upd = array();
-        for ($i=0; $i < $totalGraduadosReg_upd; $i++) {
-            $nombreGraduado_upd = normalizarTextoAdjunto(obtenerValorLista($act_grad_nomG_upd, $i, ''));
-            $identificacionGraduado_upd = normalizarTextoAdjunto(obtenerValorLista($act_grad_tarG_upd, $i, ''));
-            if ($nombreGraduado_upd == '' || $identificacionGraduado_upd == '') {
-                continue;
-            }
-            $valoresGraduados_upd[] = "(".$idReporteActual.",'".$nombreGraduado_upd."','".$identificacionGraduado_upd."')";
-        }
-
-        if (sizeof($valoresGraduados_upd) > 0) {
-            $PSN1->query('INSERT INTO reporte_graduado_cm (id_cm, nombre, identificacion) VALUES '.implode(',', $valoresGraduados_upd));
-        }
-
-        // Actualizar columnas de graduados en reporte_cm
-        $PSN1->query("UPDATE reporte_cm SET graduacion_fecha = '".$fechaGraduadoBase_upd."', graduacion_cantidad = '".$graduadosPeriodo."', graduacion_curso_id = ".$cursoGraduadoBase_upd.", graduacion_foto_ext = '".$graduacion_foto_ext_upd."' WHERE id_cm = '".$idReporteActual."'");
         
         
         
@@ -854,18 +795,20 @@ switch($error_datos){
 
 if($idReporteActual > 0){
     /*
-    *   TRAEMOS LOS DATOS PRINCIPALES DEL REPORTE DESDE reporte_cm
+    *	TRAEMOS LOS DATOS PRINCIPALES DEL USUARIO
     */
-    $sql = "SELECT CA.descripcion AS zona, C.descripcion AS regional, U.nombre AS coordinador, U.id AS id_coordinador, RC.* FROM reporte_cm RC";
-    $sql.=" LEFT JOIN dane_municipios AS M ON RC.municipio_id = M.id_municipio";
-    $sql.=" LEFT JOIN dane_departamentos AS D ON M.departamento_id = D.id_departamento";
-    $sql.=" LEFT JOIN usuario AS U ON U.id = RC.usuario_id";
-    $sql.=" LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id";
-    $sql.=" LEFT JOIN categorias AS C ON C.id = UE.empresa_pd";
-    $sql.=" LEFT JOIN categorias AS CA ON CA.id = C.idSec";
-    $sql.=" WHERE RC.id_cm = '".$idReporteActual."'";
-    $sql.=" GROUP BY RC.id_cm";
+    $sql = "SELECT CA.descripcion AS zona,C.descripcion AS regional, U.nombre AS coordinador, U.id as id_coordinador, sat_reportes.*, sat_grupos.nombre, D.id_departamento,M.id_municipio FROM sat_reportes"; 
+    $sql.=" LEFT JOIN sat_grupos ON sat_grupos.id = sat_reportes.idGrupoMadre 
+LEFT JOIN dane_municipios AS M ON sat_reportes.ciudad = M.id_municipio 
+LEFT JOIN dane_departamentos AS D ON M.departamento_id = D.id_departamento 
+LEFT JOIN usuario AS U ON U.id = sat_reportes.idUsuario
+LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
+LEFT JOIN categorias AS C ON C.id = UE.empresa_pd
+LEFT JOIN categorias AS CA ON CA.id = C.idSec";
+    $sql.=" WHERE sat_reportes.id = '".$idReporteActual."'";
+    $sql.=" GROUP BY sat_reportes.id";
     $PSN1->query($sql);
+    //echo $sql;
     if($PSN1->num_rows() > 0)
     {
         if($PSN1->next_record())
@@ -873,70 +816,71 @@ if($idReporteActual > 0){
             $zona = $PSN1->f("zona");
             $regional = $PSN1->f("regional");
             $inactivo = $PSN1->f("inactivo");
-            $comentario = '';
-            $plantador = $PSN1->f("siervo_facilitador");
-            $entrenador = $PSN1->f("entrenador");
+            $comentario = $PSN1->f("comentario");
+            $plantador = $PSN1->f("plantador");
+            $entrenador = $PSN1->f("rep_entr");
             $coordinador = $PSN1->f("coordinador");
             $id_coordinador = $PSN1->f("id_coordinador");
-            $fechaReporte = $PSN1->f("fecha_reporte");
-            $fechaInicio = $PSN1->f("fecha_inicio_confraternidad");
-            $sitioReunion = $PSN1->f("carcel_id");
-            $grupoMadre_txt = $PSN1->f("grupo_madre");
-            $nombreGrupo_txt = $PSN1->f("nombre_grupo_iglesia");
-            $capacitacion_txt = '';
+            $fechaReporte = $PSN1->f("fechaReporte");
+            $fechaInicio = $PSN1->f("fechaInicio");        
+            $sitioReunion = $PSN1->f("sitioReunion");
+            $grupoMadre_txt = $PSN1->f("grupoMadre_txt");
+            $nombreGrupo_txt = $PSN1->f("nombreGrupo_txt");
+            
+            $capacitacion_txt = $PSN1->f("capacitacion_txt");
 
             $pabellon = $PSN1->f("pabellon");
             $direccion = $PSN1->f("direccion");
-            $municipio = $PSN1->f("municipio_id");
-            $departamento = $PSN1->f("departamento_id");
-            $_SESSION['muni'] = $PSN1->f("municipio_id");
+            $municipio = $PSN1->f("ciudad");
+            $departamento = $PSN1->f("id_departamento");
+            $_SESSION['muni'] = $PSN1->f("ciudad");
+            
+            $ext1 = $PSN1->f("ext1");
+            $ext2 = $PSN1->f("ext2");
+            $ext3 = $PSN1->f("ext3");
+            
+            $idGrupoMadre = $PSN1->f("idGrupoMadre");
+            $generacionNumero = $PSN1->f("generacionNumero");
 
-            $ext1 = $PSN1->f("foto_confraternidad_ext");
-            $ext2 = $PSN1->f("testimonio_ext");
-            $ext3 = '';
+            $asistencia_hom = $PSN1->f("asistencia_hom");
+            $asistencia_muj = $PSN1->f("asistencia_muj");
+            $asistencia_jov = $PSN1->f("asistencia_jov");
+            $asistencia_nin = $PSN1->f("asistencia_nin");
 
-            $idGrupoMadre = 0;
-            $generacionNumero = $PSN1->f("generacion");
+            $bautizados = $PSN1->f("bautizados");
+            $bautizadosPeriodo = $PSN1->f("bautizadosPeriodo");
+            
+            $graduados = $PSN1->f("graduados");
+            $graduadosPeriodo = $PSN1->f("graduadosPeriodo");
+            
 
-            $asistencia_hom = $PSN1->f("asistencia_hombres");
-            $asistencia_muj = $PSN1->f("asistencia_mujeres");
-            $asistencia_jov = $PSN1->f("asistencia_jovenes");
-            $asistencia_nin = $PSN1->f("asistencia_ninos");
-
-            $bautizados = $PSN1->f("miembros_bautizados");
-            $bautizadosPeriodo = $PSN1->f("bautizados_periodo");
-
-            $graduados = $PSN1->f("graduados_periodo");
-            $graduadosPeriodo = $PSN1->f("graduados_periodo");
-
-            $asistencia_total = $PSN1->f("asistencia_total");
-            $discipulado = $PSN1->f("en_discipulado");
-            $desiciones = $PSN1->f("decisiones_cristo");
-            $rep_ndis = $PSN1->f("discipulos_lpp");
-            $number_person_without_freedom = $PSN1->f("familias_ppl");
-            $number_person_post_penalties = $PSN1->f("familias_pospenados");
-            $preparandose = $PSN1->f("preparandose_bautismo");
-            $iglesias_reconocidas = 0;
-
-            $mapeo_fecha = $PSN1->f("mapeo_fecha");
-            $mapeo_comprometido = $PSN1->f("mapeo_comprometido");
-            $mapeo_oracion = $PSN1->f("mapeo_oracion");
-            $mapeo_companerismo = $PSN1->f("mapeo_companerismo");
-            $mapeo_adoracion = $PSN1->f("mapeo_adoracion");
-            $mapeo_biblia = $PSN1->f("mapeo_biblia");
-            $mapeo_evangelizar = $PSN1->f("mapeo_evangelizar");
-            $mapeo_cena = $PSN1->f("mapeo_cena");
-            $mapeo_dar = $PSN1->f("mapeo_dar");
-            $mapeo_bautizar = $PSN1->f("mapeo_bautizar");
-            $mapeo_trabajadores = $PSN1->f("mapeo_trabajadores");
-
-            // Datos de bautizados y graduados almacenados como columnas
-            $sum_baut = $PSN1->f("bautizo_cantidad");
-            $bautizo_fecha_rc = $PSN1->f("bautizo_fecha");
-            $bautizo_foto_ext_rc = $PSN1->f("bautizo_foto_ext");
-            $graduacion_fecha_rc = $PSN1->f("graduacion_fecha");
-            $graduacion_foto_ext_rc = $PSN1->f("graduacion_foto_ext");
-            $graduacion_curso_id_rc = $PSN1->f("graduacion_curso_id");
+            //Calculados:
+            $asistencia_total  = $PSN1->f("asistencia_total");
+            $discipulado  = $PSN1->f("discipulado");
+            $desiciones  = $PSN1->f("desiciones");
+            $rep_ndis  = $PSN1->f("rep_ndis");
+            $number_person_without_freedom = $PSN1->f("number_person_without_freedom");
+            $number_person_post_penalties = $PSN1->f("number_person_post_penalties");
+            
+            $preparandose  = $PSN1->f("preparandose");
+            $iglesias_reconocidas = $PSN1->f("iglesias_reconocidas");  
+            
+            
+            $mapeo_fecha = $PSN1->f("mapeo_fecha");  
+            $mapeo_comprometido = $PSN1->f("mapeo_comprometido");  
+            
+            $mapeo_oracion = $PSN1->f("mapeo_oracion");  
+            $mapeo_companerismo = $PSN1->f("mapeo_companerismo");  
+            $mapeo_adoracion = $PSN1->f("mapeo_adoracion");  
+            $mapeo_biblia = $PSN1->f("mapeo_biblia");  
+            $mapeo_evangelizar = $PSN1->f("mapeo_evangelizar");  
+            $mapeo_cena = $PSN1->f("mapeo_cena");  
+            $mapeo_dar = $PSN1->f("mapeo_dar");  
+            $mapeo_bautizar = $PSN1->f("mapeo_bautizar");  
+            $mapeo_trabajadores = $PSN1->f("mapeo_trabajadores");  
+            
+            
+            //
         }//chequear el registro
     }else{
         ?><div class="row">
@@ -948,36 +892,13 @@ if($idReporteActual > 0){
         <?php
         exit;
     }
-
-    // Construir array de bautizados (una entrada desde las columnas de reporte_cm)
-    $bautismosAdjuntos = array();
-    if (!empty($bautizo_fecha_rc) || $bautizadosPeriodo > 0) {
-        $bautismosAdjuntos[] = array(
-            'adj_id' => null,
-            'adj_nom' => '',
-            'adj_url' => 'archivos/evi_'.$idReporteActual.'_0.'.$bautizo_foto_ext_rc,
-            'adj_fec' => $bautizo_fecha_rc,
-            'adj_can' => $bautizadosPeriodo,
-            'adj_curso' => null
-        );
-    }
-
-    // Construir array de graduados desde reporte_graduado_cm
-    $graduadosAdjuntos = array();
-    if ((int)$idReporteActual > 0) {
-        $sqlAdj = "SELECT id_graduado_cm, nombre, identificacion FROM reporte_graduado_cm WHERE id_cm = '".$idReporteActual."' ORDER BY id_graduado_cm ASC";
-        $PSN1->query($sqlAdj);
-        while ($PSN1->next_record()) {
-            $graduadosAdjuntos[] = array(
-                'adj_id' => $PSN1->f("id_graduado_cm"),
-                'adj_nom' => construirMetaGraduado($PSN1->f("nombre"), $PSN1->f("identificacion")),
-                'adj_url' => 'archivos/evi_'.$idReporteActual.'_g.'.$graduacion_foto_ext_rc,
-                'adj_fec' => $graduacion_fecha_rc,
-                'adj_can' => 1,
-                'adj_curso' => $graduacion_curso_id_rc,
-                'nombre_graduado' => $PSN1->f("nombre"),
-                'identificacion_graduado' => $PSN1->f("identificacion")
-            );
+    $sql = "SELECT SUM(adj_can) as suma";
+    $sql.=" FROM tbl_adjuntos ";
+    $sql.=" WHERE adj_rep_fk = '".$idReporteActual."'";
+    $PSN1->query($sql);
+    if($PSN1->num_rows() > 0){
+        if($PSN1->next_record()){
+            $sum_baut = $PSN1->f("suma");
         }
     }
     
@@ -988,41 +909,41 @@ if($idReporteActual > 0){
                 echo "REPORTE";
             }else{
                 echo "VISUALIZACIÓN";
-                $sqlU = "SELECT RL.id_cm AS id FROM reporte_cm AS RL
-                LEFT JOIN usuario AS U ON U.id = RL.usuario_id
+                $sqlU = "SELECT SR.id FROM sat_reportes AS SR
+                LEFT JOIN usuario AS U ON U.id = SR.idUsuario
                 LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
                 LEFT JOIN categorias AS C ON C.id = UE.empresa_pd
-                WHERE RL.id_cm = (SELECT MAX(STR.id_cm) FROM reporte_cm AS STR WHERE STR.id_cm < ".$idReporteActual.") ";
+                WHERE SR.id = (SELECT MAX(STR.id)FROM sat_reportes AS STR WHERE STR.id < ".$idReporteActual.") ";
                     if ($_SESSION["empresa_pd"]!="" && $_SESSION["empresa_pd"]!=0) {
                         $sqlU .= "AND UE.empresa_pd = ".$_SESSION["empresa_pd"]." ";
                     }
-                    $sqlU .= "AND RL.programa_id = 308";
+                    $sqlU .= "AND SR.rep_tip = 308";
                 $PSN1->query($sqlU);
-                //echo $sqlU;
+                //echo $sqlU; 
                 if($PSN1->num_rows() > 0){
                     if($PSN1->next_record()){
                     $antId  = $PSN1->f('id');
                     }
                 }else{
-                   $antId  = 0;
+                   $antId  = 0; 
                 }
-                $sqlU = "SELECT RL.id_cm AS id FROM reporte_cm AS RL
-                LEFT JOIN usuario AS U ON U.id = RL.usuario_id
+                $sqlU = "SELECT SR.id FROM sat_reportes AS SR
+                LEFT JOIN usuario AS U ON U.id = SR.idUsuario
                 LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = U.id
                 LEFT JOIN categorias AS C ON C.id = UE.empresa_pd
-                WHERE RL.id_cm = (SELECT MIN(STR.id_cm) FROM reporte_cm AS STR WHERE STR.id_cm > ".$idReporteActual.") ";
+                WHERE SR.id = (SELECT MIN(STR.id)FROM sat_reportes AS STR WHERE STR.id > ".$idReporteActual.") ";
                     if ($_SESSION["empresa_pd"]!="" && $_SESSION["empresa_pd"]!=0) {
                         $sqlU .= "AND UE.empresa_pd = ".$_SESSION["empresa_pd"]." ";
                     }
-                    $sqlU .= "AND RL.programa_id = 308";
+                    $sqlU .= "AND SR.rep_tip = 308";
                 $PSN1->query($sqlU);
-                //echo $sqlU;
+                //echo  $sqlU;
                 if($PSN1->num_rows() > 0){
                     if($PSN1->next_record()){
                     $sigId  = $PSN1->f('id');
                     }
                 }else{
-                   $sigId  = 0;
+                   $sigId  = 0; 
                 }              
             }
             
@@ -1305,7 +1226,6 @@ if($idReporteActual > 0){
             <input name="final_desiciones" type="hidden" id="final_desiciones" value="<?=$desiciones; ?>" class="form-control" readonly />
             <input name="final_preparandose" type="hidden" id="final_preparandose" value="<?=$preparandose; ?>" class="form-control" readonly />
             <input name="final_bautizadosPeriodo" type="hidden" id="final_bautizadosPeriodo" value="<?=$bautizadosPeriodo; ?>" class="form-control" readonly />
-            <input name="final_graduados" type="hidden" id="final_graduados" value="<?=$graduados; ?>" class="form-control" readonly />
             
              <input name="final_graduadosPeriodo" type="hidden" id="final_graduadosPeriodo" value="<?=$graduadosPeriodo; ?>" class="form-control" readonly />
 
@@ -1643,35 +1563,39 @@ if($idReporteActual > 0){
                     
                     
                 <?php 
-                $numero = sizeof($bautismosAdjuntos);
+                $sql = "SELECT * ";
+                $sql.=" FROM tbl_adjuntos ";
+                $sql.=" WHERE adj_rep_fk = '".$idReporteActual."'";
+                $PSN1->query($sql);
+                $numero=$PSN1->num_rows();
                 if($numero > 0){
-                    foreach($bautismosAdjuntos as $adjuntoBautismo){ ?>
+                    while($PSN1->next_record()){ ?>
                         <div class="cont-item col-sm-3">
                             <div class="form-group">
                                 <div class="col-sm-12">
-                                    <input type="hidden" name="act_bau_id[]" value="<?= $adjuntoBautismo["adj_id"];  ?>" placeholder="">
+                                    <input type="hidden" name="act_bau_id[]" value="<?= $PSN1->f("adj_id");  ?>" placeholder="">
                                     <strong style="font-size: 18px;display: block;margin-top: 10px;">Foto:</strong>
                                     <?php
-                                    if(empty($adjuntoBautismo["adj_url"])){
+                                    if(empty($PSN1->f("adj_url"))){
                                         echo "<div class='alert alert-danger' >Sin foto cargada</div>";
                                     }else{?>
-                                        <a href="<?=$adjuntoBautismo["adj_url"]; ?>" target="_blank"><img src="<?=$adjuntoBautismo["adj_url"]; ?>" width="100%" /></a>
+                                        <a href="<?=$PSN1->f("adj_url"); ?>" target="_blank"><img src="<?=$PSN1->f("adj_url"); ?>" width="100%" /></a>
                                     <?php } ?>
                                 </div>
                             </div>
                             <div class="form-group">
                                 <div class="col-sm-12">
                                     <strong>Cargar foto:</strong>
-                                    <input multiple name="act_bau_img[]" type="file" id="act_bau_img[]" class="form-control" value="<?=$adjuntoBautismo["adj_url"]; ?>" />
-                                    <input type="hidden" name="act_bau_img_an[]" value="<?=$adjuntoBautismo["adj_url"]; ?>" placeholder="">
+                                    <input multiple name="act_bau_img[]" type="file" id="act_bau_img[]" class="form-control" value="<?=$PSN1->f("adj_url"); ?>" />
+                                    <input type="hidden" name="act_bau_img_an[]" value="<?=$PSN1->f("adj_url"); ?>" placeholder="">
                                 </div>
                                 <div class="col-sm-7">
                                     <strong>Fecha:</strong>
-                                    <input name="act_bau_fec[]" type="date" id="act_bau_fec" class="act_bau_fec form-control" value="<?=$adjuntoBautismo["adj_fec"]; ?>" />
+                                    <input name="act_bau_fec[]" type="date" id="act_bau_fec" class="act_bau_fec form-control" value="<?=$PSN1->f("adj_fec"); ?>" />
                                 </div>
                                 <div class="col-sm-5">
                                     <strong>Cantidad:</strong>
-                                    <input name="act_bau_can[]" type="number" id="act_bau_can" min="0" class="act_bau_can subtotal form-control" value="<?php echo $adjuntoBautismo["adj_can"]; ?>" />
+                                    <input name="act_bau_can[]" type="number" id="act_bau_can" min="0" class="act_bau_can subtotal form-control" value="<?php echo $PSN1->f("adj_can"); ?>" />
                                 </div>
                             </div>
                         </div>
@@ -1722,289 +1646,6 @@ if($idReporteActual > 0){
              <?php } ?>
             </div>
 
-            <?php } ?>
-            <?php if ($generacionNumero != 0 && $generacionNumero != 77 && $generacionNumero != 8 ) {?>
-            <div class="cont-tit">
-                <div class="hr"><hr></div>
-                <div class="tit-cen">
-                    <h3 class="text-center">REGISTRO DE GRADUADOS</h3>
-                    <p>A continuacion por favor ingrese los datos requeridos</p>
-                </div>
-                <div class="hr"><hr></div>
-            </div>
-            <?php
-                $opcionesCursosGraduado = '';
-                $sql = "SELECT * FROM categorias AS C WHERE C.idSec = 88 ORDER BY C.descripcion ASC";
-                $PSN1->query($sql);
-                while($PSN1->next_record()){
-                    $opcionesCursosGraduado .= '<option value="'.$PSN1->f('id').'">'.$PSN1->f('descripcion').'</option>';
-                }
-
-                $graduadosEdicion = array();
-                $graduadoComunEdicion = array(
-                    'foto' => '',
-                    'fecha' => '',
-                    'curso' => ''
-                );
-                foreach ($graduadosAdjuntos as $adjuntoGraduado) {
-                    if ($graduadoComunEdicion['foto'] == '' && $graduadoComunEdicion['fecha'] == '' && $graduadoComunEdicion['curso'] == '') {
-                        $graduadoComunEdicion['foto'] = $adjuntoGraduado['adj_url'];
-                        $graduadoComunEdicion['fecha'] = $adjuntoGraduado['adj_fec'];
-                        $graduadoComunEdicion['curso'] = $adjuntoGraduado['adj_curso'];
-                    }
-
-                    $graduadosEdicion[] = array(
-                        'nombre' => $adjuntoGraduado['nombre_graduado'],
-                        'identificacion' => $adjuntoGraduado['identificacion_graduado']
-                    );
-                }
-            ?>
-            <div class="form-group">
-                <div class="col-sm-12">
-                    <div class="col-sm-12">
-                        <table id="tablaAddGEdit" class="table table-bordered registro-table">
-                            <tbody class="graduado-item fila-fijaAddGEdit">
-                                <tr>
-                                    <td style="width:45%;"><strong>Nombre completo del graduado:</strong><input name="act_grad_nomG[]" type="text" class="act_grad_nomG form-control" /></td>
-                                    <td style="width:45%;"><strong>Tarjeta dactilar / N&deg; identificacion:</strong><input name="act_grad_tarG[]" type="text" class="act_grad_tarG form-control" /></td>
-                                    <td class="registro-col--action text-center" style="width:10%; vertical-align:middle;"><button type="button" class="btn btn-danger btn-eliminar-fila-g" title="Eliminar" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>><i class="fa fa-times"></i></button></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="col-sm-12" style="margin-bottom: 15px;">
-                        <div class="col-sm-4">
-                            <label for="cantidadAddGEdit"><strong>Cuantos registros desea realizar?</strong></label>
-                        </div>
-                        <div class="col-sm-3">
-                            <input type="number" id="cantidadAddGEdit" class="form-control" min="1" placeholder="Ej: 5" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
-                        </div>
-                        <div class="col-sm-3">
-                            <button id="generarVariasAddGEdit" class="btn btn-primary btn-block" type="button" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
-                                <i class="fa fa-list"></i> Generar
-                            </button>
-                        </div>
-                        <div class="col-sm-2"></div>
-                    </div>
-                    <div class="col-sm-12" style="margin-bottom: 18px;">
-                        <div class="col-sm-6">
-                            <strong>Numero de graduados en C&amp;M:</strong>
-                        </div>
-                        <div class="col-sm-2">
-                            <input type="text" name="totalG" id="totalG" class="form-control" value="<?= intval($graduadosPeriodo); ?>" readonly>
-                        </div>
-                        <div class="col-sm-2">
-                            <button id="adicionarAddGEdit" class="btn btn-success btn-block" type="button" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
-                                <i class="fa fa-plus"></i> Adicionar
-                            </button>
-                        </div>
-                        <div class="col-sm-2">
-                            <button id="borrarTodoAddGEdit" class="btn btn-danger btn-block" type="button" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
-                                <i class="fa fa-trash"></i> Borrar todo
-                            </button>
-                        </div>
-                    </div>
-                    <div class="col-sm-12">
-                        <table id="tablaComunGEdit" class="table table-bordered registro-table">
-                            <tbody>
-                                <tr>
-                                    <td style="width:34%;">
-                                        <strong>Foto:</strong>
-                                        <?php if (!empty($graduadoComunEdicion['foto'])) { ?>
-                                            <div class="graduado-foto-actual" style="margin-bottom:8px;"><a href="<?=$graduadoComunEdicion['foto']; ?>" target="_blank">Ver foto actual</a></div>
-                                        <?php } else { ?>
-                                            <div class="graduado-foto-actual" style="margin-bottom:8px;"></div>
-                                        <?php } ?>
-                                        <input type="hidden" name="act_bau_imgG_an" class="act_bau_imgG_an" value="<?=$graduadoComunEdicion['foto']; ?>" />
-                                        <input name="act_bau_imgG" type="file" class="act_bau_imgG form-control" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?> />
-                                    </td>
-                                    <td style="width:33%;">
-                                        <strong>Fecha:</strong>
-                                        <input name="act_bau_fecG" type="date" class="act_bau_fecG form-control" value="<?=$graduadoComunEdicion['fecha']; ?>" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?> />
-                                    </td>
-                                    <td style="width:33%;">
-                                        <strong>Curso de graduaci&oacute;n:</strong>
-                                        <select name="act_bau_curG" class="act_bau_curG form-control" <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'disabled="disabled"' : ''; ?>>
-                                            <?=$opcionesCursosGraduado; ?>
-                                        </select>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            <script>
-                $(function () {
-                    var STORAGE_KEY = 'ecc_graduados_edicion_<?= $idReporteActual; ?>';
-                    var storage = window.sessionStorage;
-                    var registrosIniciales = <?= json_encode($graduadosEdicion); ?>;
-                    var soloLectura = <?= ($_SESSION['perfil']=="168" || $fechLimite > $fechaReporte) ? 'true' : 'false'; ?>;
-                    var $grupoBase = $('#tablaAddGEdit tbody.graduado-item:eq(0)').clone();
-
-                    function crearGrupo(datos) {
-                        datos = datos || {};
-                        var $grupo = $grupoBase.clone();
-                        $grupo.find('.act_grad_nomG').val(datos.nombre || '');
-                        $grupo.find('.act_grad_tarG').val(datos.identificacion || '');
-
-                        if (soloLectura) {
-                            $grupo.find('input, select, button').prop('disabled', true);
-                        }
-
-                        return $grupo;
-                    }
-
-                    function obtenerDatosGrupo($grupo) {
-                        return {
-                            nombre: $.trim($grupo.find('.act_grad_nomG').val()),
-                            identificacion: $.trim($grupo.find('.act_grad_tarG').val())
-                        };
-                    }
-
-                    function grupoCompleto($grupo) {
-                        var datos = obtenerDatosGrupo($grupo);
-                        return datos.nombre !== '' && datos.identificacion !== '';
-                    }
-
-                    function grupoVacio($grupo) {
-                        var datos = obtenerDatosGrupo($grupo);
-                        return datos.nombre === '' && datos.identificacion === '';
-                    }
-
-                    function sincronizarTotal() {
-                        var total = 0;
-                        $('#tablaAddGEdit tbody.graduado-item').each(function () {
-                            if (grupoCompleto($(this))) {
-                                total++;
-                            }
-                        });
-                        $('#totalG').val(total);
-                        $('#final_graduadosPeriodo').val(total);
-                        if ($('#final_graduados').length) {
-                            $('#final_graduados').val(total);
-                        }
-                        sumar();
-                    }
-
-                    function guardarDatos() {
-                        if (!storage) {
-                            return;
-                        }
-
-                        var datos = [];
-                        $('#tablaAddGEdit tbody.graduado-item').each(function () {
-                            datos.push(obtenerDatosGrupo($(this)));
-                        });
-
-                        storage.setItem(STORAGE_KEY, JSON.stringify(datos));
-                    }
-
-                    function renderizarGrupos(datos) {
-                        var $tabla = $('#tablaAddGEdit');
-                        $tabla.find('tbody.graduado-item').remove();
-
-                        if (!datos || !datos.length) {
-                            datos = [{ nombre: '', identificacion: '' }];
-                        }
-
-                        $.each(datos, function (_, item) {
-                            $tabla.append(crearGrupo(item));
-                        });
-
-                        $('#cantidadAddGEdit').val($('#tablaAddGEdit tbody.graduado-item').length);
-                        sincronizarTotal();
-                    }
-
-                    function obtenerDatosGuardados() {
-                        if (!storage) {
-                            return null;
-                        }
-
-                        try {
-                            var datos = storage.getItem(STORAGE_KEY);
-                            return datos ? JSON.parse(datos) : null;
-                        } catch (error) {
-                            return null;
-                        }
-                    }
-
-                    function agregarCantidad(cantidad) {
-                        var cantidadNueva = parseInt(cantidad, 10);
-                        var $tabla = $('#tablaAddGEdit');
-                        var $filas = $tabla.find('tbody.graduado-item');
-
-                        if (isNaN(cantidadNueva) || cantidadNueva < 1) {
-                            alert('Ingrese una cantidad valida de registros.');
-                            return;
-                        }
-
-                        if ($filas.length === 1 && grupoVacio($filas.eq(0))) {
-                            $filas.remove();
-                        }
-
-                        for (var i = 0; i < cantidadNueva; i++) {
-                            $tabla.append(crearGrupo());
-                        }
-
-                        $('#cantidadAddGEdit').val(0);
-                        sincronizarTotal();
-                        guardarDatos();
-                    }
-
-                    var datosIniciales = obtenerDatosGuardados();
-                    if (!datosIniciales || !datosIniciales.length) {
-                        datosIniciales = registrosIniciales;
-                    }
-                    renderizarGrupos(datosIniciales);
-
-                    $('#generarVariasAddGEdit').on('click', function () {
-                        if (!soloLectura) {
-                            agregarCantidad($('#cantidadAddGEdit').val());
-                        }
-                    });
-
-                    $('#adicionarAddGEdit').on('click', function () {
-                        if (!soloLectura) {
-                            $('#tablaAddGEdit').append(crearGrupo());
-                            $('#cantidadAddGEdit').val($('#tablaAddGEdit tbody.graduado-item').length);
-                            sincronizarTotal();
-                            guardarDatos();
-                        }
-                    });
-
-                    $('#borrarTodoAddGEdit').on('click', function () {
-                        if (!soloLectura) {
-                            renderizarGrupos([{ nombre: '', identificacion: '' }]);
-                            guardarDatos();
-                        }
-                    });
-
-                    $(document).on('click', '#tablaAddGEdit .btn-eliminar-fila-g', function () {
-                        if (soloLectura) {
-                            return;
-                        }
-
-                        var $grupo = $(this).closest('tbody.graduado-item');
-                        if ($('#tablaAddGEdit tbody.graduado-item').length === 1) {
-                            $grupo.find('input[type="text"]').val('');
-                        } else {
-                            $grupo.remove();
-                        }
-
-                        $('#cantidadAddGEdit').val($('#tablaAddGEdit tbody.graduado-item').length);
-                        sincronizarTotal();
-                        guardarDatos();
-                    });
-
-                    $(document).on('keyup change blur', '#tablaAddGEdit .act_grad_nomG, #tablaAddGEdit .act_grad_tarG', function () {
-                        sincronizarTotal();
-                        guardarDatos();
-                    });
-
-                    $('#tablaComunGEdit .act_bau_curG').val('<?= addslashes($graduadoComunEdicion['curso']); ?>');
-                });
-            </script>
             <?php } ?>
             <div class="cont-tit">
                 <div class="hr"><hr></div>
@@ -2782,32 +2423,6 @@ else if($idReporteActual == 0){
                     </div> 
                 </div> 
             <?php } ?>
-                <div class="col-sm-12">
-                    <h5 class="alert alert-info text-center">IMAGEN DEL MAPEO</h5>
-                    <div class="form-group">
-                        <div class="col-sm-3">&nbsp;</div>
-                        <div class="col-sm-6"><img id="mapeoImgPreview" src="mapeo_img.php?id=0" class="img-responsive" /></div>
-                        <div class="col-sm-3">&nbsp;</div>
-                    </div>
-                </div>
-                <script type="text/javascript">
-                    function actualizarMapeoPreview(){
-                        var campos = ["mapeo_comprometido","mapeo_oracion","mapeo_companerismo","mapeo_adoracion","mapeo_biblia","mapeo_evangelizar","mapeo_cena","mapeo_dar","mapeo_bautizar","mapeo_trabajadores"];
-                        var qs = "id=0";
-                        campos.forEach(function(campo){
-                            var val = $('[name="'+campo+'"]:checked').val();
-                            if (typeof val === "undefined") {
-                                val = $('[name="'+campo+'"]').val();
-                            }
-                            qs += "&" + campo + "=" + (val ? val : 0);
-                        });
-                        document.getElementById("mapeoImgPreview").src = "mapeo_img.php?" + qs + "&time=" + new Date().getTime();
-                    }
-                    $(document).ready(function(){
-                        actualizarMapeoPreview();
-                        $('[name^="mapeo_"]').on('change', actualizarMapeoPreview);
-                    });
-                </script>
                 <!--<div class="cont-btn cont-flex fl-sbet">
                     <div class="item-btn">
                         <input type="button" name="previous" class="previous btn btn-info" value="Anterior" />
@@ -2815,8 +2430,8 @@ else if($idReporteActual == 0){
                     <div class="item-btn">
                         <input type="button" name="next" id="archivo1_sig" class="next btn btn-success" value="Siguiente" />
                     </div>
-                </div>
-            </fieldset>-->
+                </div>         
+            </fieldset>-->            
         <?php } ?>
         
         
@@ -2977,187 +2592,106 @@ else if($idReporteActual == 0){
                     
                     <script>
                      $(function(){
-                            var storage = window.sessionStorage;
-                            var STORAGE_KEY = 'ecc_graduados_nuevo';
-                            var $grupoBase = $('#tablaAddG tbody.graduado-item:eq(0)').clone();
-
-                            function obtenerDatosGrupo($grupo){
-                                return {
-                                    nombre: $.trim($grupo.find('.act_grad_nomG').val()),
-                                    identificacion: $.trim($grupo.find('.act_grad_tarG').val())
-                                };
+                            var tot = 0;
+                            var tar = $(".act_bau_fecG").val();
+                            var nom = $(".act_bau_canG").val();
+                            if (tar == "" || nom == "") {
+                                $("#adicionarAddG").prop( "disabled", true );
+                            }else{
+                                $("#adicionarAddG").prop( "disabled", false );
                             }
-
-                            function grupoCompleto($grupo){
-                                var datos = obtenerDatosGrupo($grupo);
-                                return datos.nombre !== '' && datos.identificacion !== '';
-                            }
-
-                            function grupoVacio($grupo){
-                                var datos = obtenerDatosGrupo($grupo);
-                                return datos.nombre === '' && datos.identificacion === '';
-                            }
-
-                            function sincronizarTotal(){
-                                var total = 0;
-                                $('#tablaAddG tbody.graduado-item').each(function(){
-                                    if (grupoCompleto($(this))) {
-                                        total++;
+                            $(".act_bau_fecG").change(function(){
+                                var tar3 = $(".act_bau_canG").val();
+                                var nom3 = $(".act_bau_fecG").val();
+                                if (tar3 != "" && nom3 !="") {
+                                    if (tot < 1) {
+                                        tot = tot + 1;
                                     }
+                                    $("#adicionarAddG").prop( "disabled", false );
+                                }else if (tar3 == "" && nom3 =="") {
+                                    if (tot == 1) {
+                                        tot = tot - 1;
+                                        $(".act_bau_fecG").prop('required',false);
+                                        $(".act_bau_canG").prop('required',false);
+                                    }
+                                }else{
+                                    $("#adicionarAddG").prop( "disabled", true );
+                                }
+                            });
+                            $(".act_bau_canG").change(function(){
+                                var nom2 = $(".act_bau_fecG").val();
+                                var tar2 = $(".act_bau_canG").val();
+                                if (nom2 != ""&& tar2 != "") {
+                                    if (tot < 1) {
+                                        tot = tot + 1;
+                                    }
+                                    $("#adicionarAddG").prop( "disabled", false );
+                                }else if (tar2 == "" && nom2 =="") {
+                                    if (tot == 1) {
+                                        tot = tot - 1;
+                                        $(".act_bau_fecG").prop('required',false);
+                                        $(".act_bau_canG").prop('required',false);
+                                    }
+                                }else{
+                                    $("#adicionarAddG").prop( "disabled", true );
+                                }
+                                var total = 0;
+                                $('.subtotalG').each(function(){
+                                     total = total + Number($(this).val());
                                 });
                                 $('#totalG').val(total);
-                                $('#final_graduadosPeriodo').val(total);
-                                if ($('#final_graduados').length) {
-                                    $('#final_graduados').val(total);
-                                }
                                 sumar();
-                            }
-
-                            function guardarDatos(){
-                                if (!storage) {
-                                    return;
-                                }
-
-                                var datos = [];
-                                $('#tablaAddG tbody.graduado-item').each(function(){
-                                    datos.push(obtenerDatosGrupo($(this)));
-                                });
-                                storage.setItem(STORAGE_KEY, JSON.stringify(datos));
-                            }
-
-                            function aplicarDatosGrupo($grupo, datos){
-                                $grupo.find('.act_grad_nomG').val(datos.nombre || '');
-                                $grupo.find('.act_grad_tarG').val(datos.identificacion || '');
-                            }
-
-                            function crearGrupo(datos){
-                                var $grupo = $grupoBase.clone();
-                                $grupo.removeClass('fila-fijaAddG');
-                                $grupo.find('input[type="text"]').val('');
-                                aplicarDatosGrupo($grupo, datos || {});
-                                return $grupo;
-                            }
-
-                            function renderizarGrupos(datos){
-                                var $tabla = $('#tablaAddG');
-                                $tabla.find('tbody.graduado-item').remove();
-
-                                if (!datos || !datos.length) {
-                                    datos = [{ nombre: '', identificacion: '' }];
-                                }
-
-                                $.each(datos, function(_, item){
-                                    $tabla.append(crearGrupo(item));
-                                });
-
-                                $('#cantidadAddG').val($('#tablaAddG tbody.graduado-item').length);
-                                sincronizarTotal();
-                            }
-
-                            function obtenerDatosGuardados(){
-                                if (!storage) {
-                                    return null;
-                                }
-
-                                try {
-                                    var datos = storage.getItem(STORAGE_KEY);
-                                    return datos ? JSON.parse(datos) : null;
-                                } catch (error) {
-                                    return null;
-                                }
-                            }
-
-                            function agregarCantidad(cantidad){
-                                var cantidadNueva = parseInt(cantidad, 10);
-                                var $tabla = $('#tablaAddG');
-                                var $filas = $tabla.find('tbody.graduado-item');
-
-                                if (isNaN(cantidadNueva) || cantidadNueva < 1) {
-                                    alert('Ingrese una cantidad valida de registros.');
-                                    return;
-                                }
-
-                                if ($filas.length === 1 && grupoVacio($filas.eq(0))) {
-                                    $filas.remove();
-                                }
-
-                                for (var i = 0; i < cantidadNueva; i++) {
-                                    $tabla.append(crearGrupo());
-                                }
-
-                                $('#cantidadAddG').val(0);
-                                sincronizarTotal();
-                                guardarDatos();
-                            }
-
-                            renderizarGrupos(obtenerDatosGuardados());
-
-                            $("#generarVariasAddG").on('click',function(){
-                                agregarCantidad($('#cantidadAddG').val());
                             });
-
                             $("#adicionarAddG").on('click',function(){
-                                $("#tablaAddG").append(crearGrupo());
-                                $('#cantidadAddG').val($('#tablaAddG tbody.graduado-item').length);
-                                sincronizarTotal();
-                                guardarDatos();
-                            });
-
-                            $("#borrarTodoAddG").on('click',function(){
-                                renderizarGrupos([{ nombre: '', identificacion: '' }]);
-                                guardarDatos();
-                            });
-
-                            $(document).on("click",".eliminarAddG",function(){
-                                var $grupo = $(this).closest('tbody.graduado-item');
-                                if ($('#tablaAddG tbody.graduado-item').length === 1) {
-                                    $grupo.find('input[type="text"]').val('');
-                                } else {
-                                    $grupo.remove();
+                                $("#tablaAddG tbody tr:eq(0)").clone().removeClass('fila-fijaAddG').appendTo("#tablaAddG");
+                                var tar2 = $(".act_bau_fecG").val();
+                                var nom2 = $(".act_bau_canG").val();
+                                if (tar2!="" && nom2!="") {
+                                    tot = tot + 1;
                                 }
-
-                                $('#cantidadAddG').val($('#tablaAddG tbody.graduado-item').length);
-                                sincronizarTotal();
-                                guardarDatos();
+                                $(".act_bau_fecG").prop('required',true);
+                                $(".act_bau_canG").prop('required',true);
+                                var total = 0;
+                                $('.subtotalG').each(function(){
+                                     total = total + Number($(this).val());
+                                });
+                                $('#totalG').val(total);
+                            });
+                            $(document).on("click",".eliminarAddG",function(){
+                                var parent = $(this).parents().get(0);
+                                tot = tot - 1;
+                                $(parent).remove();
                             });
 
-                            $(document).on("keyup change blur", "#tablaAddG .act_grad_nomG, #tablaAddG .act_grad_tarG", function(){
-                                sincronizarTotal();
-                                guardarDatos();
+                            $(document).on("click","#archivo1_sigG",function(){
+                                var total = 0;
+                                $('.subtotalG').each(function(){
+                                     total = total + Number($(this).val());
+                                });
+
+                                $('#totalG').val(total);
                             });
+                            
                         });
                     </script>
             
-            <table id="tablaAddG" class="table table-bordered registro-table">
-                        <tbody class="graduado-item fila-fijaAddG">
-                        <tr>
-                            <td style="width:45%;">
-                                <strong>Nombre completo del graduado:</strong>
-                                <input name="act_grad_nomG[]" type="text" class="act_grad_nomG form-control" />
-                            </td>
-                            <td style="width:45%;">
-                                <strong>Tarjeta dactilar / N° identificacion:</strong>
-                                <input name="act_grad_tarG[]" type="text" class="act_grad_tarG form-control" />
-                            </td>
-                            <td class="eliminarAddG registro-col--action text-center" style="width:10%; vertical-align:middle;">
-                                <button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button>
-                            </td>
-                        </tr>
-                        <tr style="display:none;">
-                            <td>
+            <table id="tablaAddG">
+                        <tr class="fila-fijaAddG">
+                            <td class="col-sm-6">
                                 <strong>Foto:</strong>
-                                <div class="graduado-foto-actual" style="margin-bottom: 8px;"></div>
-                                <input type="hidden" class="act_bau_imgG_an" value="" />
-                                <input multiple type="file" class="form-control" />
+                                <input multiple name="act_bau_imgG[]" type="file" id="act_bau_imgG" class="form-control" />
                             </td>
-                            <td>
-                                <strong>Fecha:</strong>
-                                <input type="date" class="act_bau_fecG form-control" />
+                            <td class="col-sm-3">
+                                <strong>Fecha graduados:</strong>
+                                <input name="act_bau_fecG[]" type="date" id="act_bau_fecG" class="act_bau_fecG form-control" />
                             </td>
-                            <td>
-                                <input type="hidden" value="1" class="act_bau_canG subtotalG form-control" />
+                            <td class="col-sm-3">
+                                <strong style="white-space: nowrap;">Cantidad graduados:</strong>
+                                <input name="act_bau_canG[]" type="number" id="act_bau_canG" min="0" class="act_bau_canG subtotalG form-control" />
+                            </td>
+                            <td class="col-sm-4">
                                 <strong style="white-space: nowrap;">Curso de graduación:</strong>
-                                <select class="act_bau_curG form-control">
+                                <select name="act_bau_curG[]" id="act_bau_curG" class="act_bau_curG form-control">
                                     <?php
                                         $sql = "SELECT * ";
                                         $sql.=" FROM categorias AS C";
@@ -3175,86 +2709,24 @@ else if($idReporteActual == 0){
                                         ?>
                                 </select>
                             </td>
+                            <td class="eliminarAddG"><br><button type="button" class="btn btn-cir-uno usua-col"><i class="fa fa-times"></i></button></td>
                         </tr>
-                        </tbody>
                     </table>
-                    <div class="col-sm-12" style="margin-bottom: 15px;">
-                        <div class="col-sm-4">
-                            <label for="cantidadAddG"><strong>Cuantos registros desea realizar?</strong></label>
-                        </div>
-                        <div class="col-sm-3">
-                            <input type="number" id="cantidadAddG" class="form-control" min="1" placeholder="Ej: 5">
-                        </div>
-                        <div class="col-sm-3">
-                            <button id="generarVariasAddG" class="btn btn-primary btn-block" type="button">
-                                <i class="fa fa-list"></i> Generar
-                            </button>
-                        </div>
-                        <div class="col-sm-2"></div>
-                    </div>
                 </div>
                 <div class="col-sm-2"></div>
             </div>
             <div class="form-group">
                 <div class="col-sm-2"></div>
                 <div class="col-sm-8">
-                    <div class="col-sm-4">
-                        <strong>Numero de graduados en C&amp;M:</strong>
+                    <div class="col-sm-5">
+                        <input type="hidden" name="totalG" id="totalG">
                     </div>
                     <div class="col-sm-2">
-                        <input type="text" name="totalG" id="totalG" value="0" class="form-control" readonly>
-                    </div>
-                    <div class="col-sm-3">
                         <center>
                             <button id="adicionarAddG" class="btn btn-success" type="button" class="boton"><i class="fas fa-plus"></i>  Adicionar</button>
                         </center>
                     </div>
-                    <div class="col-sm-3">
-                        <center>
-                            <button id="borrarTodoAddG" class="btn btn-danger" type="button"><i class="fa fa-trash"></i> Borrar todo</button>
-                        </center>
-                    </div>
-                </div>
-                <div class="col-sm-2"></div>
-            </div>
-            <div class="form-group">
-                <div class="col-sm-2"></div>
-                <div class="col-sm-8">
-                    <table id="tablaComunG" class="table table-bordered registro-table">
-                        <tbody>
-                            <tr>
-                                <td style="width:34%;">
-                                    <strong>Foto:</strong>
-                                    <input type="hidden" name="act_bau_imgG_an" class="act_bau_imgG_an" value="" />
-                                    <input name="act_bau_imgG" type="file" class="form-control" />
-                                </td>
-                                <td style="width:33%;">
-                                    <strong>Fecha:</strong>
-                                    <input name="act_bau_fecG" type="date" class="act_bau_fecG form-control" />
-                                </td>
-                                <td style="width:33%;">
-                                    <strong style="white-space: nowrap;">Curso de graduaci&oacute;n:</strong>
-                                    <select name="act_bau_curG" class="act_bau_curG form-control">
-                                        <?php
-                                            $sql = "SELECT * ";
-                                            $sql.=" FROM categorias AS C";
-                                            $sql.=" WHERE C.idSec = 88 ";
-                                            $sql.=" ORDER BY C.descripcion ASC";
-                                            $PSN1->query($sql);
-                                            $numero_cat=$PSN1->num_rows();
-                                            if($numero_cat > 0){
-                                                while($PSN1->next_record()){
-                                                    ?><option value="<?=$PSN1->f('id'); ?>">
-                                                        <?=$PSN1->f('descripcion'); ?></option>
-                                                    <?php
-                                                }
-                                            }
-                                        ?>
-                                    </select>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="col-sm-5"></div>
                 </div>
                 <div class="col-sm-2"></div>
             </div>
@@ -3819,9 +3291,6 @@ if ($generacionActual == "GCEL") {?>
             //
             document.getElementById("final_bautizadosPeriodo").value = parseInt(bautizadosPeriodo);
             
-            if (document.getElementById("final_graduados")) {
-                document.getElementById("final_graduados").value = parseInt(graduadosPeriodo);
-            }
             document.getElementById("final_graduadosPeriodo").value = parseInt(graduadosPeriodo);
             
             document.getElementById("final_desiciones").value = parseInt(var_suma) - 1; //Antigua logica
