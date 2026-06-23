@@ -156,7 +156,7 @@ $PSN->query($sql);
 $num = $PSN->num_rows();
 if ($num > 0) {
   while ($PSN->next_record()) {
-    //$total_poblacion = intval($PSN->f('total_poblacion'));
+    $total_poblacion = intval($PSN->f('total_poblacion'));
     $prns_invitados = intval($PSN->f('prns_invitados'));
     $prns_iniciaron = intval($PSN->f('prns_iniciaron'));
     $cursos_act = intval($PSN->f('cursos_act'));
@@ -182,20 +182,6 @@ $sql .= " WHERE 1 " . $sqlFiltro . " GROUP BY RL.carcel_id";
 $PSN1->query($sql);
 //echo $sql;
 $total_prisiones = $PSN1->num_rows();
-
-$sql = "SELECT RL.poblacion_total AS total_poblacion, RL.costo_recursos AS rep_entr
-FROM reporte_lpp AS RL ";
-$sql .= "LEFT JOIN usuario AS U ON U.id = RL.usuario_id LEFT JOIN tbl_regional_ubicacion AS RU ON RU.reub_id = RL.carcel_id LEFT JOIN categorias AS C ON C.id = RU.reub_reg_fk LEFT JOIN usuario_empresa AS UE ON UE.idUsuario = RL.usuario_id LEFT JOIN categorias AS CA ON CA.id = C.idSec ";
-$sql .= " WHERE 1 " . $sqlFiltro . " GROUP BY RU.reub_id ORDER BY RL.fecha_reporte";
-$PSN4->query($sql);
-//echo $sql;
-
-$num = $PSN4->num_rows();
-if ($num > 0) {
-  while ($PSN4->next_record()) {
-    $total_poblacion += intval($PSN4->f('total_poblacion'));
-  }
-}
 
 $total_recursos = 0;
 $sql = "SELECT RL.costo_recursos AS rep_entr

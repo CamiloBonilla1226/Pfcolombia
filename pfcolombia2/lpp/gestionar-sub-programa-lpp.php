@@ -125,16 +125,16 @@ if(isset($_POST["funcion"])){
         /*
         *   PESTAÑA GENERAL
         */
-        $fechaReporte = eliminarInvalidos($_REQUEST["fechaReporte"]);
+        $fechaReporte = date('Y-m-d');
         $mapeo_cuarto = soloNumeros($_REQUEST["mapeo_cuarto"]);
         if (isset($_REQUEST['sitioReunion'])) {
             $sitioReunion = soloNumeros($_REQUEST["sitioReunion"]);
         }else{
             $sitioReunion = 0;
-        }  
-        
+        }
+
         $pabellon = eliminarInvalidos($_REQUEST["pabellon"]);
-        
+
         $asistencia_hom = soloNumeros($_REQUEST["asistencia_hom"]);
         $asistencia_muj = soloNumeros($_REQUEST["asistencia_muj"]);
         $asistencia_jov = soloNumeros($_REQUEST["asistencia_jov"]);
@@ -3412,8 +3412,7 @@ if($idReporteActual > 0){
         <!--<div class="progress">
             <div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
         </div>-->
-        <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="form-horizontal report-form">
-            <input name="fechaReporte" type="hidden" id="fechaReporte" value="<?=$fechaReporte; ?>" />
+        <form method="post" enctype="multipart/form-data" name="form1" id="form1" class="form-horizontal report-form" autocomplete="off">
             <!--<fieldset>--><div class="col-sm-12">
                 <div class="cont-tit">
                     <div class="hr"><hr></div>
@@ -3433,7 +3432,22 @@ if($idReporteActual > 0){
                     </div>
                     <div class="col-sm-3">
                         <strong>Fecha del registro:</strong>
-                        <input name="fechaReporte" type="date" id="fechaReporte" maxlength="250" value="<?=date("Y-m-d"); ?>" max='<?=date("Y-m-d"); ?>' class="form-control" required readonly />
+                        <input name="fechaReporte" type="date" id="fechaReporte" maxlength="250" value="<?=date("Y-m-d"); ?>" max='<?=date("Y-m-d"); ?>' class="form-control" required readonly autocomplete="off" />
+                        <script>
+                            (function () {
+                                var hoy = '<?=date("Y-m-d"); ?>';
+                                var campoFecha = document.getElementById('fechaReporte');
+
+                                function forzarFechaHoy() {
+                                    if (campoFecha) {
+                                        campoFecha.value = hoy;
+                                    }
+                                }
+
+                                forzarFechaHoy();
+                                window.addEventListener('pageshow', forzarFechaHoy);
+                            })();
+                        </script>
                     </div>
                     <div class="col-sm-3">
                         <?php $mes = date("m"); ?>
